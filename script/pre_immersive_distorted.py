@@ -21,6 +21,7 @@
 # SOFTWARE.
 
 import argparse
+
 import glob
 import os
 import pickle
@@ -63,6 +64,7 @@ for scene in immersive_seven:
     immersive_scale_dict[scene + "_dist"] = immersive_scale_dict[scene]
     SCALE_DICT[scene + "_dist"] = immersive_scale_dict[scene]
     # immersive_scale_dict[scene]  # to be checked with large scale
+
 
 
 def convert_model_to_db_files(path, offset=0, scale=1.0, remove_everything_except_input=False):
@@ -283,8 +285,10 @@ def image_undistort(video, offset_list=[0], focal_scale=1.0, fix_focal=None):
     import cv2
     import numpy as np
 
+
     with open(os.path.join(video + "models.json"), "r") as f:
         meta = json.load(f)
+
 
     for idx, camera in enumerate(meta):
         folder = camera["name"]  # camera_0001
@@ -341,11 +345,13 @@ def image_undistort(video, offset_list=[0], focal_scale=1.0, fix_focal=None):
                 np.save(os.path.join(video, folder + ".npy"), distorting_flow)
 
 
+
 def soft_link_dataset(original_path, path, src_scene, scene):
     video_folder_list = glob.glob(original_path + "camera_*/")
 
     if not os.path.exists(path):
         os.makedirs(path)
+
 
     for video_folder in video_folder_list:
         new_link = os.path.join(path, video_folder.split("/")[-2])
@@ -363,6 +369,7 @@ def soft_link_dataset(original_path, path, src_scene, scene):
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--video_path", default="", type=str)
@@ -398,7 +405,9 @@ if __name__ == "__main__":
         if end_frame > 150:
             end_frame = 150
 
+
     postfix = "_dist"  # distorted model
+
 
     scene = src_scene + postfix
     original_path = video_path  # "
@@ -433,3 +442,4 @@ if __name__ == "__main__":
         quit()
     for offset in range(start_frame, end_frame):
         get_colmap_single_im_distort(video, offset=offset)
+

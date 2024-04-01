@@ -24,8 +24,10 @@ import argparse
 import glob
 import os
 import pickle
+
 import shutil
 import struct
+
 
 import cv2
 import natsort
@@ -96,6 +98,7 @@ def extract_frames_x1(video_path):
     return
 
 
+
 def convert_model_to_db_files(path, offset=0, scale=1.0):
     project_folder = os.path.join(path, "colmap_" + str(offset))
     # sparse_folder = os.path.join(project_folder, "sparse/0")
@@ -114,13 +117,17 @@ def convert_model_to_db_files(path, offset=0, scale=1.0):
     if os.path.exists(os.path.join(project_folder, "input.db")):
         os.remove(os.path.join(project_folder, "input.db"))
 
+
     db = COLMAPDatabase.connect(os.path.join(project_folder, "input.db"))
+
 
     db.create_tables()
 
     import json
 
+
     with open(os.path.join(video + "models.json"), "r") as f:
+
         meta = json.load(f)
 
     for idx, camera in enumerate(meta):
@@ -240,6 +247,7 @@ def image_undistort(video, offset_list=[0], focal_scale=1.0, fix_focal=None):
     with open(os.path.join(video + "models.json"), "r") as f:
         meta = json.load(f)
 
+
     for idx, camera in enumerate(meta):
         folder = camera["name"]  # camera_0001
         view = camera
@@ -255,6 +263,7 @@ def image_undistort(video, offset_list=[0], focal_scale=1.0, fix_focal=None):
         dis_cef[:2] = np.array(view["radial_distortion"])[:2]
         print("done one camera")
         map1, map2 = None, None
+
         for offset in offset_list:
             video_folder = os.path.join(video, folder)
             image_path = os.path.join(video_folder, str(offset) + ".png")
@@ -288,11 +297,9 @@ def image_undistort(video, offset_list=[0], focal_scale=1.0, fix_focal=None):
             cv2.imwrite(image_save_path, undistorted_image)
 
 
+
 def soft_link_dataset(original_path, path, src_scene, scene):
     video_folder_list = glob.glob(original_path + "camera_*/")
-
-    if not os.path.exists(path):
-        os.makedirs(path)
 
     for video_folder in video_folder_list:
         new_link = os.path.join(path, video_folder.split("/")[-2])
@@ -310,6 +317,7 @@ def soft_link_dataset(original_path, path, src_scene, scene):
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--video_path", default="", type=str)
@@ -340,12 +348,15 @@ if __name__ == "__main__":
         print("Please check if the scene name is correct")
         quit()
 
+
     if "04_Trucks" in video_path:
         print("04_Trucks")
         if end_frame > 150:
             end_frame = 150
 
+
     postfix = "_undist"  # undistorted cameras
+
 
     scene = src_scene + postfix
     original_path = video_path  #
@@ -354,9 +365,11 @@ if __name__ == "__main__":
     video = original_path  # 43 1
     scale = immersive_scale_dict[scene]
 
+
     videos_list = glob.glob(original_video + "*.mp4")
     for v in tqdm.tqdm(videos_list):
         extract_frames_x1(v)
+
 
     soft_link_dataset(original_path, path, src_scene, scene)
 
@@ -371,9 +384,11 @@ if __name__ == "__main__":
     try:
         for offset in tqdm.tqdm(range(start_frame, end_frame)):
             convert_model_to_db_files(video, offset=offset, scale=scale)
+
     except:
         print("create colmap input failed, better clean the data and try again")
         quit()
 
     for offset in range(0, 50):
         get_colmap_single_im_undistort(video, offset=offset)
+

@@ -86,6 +86,35 @@ def get_render_pipe(option="train_ours_full"):
         from thirdparty.gaussian_splatting.renderer import test_ours_lite
 
         return test_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
+    elif option == "train_ours_fullss":
+        from thirdparty.gaussian_splatting.renderer import train_ours_fullss
+        from diff_gaussian_rasterization_ch9 import GaussianRasterizationSettings 
+        from diff_gaussian_rasterization_ch9 import GaussianRasterizer  
+        return train_ours_fullss, GaussianRasterizationSettings, GaussianRasterizer
+    
+    elif option == "test_ours_fullss":
+        from thirdparty.gaussian_splatting.renderer import test_ours_fullss
+        from diff_gaussian_rasterization_ch9 import GaussianRasterizationSettings 
+        from diff_gaussian_rasterization_ch9 import GaussianRasterizer  
+        return test_ours_fullss, GaussianRasterizationSettings, GaussianRasterizer
+    
+    elif option == "test_ours_fullss_fused": # fused mlp in rendering
+        from thirdparty.gaussian_splatting.renderer import test_ours_fullss_fused
+        from forward_full import GaussianRasterizationSettings
+        from forward_full import GaussianRasterizer
+        return test_ours_fullss_fused, GaussianRasterizationSettings, GaussianRasterizer
+    
+    elif option == "train_ours_litess": 
+        from thirdparty.gaussian_splatting.renderer import train_ours_litess
+        from diff_gaussian_rasterization_ch3 import GaussianRasterizationSettings 
+        from diff_gaussian_rasterization_ch3 import GaussianRasterizer 
+        return train_ours_litess, GaussianRasterizationSettings, GaussianRasterizer    
+    
+    elif option == "test_ours_litess":
+        from thirdparty.gaussian_splatting.renderer import test_ours_litess
+        from forward_lite import GaussianRasterizationSettings 
+        from forward_lite import GaussianRasterizer  
+        return test_ours_litess,  GaussianRasterizationSettings, GaussianRasterizer
     else:
         raise NotImplementedError("Render {} not implemented".format(option))
 
@@ -307,6 +336,7 @@ def logical_or_list(tensor_list):
     for idx, ele in enumerate(tensor_list):
         if idx == 0:
             mask = ele
+
         else:
             mask = torch.logical_or(mask, ele)
     return mask
@@ -350,6 +380,7 @@ def get_fish_eye_mapper(folder, camera_name):
 def undistort_image(image_name, dataset_path, data):
 
     video = os.path.dirname(dataset_path)  # upper folder
+
     with open(os.path.join(video + "/models.json"), "r") as f:
         meta = json.load(f)
 
@@ -377,8 +408,20 @@ def undistort_image(image_name, dataset_path, data):
 
         image_size = (w, h)
         knew = np.zeros((3, 3), dtype=np.float32)
+        knew[0,0] = focalscale * intrinsics[0,0]
+        knew[1,1] = focalscale * intrinsics[1,1]
+        knew[0,2] =  view['principal_point'][0] # cx fixed half of the width
+        knew[1,2] =  view['principal_point'][1] #
+        knew[2,2] =  1.0
+
+        map1, map2 = cv2.fisheye.initUndistortRectifyMap(intrinsics, dis_cef, R=None, P=knew, size=(w, h), m1type=cv2.CV_32FC1)
+
+        undistorted_image = cv2.remap(data, map1, map2, interpolation=cv2.INTER_CUBIC, borderMode=cv2.BORDER_CONSTANT)
+        undistorted_image = undistorted_image.clip(0,255.0) 
+        return undistorted_image
 
 
 def trb_function(x):
     # Temporal Radial Basis Function
     return torch.exp(-1 * x.pow(2))
+

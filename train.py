@@ -230,6 +230,12 @@ def train(
                 image, viewspace_point_tensor, visibility_filter, radii = get_render_parts(render_pkg)
                 gt_image = viewpoint_cam.original_image.float().cuda()
 
+                if optim_args.gtmask: # for training with undistorted immerisve image, masking black pixels in undistorted image. 
+                    mask = torch.sum(gt_image, dim=0) == 0
+                    mask = mask.float()
+                    image = image * (1- mask) +  gt_image * (mask)
+
+
                 if optim_args.reg == 2:
                     Ll1 = l2_loss(image, gt_image)
                     loss = Ll1

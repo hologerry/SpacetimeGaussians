@@ -39,6 +39,7 @@ def get_parser():
     mp = ModelParams(parser)
     op = OptimizationParams(parser)  # we put more parameters in optimization params, just for convenience.
     pp = PipelineParams(parser)
+
     parser.add_argument("--ip", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=6029)
     parser.add_argument("--debug_from", type=int, default=-2)
@@ -46,6 +47,7 @@ def get_parser():
 
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[7_000, 10_000, 12_000, 25_000, 30_000])
     parser.add_argument("--test_iterations", nargs="+", type=int, default=[7_000, 12_000, 30_000])
+
 
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
@@ -132,7 +134,6 @@ def get_test_parse():
 
 
 def get_colmap_single_n3d(folder, offset):
-
     folder = os.path.join(folder, "colmap_" + str(offset))
     assert os.path.exists(folder)
 

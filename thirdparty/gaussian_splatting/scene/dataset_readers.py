@@ -533,10 +533,14 @@ def read_colmap_cameras_immersive(cam_extrinsics, cam_intrinsics, images_folder,
             cyr = (intr.params[3]) / height - 0.5
 
             K = np.eye(3)
+
             K[0, 0] = focal_length_x  # * 0.5
             K[0, 2] = intr.params[2]  # * 0.5
             K[1, 1] = focal_length_y  # * 0.5
             K[1, 2] = intr.params[3]  # * 0.5
+
+            if not os.path.exists(image_path):
+                image_path = image_path.replace("_S14","")
 
             assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
             image = Image.open(image_path)
@@ -664,6 +668,10 @@ def read_colmap_cameras_immersive_test_only(
 
             # halfH = round(height / 2.0 )
             # halfW = round(width / 2.0 )
+
+
+            if not os.path.exists(image_path):
+                image_path = image_path.replace("_S14","")
 
             assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
 

@@ -57,9 +57,7 @@ class Sandwichnoact(nn.Module):
     def __init__(self, dim, outdim=3, bias=False):
         super(Sandwichnoact, self).__init__()
 
-        # self.mlp2 = nn.Conv2d(11, 6, kernel_size=1, bias=bias) # double hidden layer..
-        self.mlp1 = nn.Conv2d(12, 6, kernel_size=1, bias=bias)  # double hidden layer..
-
+        self.mlp1 = nn.Conv2d(12, 6, kernel_size=1, bias=bias) 
         self.mlp2 = nn.Conv2d(6, 3, kernel_size=1, bias=bias)
         self.relu = nn.ReLU()
 
@@ -74,6 +72,29 @@ class Sandwichnoact(nn.Module):
         result = torch.clamp(result, min=0.0, max=1.0)
         return result
 
+
+class Sandwichnoactss(nn.Module):
+    def __init__(self, dim, outdim=3, bias=False):
+        super(Sandwichnoactss, self).__init__()
+        
+        self.mlp2 = nn.Conv2d(12, 6, kernel_size=1, bias=bias)  
+        self.mlp3 = nn.Conv2d(6, 3, kernel_size=1, bias=bias)
+
+
+        self.relu = nn.ReLU()
+
+
+
+    def forward(self, input, rays, time=None):
+        albedo, spec, timefeature = input.chunk(3,dim=1)
+        specular = torch.cat([spec, timefeature, rays], dim=1) # 3+3 + 5
+        specular = self.mlp2(specular)
+        specular = self.relu(specular)
+        specular = self.mlp3(specular)
+
+        result = albedo + specular
+        return result
+    
 
 ####### following are also good rgb model but not used in the paper, slower than sandwich, inspired by color shift in hyperreel
 # remove sigmoid for immersive dataset
@@ -317,9 +338,14 @@ def get_color_model(rgb_function):
 
     elif rgb_function == "sandwichnoact":
         rgb_decoder = Sandwichnoact(9, 3)
+        
+    elif rgbfuntion == "sandwichnoactss":
+        rgbdecoder = Sandwichnoactss(9, 3)
+
     else:
         return None
     return rgb_decoder
+
 
 
 def pix2ndc(v, S):

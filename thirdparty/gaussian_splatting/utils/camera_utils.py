@@ -23,6 +23,7 @@ from thirdparty.gaussian_splatting.utils.graphics_utils import fov2focal
 WARNED = False
 
 
+
 def load_cam(args, id, cam_info, resolution_scale):
     orig_w, orig_h = cam_info.image.size
 
@@ -87,6 +88,7 @@ def load_cam(args, id, cam_info, resolution_scale):
 
 
 def load_cam_v2(args, id, cam_info, resolution_scale):
+
     orig_w, orig_h = cam_info.image.size
 
     if args.resolution in [1, 2, 4, 8]:
@@ -191,6 +193,7 @@ def load_cam_v2_timing(args, id, cam_info, resolution_scale):
     else:
         rays_o = None
         rays_d = None
+
     return Camera(
         colmap_id=cam_info.uid,
         R=cam_info.R,
@@ -212,8 +215,12 @@ def load_cam_v2_timing(args, id, cam_info, resolution_scale):
     )
 
 
-def load_cam_v2_ss(args, id, cam_info, resolution_scale):
-    orig_w, orig_h = cam_info.image.size
+def load_cam_v2_ss(args, id, cam_info, resolution_scale, nogt=False):
+    if not nogt:
+        orig_w, orig_h = cam_info.image.size
+    else:
+        orig_w, orig_h = cam_info.width, cam_info.height
+
     assert args.resolution == 1
     if args.resolution in [1, 2, 4, 8]:
         resolution = round(orig_w / (resolution_scale * args.resolution)), round(
@@ -240,22 +247,58 @@ def load_cam_v2_ss(args, id, cam_info, resolution_scale):
 
     resolution = (int(orig_w / 2), int(orig_h / 2))
 
-    resized_image_rgb = pil_to_torch(cam_info.image, resolution)  # hard coded half resolution
-
-    gt_image = resized_image_rgb[:3, ...]
+    cameradirect = cam_info.hpdirecitons
+    camerapose = cam_info.pose 
     loaded_mask = None
+    
+    # load gt image 
+    if nogt == False :
+        resized_image_rgb = PILtoTorch(cam_info.image, resolution) # hard coded half resolution
 
-    if resized_image_rgb.shape[1] == 4:
-        loaded_mask = resized_image_rgb[3:4, ...]
+        gt_image = resized_image_rgb[:3, ...]
+   
+        # 
+        if "01_Welder" in args.source_path:
+            if "camera_0009" in cam_info.image_name:
+                gt_image = gt_image / 1.15
 
-    camera_direct = cam_info.hp_directions
-    camera_pose = cam_info.pose
+        if "12_Cave" in args.source_path:
+            if "camera_0009" in cam_info.image_name:
+                gt_image = gt_image * 1.15
+                gt_image = gt_image.clamp(0.0, 1.0)
+        
+        if "04_Truck" in args.source_path:
+            if "camera_0008" in cam_info.image_name:
+                gt_image  = gt_image / 1.2
 
-    if camera_pose is not None:
-        rays_o, rays_d = 1, camera_direct
+
+
+        if resized_image_rgb.shape[1] == 4:
+            loaded_mask = resized_image_rgb[3:4, ...]
+
+
+        
+        if camerapose is not None:
+            rays_o, rays_d = 1, cameradirect
+        else :
+            rays_o = None
+            rays_d = None
+        return Camerass(colmap_id=cam_info.uid, R=cam_info.R, T=cam_info.T, 
+                    FoVx=cam_info.FovX, FoVy=cam_info.FovY, 
+                    image=gt_image, gt_alpha_mask=loaded_mask,
+                    image_name=cam_info.image_name, uid=id, data_device=args.data_device, near=cam_info.near, far=cam_info.far, timestamp=cam_info.timestamp, rayo=rays_o, rayd=rays_d,cxr=cam_info.cxr,cyr=cam_info.cyr)
     else:
-        rays_o = None
-        rays_d = None
+
+        if camerapose is not None:
+            rays_o, rays_d = 1, cameradirect
+        else :
+            rays_o = None
+            rays_d = None
+        return Camerass(colmap_id=cam_info.uid, R=cam_info.R, T=cam_info.T, 
+                    FoVx=cam_info.FovX, FoVy=cam_info.FovY, 
+                    image=resolution, gt_alpha_mask=loaded_mask,
+                    image_name=cam_info.image_name, uid=id, data_device=args.data_device, near=cam_info.near, far=cam_info.far, timestamp=cam_info.timestamp, rayo=rays_o, rayd=rays_d,cxr=cam_info.cxr,cyr=cam_info.cyr)
+
 
     return Camerass(
         colmap_id=cam_info.uid,
@@ -341,7 +384,6 @@ def camera_list_from_cam_infos(cam_infos, resolution_scale, args):
     for id, c in enumerate(cam_infos):
         camera_list.append(load_cam(args, id, c, resolution_scale))
 
-    return camera_list
 
 
 def camera_list_from_cam_infos_v2(cam_infos, resolution_scale, args, ss=False):

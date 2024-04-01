@@ -112,10 +112,16 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
     full_dict[scene_dir][iteration] = {}
     per_view_dict[scene_dir][iteration] = {}
 
+
     if rd_pipe == "train_ours_full":
         render, GRsetting, GRzer = get_render_pipe("test_ours_full")
     elif rd_pipe == "train_ours_lite":
         render, GRsetting, GRzer = get_render_pipe("test_ours_lite")
+    elif rdpip == "train_ours_fullss":
+        render, GRsetting, GRzer = get_render_pipe("test_ours_fullss_fused") # 
+    elif rdpip == "train_ours_litess":
+        render, GRsetting, GRzer = get_render_pipe("test_ours_litess") # 
+
     else:
         render, GRsetting, GRzer = get_render_pipe(rd_pipe)
 
