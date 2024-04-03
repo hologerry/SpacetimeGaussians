@@ -181,7 +181,7 @@ def training(
 
             if iteration in checkpoint_iterations:
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
-                torch.save((gaussians.capture(), iteration), scene.model_path + "/chkpnt" + str(iteration) + ".pth")
+                torch.save((gaussians.capture(), iteration), scene.model_path + "/ckp" + str(iteration) + ".pth")
 
 
 def prepare_output_and_logger(args):

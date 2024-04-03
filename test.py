@@ -51,7 +51,7 @@ from tqdm import tqdm
 from helper_train import get_model, get_render_pipe, trb_function
 from image_video_io import images_to_video
 from thirdparty.gaussian_splatting.arguments import ModelParams, PipelineParams
-from thirdparty.gaussian_splatting.helper3dg import get_test_parse
+from thirdparty.gaussian_splatting.helper3dg import get_test_parser
 from thirdparty.gaussian_splatting.lpipsPyTorch import lpips
 from thirdparty.gaussian_splatting.scene import Scene
 from thirdparty.gaussian_splatting.utils.image_utils import psnr
@@ -112,15 +112,14 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
     full_dict[scene_dir][iteration] = {}
     per_view_dict[scene_dir][iteration] = {}
 
-
     if rd_pipe == "train_ours_full":
         render, GRsetting, GRzer = get_render_pipe("test_ours_full")
     elif rd_pipe == "train_ours_lite":
         render, GRsetting, GRzer = get_render_pipe("test_ours_lite")
-    elif rdpip == "train_ours_fullss":
-        render, GRsetting, GRzer = get_render_pipe("test_ours_fullss_fused") # 
-    elif rdpip == "train_ours_litess":
-        render, GRsetting, GRzer = get_render_pipe("test_ours_litess") # 
+    elif rd_pipe == "train_ours_full_ss":
+        render, GRsetting, GRzer = get_render_pipe("test_ours_full_ss_fused")  #
+    elif rd_pipe == "train_ours_lite_ss":
+        render, GRsetting, GRzer = get_render_pipe("test_ours_lite_ss")  #
 
     else:
         render, GRsetting, GRzer = get_render_pipe(rd_pipe)
@@ -307,7 +306,7 @@ def run_test(
 
 if __name__ == "__main__":
 
-    args, model_args, pipe_args, multi_view = get_test_parse()
+    args, model_args, pipe_args, multi_view = get_test_parser()
     run_test(
         model_args,
         args.test_iteration,

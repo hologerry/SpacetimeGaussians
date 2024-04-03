@@ -48,20 +48,20 @@ class ParamGroup:
         return group
 
 
-
 class ModelParams(ParamGroup):
-    def export_changed_args_to_json(self, args): 
+
+    def export_changed_args_to_json(self, args):
         defaults = {}
         for arg in vars(args).items():
             try:
                 if arg[0] in vars(self) or ("_" + arg[0]) in vars(self):
-                    defaultvalue = getattr(self, arg[0])
-                    # defaults[ arg[0] ] = defaultvalue
-                    if defaultvalue != arg[1]:
+                    default_value = getattr(self, arg[0])
+                    # defaults[ arg[0] ] = default_value
+                    if default_value != arg[1]:
                         defaults[arg[0]] = arg[1]
             except:
-                pass 
-               
+                pass
+
         return defaults
 
     def __init__(self, parser, sentinel=False):
@@ -74,7 +74,7 @@ class ModelParams(ParamGroup):
         self.data_device = "cuda"
         self.verify_llff = 0
         self.eval = False
-        self.model = "gmodel"  #
+        self.model = "g_model"  #
         self.loader = "colmap"  #
 
         super().__init__(parser, "Loading Parameters", sentinel)
@@ -116,7 +116,7 @@ class OptimizationParams(ParamGroup):
         self.percent_dense = 0.01
         self.lambda_dssim = 0.2
         self.densification_interval = 100
-        self.opacity_reset_interval = 3_000
+        self.opacity_reset_interval = 30_000  # 3_000
         self.opacity_reset_at = 10000
         self.densify_from_iter = 500
         self.densify_until_iter = 9000
@@ -125,29 +125,29 @@ class OptimizationParams(ParamGroup):
         self.densify_cnt = 6
         self.reg = 0
         self.lambda_reg = 0.0001
-        self.shrinkscale = 2.0
-        self.randomfeature = 0
-        self.emstype = 0
+        self.shrink_scale = 2.0
+        self.random_feature = 0
+        self.ems_type = 0
         self.radials = 10.0
         self.new_ray_step = 2  #
         self.ems_start = 1600  # small for debug
-        self.losstart = 200
-        self.saveemppoints = 0  #
-        self.prunebysize = 0
+        self.loss_tart = 200
+        self.save_emp_points = 0  #
+        self.prune_by_size = 0
         self.ems_threshold = 0.6
         self.opacity_threshold = 0.005
-        self.selectiveview = 0
+        self.selective_view = 0
         self.preprocess_points = 0
-        self.fzrotit = 8001
+        self.freeze_rotation_iteration = 8001
         self.add_sph_points_scale = 0.8
-        self.gnumlimit = 330000
+        self.g_num_limit = 330000
         self.ray_end = 7.5
         self.ray_start = 0.7
         self.shuffle_ems = 1
         self.prev_path = "1"
         self.load_all = 0
-        self.removescale = 5
-        self.gtmask = 0 # 0 means not train with mask for undistorted gt image; 1 means 
+        self.remove_scale = 5
+        self.gt_mask = 0  # 0 means not train with mask for undistorted gt image; 1 means
         super().__init__(parser, "Optimization Parameters")
 
 

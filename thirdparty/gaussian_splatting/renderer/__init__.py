@@ -21,7 +21,7 @@ import time
 import torch
 import torch.nn.functional as F
 
-from thirdparty.gaussian_splatting.scene.oursfull import GaussianModel
+from thirdparty.gaussian_splatting.scene.ours_full import GaussianModel
 from thirdparty.gaussian_splatting.utils.graphics_utils import (
     focal2fov,
     fov2focal,
@@ -49,6 +49,7 @@ def train_ours_full(
 
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
     screen_space_points = torch.zeros_like(gm.get_xyz, dtype=gm.get_xyz.dtype, requires_grad=True, device="cuda") + 0
+    # point times just ones, used for board casting
     point_times = torch.ones((gm.get_xyz.shape[0], 1), dtype=gm.get_xyz.dtype, requires_grad=False, device="cuda") + 0
     try:
         screen_space_points.retain_grad()
@@ -93,7 +94,7 @@ def train_ours_full(
 
     scales = gm.get_scaling
     shs = None
-    tforpoly = trbf_distance_offset.detach()
+    tforpoly = trbf_distance_offset.detach()  # Polynomial Motion Trajectory.
     means3D = (
         means3D
         + gm._motion[:, 0:3] * tforpoly
@@ -380,472 +381,573 @@ def train_ours_lite(
     colors_precomp = gm.get_features(tforpoly)
 
     rendered_image, radii, depth = rasterizer(
+        means3D=means3D,
+        means2D=means2D,
+        shs=shs,
+        colors_precomp=colors_precomp,
+        opacities=opacity,
+        scales=scales,
+        rotations=rotations,
+        cov3D_precomp=cov3D_precomp,
+    )
 
-        means3D = means3D,
-        means2D = means2D,
-        shs = shs,
-        colors_precomp = colors_precomp,
-        opacities = opacity,
-        scales = scales,
-        rotations = rotations,
-        cov3D_precomp = cov3D_precomp)
-
-    return {"render": rendered_image,
-            "viewspace_points": screenspace_points,
-            "visibility_filter" : radii > 0,
-            "radii": radii,
-            "opacity": opacity,
-            "depth": depth}
+    return {
+        "render": rendered_image,
+        "viewspace_points": screen_space_points,
+        "visibility_filter": radii > 0,
+        "radii": radii,
+        "opacity": opacity,
+        "depth": depth,
+    }
 
 
-def train_ours_fullss(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, basicfunction = None, GRsetting=None, GRzer=None):
+def train_ours_full_ss(
+    viewpoint_camera,
+    pc: GaussianModel,
+    pipe,
+    bg_color: torch.Tensor,
+    scaling_modifier=1.0,
+    override_color=None,
+    basic_function=None,
+    GRsetting=None,
+    GRzer=None,
+):
     """
-    Render the scene. 
-    
+    Render the scene.
+
     Background tensor (bg_color) must be on GPU!
     """
- 
+
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
-    screenspace_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
-    pointtimes = torch.ones((pc.get_xyz.shape[0],1), dtype=pc.get_xyz.dtype, requires_grad=False, device="cuda") + 0 # 
+    screen_space_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
+    point_times = torch.ones((pc.get_xyz.shape[0], 1), dtype=pc.get_xyz.dtype, requires_grad=False, device="cuda") + 0
     try:
-        screenspace_points.retain_grad()
+        screen_space_points.retain_grad()
     except:
         pass
 
     # Set up rasterization configuration
-    tanfovx = math.tan(viewpoint_camera.FoVx * 0.5)
-    tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
+    tan_fov_x = math.tan(viewpoint_camera.FoVx * 0.5)
+    tan_fov_y = math.tan(viewpoint_camera.FoVy * 0.5)
 
     raster_settings = GRsetting(
         image_height=int(viewpoint_camera.image_height),
         image_width=int(viewpoint_camera.image_width),
-        tanfovx=tanfovx,
-        tanfovy=tanfovy,
+        tan_fov_x=tan_fov_x,
+        tan_fov_y=tan_fov_y,
         bg=bg_color,
         scale_modifier=scaling_modifier,
-        viewmatrix=viewpoint_camera.world_view_transform,
-        projmatrix=viewpoint_camera.full_proj_transform,
+        view_matrix=viewpoint_camera.world_view_transform,
+        proj_matrix=viewpoint_camera.full_proj_transform,
         sh_degree=pc.active_sh_degree,
         campos=viewpoint_camera.camera_center,
-        prefiltered=False)
+        prefiltered=False,
+    )
 
     rasterizer = GRzer(raster_settings=raster_settings)
 
-    
     means3D = pc.get_xyz
-    means2D = screenspace_points
-    pointopacity = pc.get_opacity
+    means2D = screen_space_points
+    point_opacity = pc.get_opacity
 
-    trbfcenter = pc.get_trbfcenter
-    trbfscale = pc.get_trbfscale
-   
+    trbf_center = pc.get_trbf_center
+    trbf_scale = pc.get_trbf_scale
 
-    trbfdistanceoffset = viewpoint_camera.timestamp * pointtimes - trbfcenter
-    trbfdistance =  trbfdistanceoffset / torch.exp(trbfscale) 
-    trbfoutput = basicfunction(trbfdistance)
-    opacity = pointopacity * trbfoutput  # - 0.5
+    trbf_distance_offset = viewpoint_camera.timestamp * point_times - trbf_center
+    trbf_distance = trbf_distance_offset / torch.exp(trbf_scale)
+    trbf_output = basic_function(trbf_distance)
+    opacity = point_opacity * trbf_output  # - 0.5
 
-    pc.trbfoutput = trbfoutput
+    pc.trbf_output = trbf_output
     cov3D_precomp = None
 
     scales = pc.get_scaling
 
     shs = None
-    
-    tforpoly = trbfdistanceoffset.detach()
 
-    means3D = means3D +  pc._motion[:, 0:3] * tforpoly + pc._motion[:, 3:6] * tforpoly * tforpoly + pc._motion[:, 6:9] * tforpoly *tforpoly * tforpoly
+    tforpoly = trbf_distance_offset.detach()
+
+    means3D = (
+        means3D
+        + pc._motion[:, 0:3] * tforpoly
+        + pc._motion[:, 3:6] * tforpoly * tforpoly
+        + pc._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
+    )
 
     rotations = pc.get_rotation(tforpoly)
 
-
     colors_precomp = pc.get_features(tforpoly)
     rendered_image, radii, depth = rasterizer(
-        means3D = means3D,
-        means2D = means2D,
-        shs = shs,
-        colors_precomp = colors_precomp,
-        opacities = opacity,
-        scales = scales,
-        rotations = rotations,
-        cov3D_precomp = cov3D_precomp)
+        means3D=means3D,
+        means2D=means2D,
+        shs=shs,
+        colors_precomp=colors_precomp,
+        opacities=opacity,
+        scales=scales,
+        rotations=rotations,
+        cov3D_precomp=cov3D_precomp,
+    )
 
-    rawrendered_image = pc.rgbdecoder(rendered_image.unsqueeze(0), viewpoint_camera.rays) # 1 , 3      
-    newiamge = F.grid_sample(rawrendered_image, viewpoint_camera.fisheyemapper, mode='bicubic', padding_mode='zeros', align_corners=True)
+    raw_rendered_image = pc.rgb_decoder(rendered_image.unsqueeze(0), viewpoint_camera.rays)  # 1 , 3
+    new_image = F.grid_sample(
+        raw_rendered_image, viewpoint_camera.fisheye_mapper, mode="bicubic", padding_mode="zeros", align_corners=True
+    )
     # INTER_CUBIC
-    rendered_image = F.interpolate(newiamge, size=(int(0.5*viewpoint_camera.image_height) , int(0.5*viewpoint_camera.image_width)), mode='bicubic', align_corners=True)
-    #rendered_image = torch.clamp(rendered_image, min=0.0, max=1.0)# 
-  
+    rendered_image = F.interpolate(
+        new_image,
+        size=(int(0.5 * viewpoint_camera.image_height), int(0.5 * viewpoint_camera.image_width)),
+        mode="bicubic",
+        align_corners=True,
+    )
+    # rendered_image = torch.clamp(rendered_image, min=0.0, max=1.0)#
+
     rendered_image = rendered_image.squeeze(0)
-    return {"render": rendered_image,
-            "viewspace_points": screenspace_points,
-            "visibility_filter" : radii > 0,
-            "radii": radii,
-            "opacity": opacity,
-            "rawrendered_image": rawrendered_image,
-            "depth": depth}
+    return {
+        "render": rendered_image,
+        "viewspace_points": screen_space_points,
+        "visibility_filter": radii > 0,
+        "radii": radii,
+        "opacity": opacity,
+        "raw_rendered_image": raw_rendered_image,
+        "depth": depth,
+    }
 
 
-
-
-def test_ours_fullss_fused(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, basicfunction = None, GRsetting=None, GRzer=None):
+def test_ours_full_ss_fused(
+    viewpoint_camera,
+    pc: GaussianModel,
+    pipe,
+    bg_color: torch.Tensor,
+    scaling_modifier=1.0,
+    override_color=None,
+    basic_function=None,
+    GRsetting=None,
+    GRzer=None,
+):
     """
-    Render the scene. 
-    
+    Render the scene.
+
     Background tensor (bg_color) must be on GPU!
 
-    pc.rgbdecoder.mlp2.weight.shape (3,6,1,1)
+    pc.rgb_decoder.mlp2.weight.shape (3,6,1,1)
 
-    pc.rgbdecoder.mlp2.weight.flatten()[0:6] = pc.rgbdecoder.mlp2.weight[0]
+    pc.rgb_decoder.mlp2.weight.flatten()[0:6] = pc.rgb_decoder.mlp2.weight[0]
 
     # https://stackoverflow.com/questions/76949152/why-does-pytorchs-linear-layer-store-the-weight-in-shape-out-in-and-transpos
-    # store in (outfeature, infeature) order..
+    # store in (out_feature, in_feature) order..
     """
- 
-    # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
-    screenspace_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
-    # mapperss = viewpoint_camera.fisheyemapper.permute(0,3,1,2) 
-    # mapperoriginsize =  F.interpolate(mapperss, size=(int(0.5*viewpoint_camera.image_height) , int(0.5*viewpoint_camera.image_width)), mode='bicubic', align_corners=True)
-    # mapperoriginsize = mapperoriginsize.permute(0,2,3,1)
 
+    # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
+    screen_space_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
+    # mapper_ss = viewpoint_camera.fisheye_mapper.permute(0,3,1,2)
+    # mapper_origin_size =  F.interpolate(mapper_ss, size=(int(0.5*viewpoint_camera.image_height) , int(0.5*viewpoint_camera.image_width)), mode='bicubic', align_corners=True)
+    # mapper_origin_size = mapper_origin_size.permute(0,2,3,1)
 
     torch.cuda.synchronize()
-    startime = time.time()#perf_counter
+    start_time = time.time()  # perf_counter
 
-    tanfovx = math.tan(viewpoint_camera.FoVx * 0.5)
-    tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
+    tan_fov_x = math.tan(viewpoint_camera.FoVx * 0.5)
+    tan_fov_y = math.tan(viewpoint_camera.FoVy * 0.5)
 
     raster_settings = GRsetting(
         image_height=int(viewpoint_camera.image_height),
         image_width=int(viewpoint_camera.image_width),
-        tanfovx=tanfovx,
-        tanfovy=tanfovy,
+        tan_fov_x=tan_fov_x,
+        tan_fov_y=tan_fov_y,
         bg=bg_color,
         scale_modifier=scaling_modifier,
-        viewmatrix=viewpoint_camera.world_view_transform,
-        projmatrix=viewpoint_camera.full_proj_transform,
+        view_matrix=viewpoint_camera.world_view_transform,
+        proj_matrix=viewpoint_camera.full_proj_transform,
         sh_degree=pc.active_sh_degree,
         campos=viewpoint_camera.camera_center,
         prefiltered=False,
-        debug=False)
+        debug=False,
+    )
 
     rasterizer = GRzer(raster_settings=raster_settings)
-    
-    
 
-
-    tforpoly = viewpoint_camera.timestamp - pc.get_trbfcenter
-    rotations = pc.get_rotation(tforpoly) # to try use 
+    tforpoly = viewpoint_camera.timestamp - pc.get_trbf_center
+    rotations = pc.get_rotation(tforpoly)  # to try use
     colors_precomp = pc.get_features(tforpoly)
 
-    
-    means2D = screenspace_points
-   
+    means2D = screen_space_points
 
     cov3D_precomp = None
 
-    #scales = pc.get_scaling
+    # scales = pc.get_scaling
 
     shs = None
-    # sandwichold 2,3
+    # sandwich_old 2,3
     rendered_image, radii = rasterizer(
-        timestamp = viewpoint_camera.timestamp, 
-        trbfcenter = pc.get_trbfcenter,
-        trbfscale = pc.computedtrbfscale ,
-        motion = pc._motion,
-        means3D = pc.get_xyz,
-        means2D = means2D,
-        shs = shs,
-        colors_precomp = colors_precomp,
-        opacities = pc.computedopacity,
-        scales = pc.computedscales,
-        rotations = rotations,
-        cov3D_precomp = cov3D_precomp,
-        mlp1 = pc.rgbdecoder.mlp2.weight.squeeze(3).squeeze(2).flatten(),
-        mlp2 = pc.rgbdecoder.mlp3.weight.squeeze(3).squeeze(2).flatten(),
-        rayimage = viewpoint_camera.rays)
+        timestamp=viewpoint_camera.timestamp,
+        trbf_center=pc.get_trbf_center,
+        trbf_scale=pc.computed_trbf_scale,
+        motion=pc._motion,
+        means3D=pc.get_xyz,
+        means2D=means2D,
+        shs=shs,
+        colors_precomp=colors_precomp,
+        opacities=pc.computed_opacity,
+        scales=pc.computed_scales,
+        rotations=rotations,
+        cov3D_precomp=cov3D_precomp,
+        mlp1=pc.rgb_decoder.mlp2.weight.squeeze(3).squeeze(2).flatten(),
+        mlp2=pc.rgb_decoder.mlp3.weight.squeeze(3).squeeze(2).flatten(),
+        ray_image=viewpoint_camera.rays,
+    )
 
     torch.cuda.synchronize()
-    duration = time.time() - startime #
+    duration = time.time() - start_time  #
 
-    rendered_image = F.grid_sample(rendered_image.unsqueeze(0), viewpoint_camera.fisheyemapper, mode='bicubic', padding_mode='zeros', align_corners=True)
+    rendered_image = F.grid_sample(
+        rendered_image.unsqueeze(0),
+        viewpoint_camera.fisheye_mapper,
+        mode="bicubic",
+        padding_mode="zeros",
+        align_corners=True,
+    )
     # INTER_CUBIC
-    rendered_image = F.interpolate(rendered_image, size=(int(0.5*viewpoint_camera.image_height) , int(0.5*viewpoint_camera.image_width)), mode='bicubic', align_corners=True)
+    rendered_image = F.interpolate(
+        rendered_image,
+        size=(int(0.5 * viewpoint_camera.image_height), int(0.5 * viewpoint_camera.image_width)),
+        mode="bicubic",
+        align_corners=True,
+    )
     rendered_image = rendered_image.squeeze(0)
 
-
-    # rendered_image = F.grid_sample(rendered_image.unsqueeze(0), mapperoriginsize, mode='bicubic', padding_mode='zeros', align_corners=True)
-    #  rawrendered_image = pc.rgbdecoder(rendered_image.unsqueeze(0), viewpoint_camera.rays) # 1 , 3      
+    # rendered_image = F.grid_sample(rendered_image.unsqueeze(0), mapper_origin_size, mode='bicubic', padding_mode='zeros', align_corners=True)
+    #  raw_rendered_image = pc.rgb_decoder(rendered_image.unsqueeze(0), viewpoint_camera.rays) # 1 , 3
     ## rendered_image = rendered_image #[0:3,:,:]
     # rendered_image = torch.sigmoid(rendered_image) # sigmoid not fused.
-    #rendered_image = rendered_image.squeeze(0)
-    return {"render": rendered_image,
-            "viewspace_points": screenspace_points,
-            "visibility_filter" : radii > 0,
-            "radii": radii,
-            "rawrendered_image": rendered_image,
-             "duration": duration}
+    # rendered_image = rendered_image.squeeze(0)
+    return {
+        "render": rendered_image,
+        "viewspace_points": screen_space_points,
+        "visibility_filter": radii > 0,
+        "radii": radii,
+        "raw_rendered_image": rendered_image,
+        "duration": duration,
+    }
 
 
-
-def test_ours_fullss(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, basicfunction = None, GRsetting=None, GRzer=None):
+def test_ours_full_ss(
+    viewpoint_camera,
+    pc: GaussianModel,
+    pipe,
+    bg_color: torch.Tensor,
+    scaling_modifier=1.0,
+    override_color=None,
+    basic_function=None,
+    GRsetting=None,
+    GRzer=None,
+):
     """
-    Render the scene. 
-    
+    Render the scene.
+
     Background tensor (bg_color) must be on GPU!
     """
- 
+
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
-    screenspace_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
-    pointtimes = torch.ones((pc.get_xyz.shape[0],1), dtype=pc.get_xyz.dtype, requires_grad=False, device="cuda") + 0 # 
+    screen_space_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
+    point_times = (
+        torch.ones((pc.get_xyz.shape[0], 1), dtype=pc.get_xyz.dtype, requires_grad=False, device="cuda") + 0
+    )  #
     try:
-        screenspace_points.retain_grad()
+        screen_space_points.retain_grad()
     except:
         pass
 
     # Set up rasterization configuration
     torch.cuda.synchronize()
-    startime = time.time()#perf_counter
+    start_time = time.time()  # perf_counter
 
-    tanfovx = math.tan(viewpoint_camera.FoVx * 0.5)
-    tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
+    tan_fov_x = math.tan(viewpoint_camera.FoVx * 0.5)
+    tan_fov_y = math.tan(viewpoint_camera.FoVy * 0.5)
 
     raster_settings = GRsetting(
         image_height=int(viewpoint_camera.image_height),
         image_width=int(viewpoint_camera.image_width),
-        tanfovx=tanfovx,
-        tanfovy=tanfovy,
+        tan_fov_x=tan_fov_x,
+        tan_fov_y=tan_fov_y,
         bg=bg_color,
         scale_modifier=scaling_modifier,
-        viewmatrix=viewpoint_camera.world_view_transform,
-        projmatrix=viewpoint_camera.full_proj_transform,
+        view_matrix=viewpoint_camera.world_view_transform,
+        proj_matrix=viewpoint_camera.full_proj_transform,
         sh_degree=pc.active_sh_degree,
         campos=viewpoint_camera.camera_center,
-        prefiltered=False)
+        prefiltered=False,
+    )
 
     rasterizer = GRzer(raster_settings=raster_settings)
 
-    
     means3D = pc.get_xyz
-    means2D = screenspace_points
-    pointopacity = pc.get_opacity
+    means2D = screen_space_points
+    point_opacity = pc.get_opacity
 
-    trbfcenter = pc.get_trbfcenter
-    trbfscale = pc.get_trbfscale
-   
+    trbf_center = pc.get_trbf_center
+    trbf_scale = pc.get_trbf_scale
 
-    trbfdistanceoffset = viewpoint_camera.timestamp * pointtimes - trbfcenter
-    trbfdistance =  trbfdistanceoffset / torch.exp(trbfscale) 
-    trbfoutput = basicfunction(trbfdistance)
-    opacity = pointopacity * trbfoutput  # - 0.5
+    trbf_distance_offset = viewpoint_camera.timestamp * point_times - trbf_center
+    trbf_distance = trbf_distance_offset / torch.exp(trbf_scale)
+    trbf_output = basic_function(trbf_distance)
+    opacity = point_opacity * trbf_output  # - 0.5
 
-    pc.trbfoutput = trbfoutput
+    pc.trbf_output = trbf_output
     cov3D_precomp = None
 
     scales = pc.get_scaling
 
     shs = None
-    
-    tforpoly = trbfdistanceoffset.detach()
 
-    means3D = means3D +  pc._motion[:, 0:3] * tforpoly + pc._motion[:, 3:6] * tforpoly * tforpoly + pc._motion[:, 6:9] * tforpoly *tforpoly * tforpoly
+    tforpoly = trbf_distance_offset.detach()
+
+    means3D = (
+        means3D
+        + pc._motion[:, 0:3] * tforpoly
+        + pc._motion[:, 3:6] * tforpoly * tforpoly
+        + pc._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
+    )
 
     rotations = pc.get_rotation(tforpoly)
 
-
     colors_precomp = pc.get_features(tforpoly)
     rendered_image, radii, depth = rasterizer(
-        means3D = means3D,
-        means2D = means2D,
-        shs = shs,
-        colors_precomp = colors_precomp,
-        opacities = opacity,
-        scales = scales,
-        rotations = rotations,
-        cov3D_precomp = cov3D_precomp)
+        means3D=means3D,
+        means2D=means2D,
+        shs=shs,
+        colors_precomp=colors_precomp,
+        opacities=opacity,
+        scales=scales,
+        rotations=rotations,
+        cov3D_precomp=cov3D_precomp,
+    )
 
-    rawrendered_image = pc.rgbdecoder(rendered_image.unsqueeze(0), viewpoint_camera.rays) # 1 , 3      
-    newiamge = F.grid_sample(rawrendered_image, viewpoint_camera.fisheyemapper, mode='bicubic', padding_mode='zeros', align_corners=True)
+    raw_rendered_image = pc.rgb_decoder(rendered_image.unsqueeze(0), viewpoint_camera.rays)  # 1 , 3
+    new_image = F.grid_sample(
+        raw_rendered_image, viewpoint_camera.fisheye_mapper, mode="bicubic", padding_mode="zeros", align_corners=True
+    )
     # INTER_CUBIC
-    rendered_image = F.interpolate(newiamge, size=(int(0.5*viewpoint_camera.image_height) , int(0.5*viewpoint_camera.image_width)), mode='bicubic', align_corners=True)
+    rendered_image = F.interpolate(
+        new_image,
+        size=(int(0.5 * viewpoint_camera.image_height), int(0.5 * viewpoint_camera.image_width)),
+        mode="bicubic",
+        align_corners=True,
+    )
 
     torch.cuda.synchronize()
-    duration = time.time() - startime
-    
+    duration = time.time() - start_time
+
     rendered_image = rendered_image.squeeze(0)
-    return {"render": rendered_image,
-            "viewspace_points": screenspace_points,
-            "visibility_filter" : radii > 0,
-            "radii": radii,
-            "opacity": opacity,
-            "rawrendered_image": rawrendered_image,
-            "depth": depth,
-            "duration":duration}
+    return {
+        "render": rendered_image,
+        "viewspace_points": screen_space_points,
+        "visibility_filter": radii > 0,
+        "radii": radii,
+        "opacity": opacity,
+        "raw_rendered_image": raw_rendered_image,
+        "depth": depth,
+        "duration": duration,
+    }
 
 
-
-
-
-
-
-def train_ours_litess(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, basicfunction = None, GRsetting=None, GRzer=None):
+def train_ours_lite_ss(
+    viewpoint_camera,
+    pc: GaussianModel,
+    pipe,
+    bg_color: torch.Tensor,
+    scaling_modifier=1.0,
+    override_color=None,
+    basic_function=None,
+    GRsetting=None,
+    GRzer=None,
+):
     """
-    Render the scene. 
-    
+    Render the scene.
+
     Background tensor (bg_color) must be on GPU!
     """
- 
+
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
-    screenspace_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
-    pointtimes = torch.ones((pc.get_xyz.shape[0],1), dtype=pc.get_xyz.dtype, requires_grad=False, device="cuda") + 0 # 
+    screen_space_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
+    point_times = (
+        torch.ones((pc.get_xyz.shape[0], 1), dtype=pc.get_xyz.dtype, requires_grad=False, device="cuda") + 0
+    )  #
     try:
-        screenspace_points.retain_grad()
+        screen_space_points.retain_grad()
     except:
         pass
 
     # Set up rasterization configuration
-    tanfovx = math.tan(viewpoint_camera.FoVx * 0.5)
-    tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
+    tan_fov_x = math.tan(viewpoint_camera.FoVx * 0.5)
+    tan_fov_y = math.tan(viewpoint_camera.FoVy * 0.5)
 
     raster_settings = GRsetting(
         image_height=int(viewpoint_camera.image_height),
         image_width=int(viewpoint_camera.image_width),
-        tanfovx=tanfovx,
-        tanfovy=tanfovy,
+        tan_fov_x=tan_fov_x,
+        tan_fov_y=tan_fov_y,
         bg=bg_color,
         scale_modifier=scaling_modifier,
-        viewmatrix=viewpoint_camera.world_view_transform,
-        projmatrix=viewpoint_camera.full_proj_transform,
+        view_matrix=viewpoint_camera.world_view_transform,
+        proj_matrix=viewpoint_camera.full_proj_transform,
         sh_degree=pc.active_sh_degree,
         campos=viewpoint_camera.camera_center,
-        prefiltered=False)
+        prefiltered=False,
+    )
 
     rasterizer = GRzer(raster_settings=raster_settings)
 
-    
     means3D = pc.get_xyz
-    means2D = screenspace_points
-    pointopacity = pc.get_opacity
+    means2D = screen_space_points
+    point_opacity = pc.get_opacity
 
-    trbfcenter = pc.get_trbfcenter
-    trbfscale = pc.get_trbfscale
-   
+    trbf_center = pc.get_trbf_center
+    trbf_scale = pc.get_trbf_scale
 
-    trbfdistanceoffset = viewpoint_camera.timestamp * pointtimes - trbfcenter
-    trbfdistance =  trbfdistanceoffset / torch.exp(trbfscale) 
-    trbfoutput = basicfunction(trbfdistance)
-    
-    opacity = pointopacity * trbfoutput  # - 0.5
-    pc.trbfoutput = trbfoutput
+    trbf_distance_offset = viewpoint_camera.timestamp * point_times - trbf_center
+    trbf_distance = trbf_distance_offset / torch.exp(trbf_scale)
+    trbf_output = basic_function(trbf_distance)
+
+    opacity = point_opacity * trbf_output  # - 0.5
+    pc.trbf_output = trbf_output
 
     cov3D_precomp = None
 
     scales = pc.get_scaling
 
     shs = None
-    tforpoly = trbfdistanceoffset.detach()
-    means3D = means3D +  pc._motion[:, 0:3] * tforpoly + pc._motion[:, 3:6] * tforpoly * tforpoly + pc._motion[:, 6:9] * tforpoly *tforpoly * tforpoly
+    tforpoly = trbf_distance_offset.detach()
+    means3D = (
+        means3D
+        + pc._motion[:, 0:3] * tforpoly
+        + pc._motion[:, 3:6] * tforpoly * tforpoly
+        + pc._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
+    )
 
-    rotations = pc.get_rotation(tforpoly) # to try use 
+    rotations = pc.get_rotation(tforpoly)  # to try use
     colors_precomp = pc.get_features(tforpoly)
 
     rendered_image, radii, depth = rasterizer(
-        means3D = means3D,
-        means2D = means2D,
-        shs = shs,
-        colors_precomp = colors_precomp,
-        opacities = opacity,
-        scales = scales,
-        rotations = rotations,
-        cov3D_precomp = cov3D_precomp)
+        means3D=means3D,
+        means2D=means2D,
+        shs=shs,
+        colors_precomp=colors_precomp,
+        opacities=opacity,
+        scales=scales,
+        rotations=rotations,
+        cov3D_precomp=cov3D_precomp,
+    )
 
-    rawrendered_image = rendered_image.unsqueeze(0)  
-    newiamge = F.grid_sample(rawrendered_image, viewpoint_camera.fisheyemapper, mode='bicubic', padding_mode='zeros', align_corners=True)
+    raw_rendered_image = rendered_image.unsqueeze(0)
+    new_image = F.grid_sample(
+        raw_rendered_image, viewpoint_camera.fisheye_mapper, mode="bicubic", padding_mode="zeros", align_corners=True
+    )
     # INTER_CUBIC
-    rendered_image = F.interpolate(newiamge, size=(int(0.5*viewpoint_camera.image_height) , int(0.5*viewpoint_camera.image_width)), mode='bicubic', align_corners=True)
-    #rendered_image = torch.clamp(rendered_image, min=0.0, max=1.0)# 
-  
+    rendered_image = F.interpolate(
+        new_image,
+        size=(int(0.5 * viewpoint_camera.image_height), int(0.5 * viewpoint_camera.image_width)),
+        mode="bicubic",
+        align_corners=True,
+    )
+    # rendered_image = torch.clamp(rendered_image, min=0.0, max=1.0)#
+
     rendered_image = rendered_image.squeeze(0)
-    return {"render": rendered_image,
-            "viewspace_points": screenspace_points,
-            "visibility_filter" : radii > 0,
-            "radii": radii,
-            "opacity": opacity,
-            "rawrendered_image": rawrendered_image,
-            "depth": depth}
+    return {
+        "render": rendered_image,
+        "viewspace_points": screen_space_points,
+        "visibility_filter": radii > 0,
+        "radii": radii,
+        "opacity": opacity,
+        "raw_rendered_image": raw_rendered_image,
+        "depth": depth,
+    }
 
 
-
-
-def test_ours_litess(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, basicfunction = None,GRsetting=None, GRzer=None):
-    screenspace_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
-
+def test_ours_lite_ss(
+    viewpoint_camera,
+    pc: GaussianModel,
+    pipe,
+    bg_color: torch.Tensor,
+    scaling_modifier=1.0,
+    override_color=None,
+    basic_function=None,
+    GRsetting=None,
+    GRzer=None,
+):
+    screen_space_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
 
     torch.cuda.synchronize()
 
+    start_time = time.time()
 
-    startime = time.time()
-
-    tanfovx = math.tan(viewpoint_camera.FoVx * 0.5)
-    tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
+    tan_fov_x = math.tan(viewpoint_camera.FoVx * 0.5)
+    tan_fov_y = math.tan(viewpoint_camera.FoVy * 0.5)
 
     raster_settings = GRsetting(
         image_height=int(viewpoint_camera.image_height),
         image_width=int(viewpoint_camera.image_width),
-        tanfovx=tanfovx,
-        tanfovy=tanfovy,
+        tan_fov_x=tan_fov_x,
+        tan_fov_y=tan_fov_y,
         bg=bg_color,
         scale_modifier=scaling_modifier,
-        viewmatrix=viewpoint_camera.world_view_transform,
-        projmatrix=viewpoint_camera.full_proj_transform,
+        view_matrix=viewpoint_camera.world_view_transform,
+        proj_matrix=viewpoint_camera.full_proj_transform,
         sh_degree=pc.active_sh_degree,
         campos=viewpoint_camera.camera_center,
         prefiltered=False,
-        debug=False)
+        debug=False,
+    )
 
-    rasterizer = GRzer(raster_settings=raster_settings)    
+    rasterizer = GRzer(raster_settings=raster_settings)
 
-
-    tforpoly = viewpoint_camera.timestamp - pc.get_trbfcenter
-    rotations = pc.get_rotation(tforpoly) # to try use 
+    tforpoly = viewpoint_camera.timestamp - pc.get_trbf_center
+    rotations = pc.get_rotation(tforpoly)  # to try use
     colors_precomp = pc.get_features(tforpoly)
 
-    
-    means2D = screenspace_points
-   
+    means2D = screen_space_points
 
     cov3D_precomp = None
 
-
     shs = None
- 
-    rendered_image, radii = rasterizer(
-        timestamp = viewpoint_camera.timestamp, 
-        trbfcenter = pc.get_trbfcenter,
-        trbfscale = pc.computedtrbfscale ,
-        motion = pc._motion,
-        means3D = pc.get_xyz,
-        means2D = means2D,
-        shs = shs,
-        colors_precomp = colors_precomp,
-        opacities = pc.computedopacity,
-        scales = pc.computedscales,
-        rotations = rotations,
-        cov3D_precomp = cov3D_precomp)
-    
-    torch.cuda.synchronize()
-    duration = time.time() - startime #
 
-    rendered_image = F.grid_sample(rendered_image.unsqueeze(0), viewpoint_camera.fisheyemapper, mode='bicubic', padding_mode='zeros', align_corners=True)
+    rendered_image, radii = rasterizer(
+        timestamp=viewpoint_camera.timestamp,
+        trbf_center=pc.get_trbf_center,
+        trbf_scale=pc.computed_trbf_scale,
+        motion=pc._motion,
+        means3D=pc.get_xyz,
+        means2D=means2D,
+        shs=shs,
+        colors_precomp=colors_precomp,
+        opacities=pc.computed_opacity,
+        scales=pc.computed_scales,
+        rotations=rotations,
+        cov3D_precomp=cov3D_precomp,
+    )
+
+    torch.cuda.synchronize()
+    duration = time.time() - start_time  #
+
+    rendered_image = F.grid_sample(
+        rendered_image.unsqueeze(0),
+        viewpoint_camera.fisheye_mapper,
+        mode="bicubic",
+        padding_mode="zeros",
+        align_corners=True,
+    )
     # INTER_CUBIC
-    rendered_image = F.interpolate(rendered_image, size=(int(0.5*viewpoint_camera.image_height) , int(0.5*viewpoint_camera.image_width)), mode='bicubic', align_corners=True)
+    rendered_image = F.interpolate(
+        rendered_image,
+        size=(int(0.5 * viewpoint_camera.image_height), int(0.5 * viewpoint_camera.image_width)),
+        mode="bicubic",
+        align_corners=True,
+    )
     rendered_image = rendered_image.squeeze(0)
 
-
-    return {"render": rendered_image,
-            "viewspace_points": screenspace_points,
-            "visibility_filter" : radii > 0,
-            "radii": radii,
-            "duration":duration}
-
+    return {
+        "render": rendered_image,
+        "viewspace_points": screen_space_points,
+        "visibility_filter": radii > 0,
+        "radii": radii,
+        "duration": duration,
+    }

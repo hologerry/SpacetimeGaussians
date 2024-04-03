@@ -35,7 +35,7 @@ def pose_to_w2c_matrixes(poses):
     return ret
 
 
-def getRTfromPose(w2c_mats):
+def get_RT_from_pose(w2c_mats):
     for m in w2c_mats:
         R = m[:3, :3]
         t = m[:3, 3]

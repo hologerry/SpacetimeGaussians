@@ -20,6 +20,7 @@ import torchvision
 from arguments import ModelParams, PipelineParams, get_combined_args
 from gaussian_renderer import GaussianModel, render
 from scene import Scene
+from torchvision.utils import save_image
 from tqdm import tqdm
 from utils.general_utils import safe_state
 

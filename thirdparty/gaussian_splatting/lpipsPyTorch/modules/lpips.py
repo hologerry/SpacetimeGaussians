@@ -19,7 +19,7 @@ class LPIPS(nn.Module):
 
         assert version in ["0.1"], "v0.1 is only supported now"
 
-        super(LPIPS, self).__init__()
+        super().__init__()
 
         # pretrained network
         self.net = get_network(net_type)

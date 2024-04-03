@@ -32,7 +32,7 @@ class LinLayers(nn.ModuleList):
 
 class BaseNet(nn.Module):
     def __init__(self):
-        super(BaseNet, self).__init__()
+        super().__init__()
 
         # register buffer
         self.register_buffer("mean", torch.Tensor([-0.030, -0.088, -0.188])[None, :, None, None])
@@ -60,7 +60,7 @@ class BaseNet(nn.Module):
 
 class SqueezeNet(BaseNet):
     def __init__(self):
-        super(SqueezeNet, self).__init__()
+        super().__init__()
 
         self.layers = models.squeezenet1_1(True).features
         self.target_layers = [2, 5, 8, 10, 11, 12, 13]
@@ -71,7 +71,7 @@ class SqueezeNet(BaseNet):
 
 class AlexNet(BaseNet):
     def __init__(self):
-        super(AlexNet, self).__init__()
+        super().__init__()
 
         self.layers = models.alexnet(True).features
         self.target_layers = [2, 5, 8, 10, 12]

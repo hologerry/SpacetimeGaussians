@@ -98,15 +98,15 @@ Download the dataset from [here](https://github.com/augmentedperception/deepview
 After downloading and unzip the dataset, you can run the following command to preprocess the dataset. </br>
 ```
 conda activate colmapenv
-python script/pre_immersive_distorted.py --videopath <location>/<scene>
-python script/pre_immersive_undistorted.py --videopath <location>/<scene>
+python script/pre_immersive_distorted.py --video_path <location>/<scene>
+python script/pre_immersive_undistorted.py --video_path <location>/<scene>
 ```
 ```<location>``` is the path to the dataset root folder, and ```<scene>``` is the name of a scene in the dataset. Please rename the orginal file to the name list ```Immersiveseven```in [here](./script/pre_immersive_distorted.py) 
 
 - For example if you put the dataset at ```/home/immersive```, and want to preprocess the ```02_Flames``` scene, you can run the following command
 ```
 conda activate colmapenv
-python script/pre_immersive_distorted.py --videopath /home/immersive/02_Flames/
+python script/pre_immersive_distorted.py --video_path /home/immersive/02_Flames/
 ```
 
 
@@ -211,7 +211,7 @@ pip install thirdparty/gaussian_splatting/submodules/forward_full
 ```
 
 ```
-PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES=0 python test.py --quiet --eval --skip_train --valloader immersivevalidss --configpath config/im_distort_<lite|full>/<scene>.json --model_path <path to model> --source_path <location>/<scenename>/colmap_0
+PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES=0 python test.py --quiet --eval --skip_train --val_loader immersivevalidss --config_path config/im_distort_<lite|full>/<scene>.json --model_path <path to model> --source_path <location>/<scenename>/colmap_0
 ```
 
 
