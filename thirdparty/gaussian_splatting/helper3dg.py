@@ -47,13 +47,17 @@ def get_parser():
 
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[7_000, 10_000, 12_000, 25_000, 30_000])
     parser.add_argument("--test_iterations", nargs="+", type=int, default=[7_000, 12_000, 30_000])
-
+    parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
 
     parser.add_argument("--quiet", action="store_true")
-    parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
+
     parser.add_argument("--start_checkpoint", type=str, default=None)
     parser.add_argument("--densify", type=int, default=1, help="densify =1, we control points on N3d dataset")
+
+    parser.add_argument("--start_time", type=int, default=0, help="the frames start idx")
     parser.add_argument("--duration", type=int, default=5, help="5 debug , 50 used")
+    parser.add_argument("--time_step", type=int, default=1, help="the time step")
+
     parser.add_argument("--basic_function", type=str, default="gaussian")
     parser.add_argument("--rgb_function", type=str, default="rgbv1")
     parser.add_argument("--rd_pipe", type=str, default="v2", help="render pipeline")
@@ -94,7 +98,7 @@ def get_render_parts(render_pkg):
     return render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
 
-def get_test_parse():
+def get_test_parser():
     parser = ArgumentParser(description="Testing script parameters")
     model = ModelParams(parser, sentinel=True)
     pipeline = PipelineParams(parser)

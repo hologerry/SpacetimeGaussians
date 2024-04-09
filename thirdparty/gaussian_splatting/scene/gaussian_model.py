@@ -17,16 +17,17 @@ import torch
 from plyfile import PlyData, PlyElement
 from simple_knn._C import distCUDA2
 from torch import nn
-from utils.general_utils import (
+
+from thirdparty.gaussian_splatting.utils.general_utils import (
     build_rotation,
     build_scaling_rotation,
     get_expon_lr_func,
     inverse_sigmoid,
     strip_symmetric,
 )
-from utils.graphics_utils import BasicPointCloud
-from utils.sh_utils import rgb2sh
-from utils.system_utils import mkdir_p
+from thirdparty.gaussian_splatting.utils.graphics_utils import BasicPointCloud
+from thirdparty.gaussian_splatting.utils.sh_utils import rgb2sh
+from thirdparty.gaussian_splatting.utils.system_utils import mkdir_p
 
 
 class GaussianModel:

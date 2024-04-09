@@ -421,6 +421,9 @@ class GaussianModel:
         print(f"Saving model checkpoint to: {model_fname}")
         torch.save(self.rgb_decoder.state_dict(), model_fname)
 
+        txt_fname = path.replace(".ply", ".txt")
+        np.savetxt(txt_fname, attributes, delimiter=",")
+
     def reset_opacity(self):
         opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity) * 0.01))
         optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")

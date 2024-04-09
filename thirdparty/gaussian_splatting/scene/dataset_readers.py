@@ -38,9 +38,13 @@ from thirdparty.gaussian_splatting.utils.graphics_utils import (
     BasicPointCloud,
     focal2fov,
     fov2focal,
+    get_projection_matrix,
+    get_projection_matrix_cv,
     get_world_2_view2,
 )
 from thirdparty.gaussian_splatting.utils.sh_utils import sh2rgb
+
+from .bbox_tool import BBoxTool
 
 
 class CameraInfo(NamedTuple):
@@ -69,6 +73,7 @@ class SceneInfo(NamedTuple):
     test_cameras: list
     nerf_normalization: dict
     ply_path: str
+    bbox_model: BBoxTool  # only used in hyfluid
 
 
 def get_nerf_pp_norm(cam_info):
@@ -85,6 +90,8 @@ def get_nerf_pp_norm(cam_info):
     for cam in cam_info:
         W2C = get_world_2_view2(cam.R, cam.T)
         C2W = np.linalg.inv(W2C)
+        # os.makedirs("cam_vis", exist_ok=True)
+        # np.save(f"cam_vis/cam_{cam.image_name}_pose.npy", C2W)
         cam_centers.append(C2W[:3, 3:4])
 
     center, diagonal = get_center_and_diag(cam_centers)
@@ -333,11 +340,6 @@ def normalize(v):
 
 def read_colmap_cameras_mv(cam_extrinsics, cam_intrinsics, images_folder, near, far, start_time=0, duration=50):
     cam_infos = []
-    from utils.graphics_utils import (
-        get_projection_matrix,
-        get_projection_matrix_cv,
-        get_world_2_view2,
-    )
 
     for idx, key in enumerate(cam_extrinsics):
         sys.stdout.write("\r")
@@ -540,7 +542,7 @@ def read_colmap_cameras_immersive(cam_extrinsics, cam_intrinsics, images_folder,
             K[1, 2] = intr.params[3]  # * 0.5
 
             if not os.path.exists(image_path):
-                image_path = image_path.replace("_S14","")
+                image_path = image_path.replace("_S14", "")
 
             assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
             image = Image.open(image_path)
@@ -590,7 +592,13 @@ def read_colmap_cameras_immersive(cam_extrinsics, cam_intrinsics, images_folder,
 
 
 def read_colmap_cameras_immersive_test_only(
-    cam_extrinsics, cam_intrinsics, images_folder, near, far, start_time=0, duration=50
+    cam_extrinsics,
+    cam_intrinsics,
+    images_folder,
+    near,
+    far,
+    start_time=0,
+    duration=50,
 ):
     cam_infos = []
 
@@ -669,9 +677,8 @@ def read_colmap_cameras_immersive_test_only(
             # halfH = round(height / 2.0 )
             # halfW = round(width / 2.0 )
 
-
             if not os.path.exists(image_path):
-                image_path = image_path.replace("_S14","")
+                image_path = image_path.replace("_S14", "")
 
             assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
 
@@ -1240,34 +1247,66 @@ def read_nerf_synthetic_info(path, white_background, eval, extension=".png", mul
 
 
 def read_cameras_from_transforms_hyfluid(
-    path, transforms_file, white_background, extension=".png", start_time=0, duration=50
+    path,
+    transforms_file,
+    white_background,
+    extension=".png",
+    start_time=50,
+    duration=50,
+    time_step=1,
 ):
     cam_infos = []
+    print(f"start time {start_time} duration {duration} time_step {time_step}")
 
     with open(os.path.join(path, transforms_file)) as json_file:
         contents = json.load(json_file)
 
-        frames = contents["frames"]
-        for idx, frame in enumerate(frames):
+        near = float(contents["near"])
+        far = float(contents["far"])
 
-            matrix = np.linalg.inv(np.array(frame["transform_matrix"]))
-            R = -np.transpose(matrix[:3, :3])
-            R[:, 0] = -R[:, 0]
-            T = -matrix[:3, 3]
+        voxel_scale = np.array(contents["voxel_scale"])
+        voxel_scale = np.broadcast_to(voxel_scale, [3])
+
+        voxel_matrix = np.array(contents["voxel_matrix"])
+        voxel_matrix = np.stack(
+            [voxel_matrix[:, 2], voxel_matrix[:, 1], voxel_matrix[:, 0], voxel_matrix[:, 3]], axis=1
+        )
+        voxel_matrix_inv = np.linalg.inv(voxel_matrix)
+        bbox_model = BBoxTool(voxel_matrix_inv, voxel_scale)
+
+        # voxel_R = -np.transpose(voxel_matrix[:3, :3])
+        # voxel_R[:, 0] = -voxel_R[:, 0]
+        # voxel_T = -voxel_matrix[:3, 3]
+
+        frames = contents["frames"]
+        camera_uid = 0
+        for idx, frame in enumerate(frames):  # camera idx
+
+            # NeRF 'transform_matrix' is a camera-to-world transform
+            c2w = np.array(frame["transform_matrix"])
+            # change from OpenGL/Blender camera axes (Y up, Z back) to COLMAP (Y down, Z forward)
+            c2w[:3, 1:3] *= -1
+
+            # get the world-to-camera transform and set R, T
+            w2c = np.linalg.inv(c2w)
+            R = np.transpose(w2c[:3, :3])  # R is stored transposed due to 'glm' in CUDA code
+            T = w2c[:3, 3]
 
             camera_hw = frame["camera_hw"]
             h, w = camera_hw
             fov_x = frame["camera_angle_x"]
-            fov_y = focal2fov(fov2focal(fov_x, w), h)
+            focal_length = fov2focal(fov_x, w)
+            fov_y = focal2fov(focal_length, h)
             FovY = fov_y
             FovX = fov_x
-            near = float(frame["near"])
-            far = float(frame["far"])
+            # print(f"frame {frame['file_path']} focal_length {focal_length} FovX {FovX} FovY {FovY}")
 
-            for time_idx in range(start_time, start_time + duration):
+            for time_idx in range(start_time, start_time + duration, time_step):
 
                 cam_name = os.path.join(path, f"colmap_{time_idx}", frame["file_path"] + extension)
+
                 timestamp = (time_idx - start_time) / duration
+
                 image_path = os.path.join(path, cam_name)
                 image_name = os.path.basename(image_path).split(".")[0]
                 image = Image.open(image_path)
@@ -1283,9 +1322,14 @@ def read_cameras_from_transforms_hyfluid(
                 pose = 1 if time_idx == start_time else None
                 hp_directions = 1 if time_idx == start_time else None
 
+                uid = camera_uid  # idx * duration//time_step + time_idx
+                camera_uid += 1
+
+                print(f"cam_name {cam_name} timestamp {timestamp} camera uid {uid}")
+
                 cam_infos.append(
                     CameraInfo(
-                        uid=idx * duration + time_idx,
+                        uid=uid,
                         R=R,
                         T=T,
                         FovY=FovY,
@@ -1305,17 +1349,19 @@ def read_cameras_from_transforms_hyfluid(
                     )
                 )
 
-    return cam_infos
+    return cam_infos, bbox_model
 
 
-def read_nerf_synthetic_info_hyfluid(path, white_background, eval, extension=".png", start_time=0, duration=50):
+def read_nerf_synthetic_info_hyfluid(
+    path, white_background, eval, extension=".png", start_time=50, duration=50, time_step=1
+):
     print("Reading Training Transforms")
-    train_cam_infos = read_cameras_from_transforms_hyfluid(
-        path, "transforms_train_hyfluid.json", white_background, extension, start_time, duration
+    train_cam_infos, bbox_model = read_cameras_from_transforms_hyfluid(
+        path, "transforms_train_hyfluid.json", white_background, extension, start_time, duration, time_step
     )
     print("Reading Test Transforms")
-    test_cam_infos = read_cameras_from_transforms_hyfluid(
-        path, "transforms_test_hyfluid.json", white_background, extension, start_time, duration
+    test_cam_infos, _ = read_cameras_from_transforms_hyfluid(
+        path, "transforms_test_hyfluid.json", white_background, extension, start_time, duration, time_step
     )
 
     if not eval:
@@ -1330,8 +1376,8 @@ def read_nerf_synthetic_info_hyfluid(path, white_background, eval, extension=".p
 
     if not os.path.exists(total_ply_path):
         # Since this data set has no colmap data, we start with random points
-        num_pts = 100_000
-        print(f"Generating random {duration} point cloud ({num_pts})...")
+        num_pts = 100_000 // (duration // time_step)
+        print(f"Generating random {(duration // time_step)} point cloud ({num_pts})...")
 
         # # We create random points inside the bounds of the synthetic Blender scenes
         # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
@@ -1344,19 +1390,48 @@ def read_nerf_synthetic_info_hyfluid(path, white_background, eval, extension=".p
         total_rgb = []
         total_time = []
 
-        for i in range(start_time, start_time + duration):
-            xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
+        for i in range(start_time, start_time + duration, time_step):
+            ## gaussian default random initialized points
+            # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
+
+            ## hyfluid bbox range initialized points
+            # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
+            # y = np.random.random((num_pts, 1)) * 0.75 - 0.05  # [-0.05, 0.7]
+            # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
+            # xyz = np.concatenate((x, y, z), axis=1)
+
+            # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
+            x_mid = 0.325
+
+            y = np.random.random((num_pts, 1)) * 0.75 - 0.05  # [-0.05, 0.7]
+            # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
+            z_mid = -0.25
+
+            radius = np.random.random((num_pts, 1)) * 0.18
+            theta = np.random.random((num_pts, 1)) * 2 * np.pi
+            x = radius * np.cos(theta) + x_mid
+            z = radius * np.sin(theta) + z_mid
+
+            # print(f"Points init x: {x.min()}, {x.max()}")
+            # print(f"Points init y: {y.min()}, {y.max()}")
+            # print(f"Points init z: {z.min()}, {z.max()}")
+
+            xyz = np.concatenate((x, y, z), axis=1)
+
             shs = np.random.random((num_pts, 3)) / 255.0
             # rgb = np.random.random((num_pts, 3)) * 255.0
             rgb = sh2rgb(shs) * 255
 
             total_xyz.append(xyz)
             total_rgb.append(rgb)
+            print(f"init time {(i - start_time) / duration}")
             total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration)
+
         xyz = np.concatenate(total_xyz, axis=0)
         rgb = np.concatenate(total_rgb, axis=0)
         total_time = np.concatenate(total_time, axis=0)
         assert xyz.shape[0] == rgb.shape[0]
+
         xyzt = np.concatenate((xyz, total_time), axis=1)
         store_ply(total_ply_path, xyzt, rgb)
     try:
@@ -1372,12 +1447,19 @@ def read_nerf_synthetic_info_hyfluid(path, white_background, eval, extension=".p
         test_cameras=test_cam_infos,
         nerf_normalization=nerf_normalization,
         ply_path=total_ply_path,
+        bbox_model=bbox_model,
     )
     return scene_info
 
 
 def read_colmap_cameras_immersive_v2_test_only(
-    cam_extrinsics, cam_intrinsics, images_folder, near, far, start_time=0, duration=50
+    cam_extrinsics,
+    cam_intrinsics,
+    images_folder,
+    near,
+    far,
+    start_time=0,
+    duration=50,
 ):
     cam_infos = []
 
@@ -1498,7 +1580,13 @@ def read_colmap_cameras_immersive_v2_test_only(
 
 
 def read_colmap_cameras_immersive_v2(
-    cam_extrinsics, cam_intrinsics, images_folder, near, far, start_time=0, duration=50
+    cam_extrinsics,
+    cam_intrinsics,
+    images_folder,
+    near,
+    far,
+    start_time=0,
+    duration=50,
 ):
     cam_infos = []
 

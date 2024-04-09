@@ -25,262 +25,309 @@
 # GRAPHDECO research group, https://team.inria.fr/graphdeco
 # All rights reserved.
 #
-# This software is free for non-commercial, research and evaluation use 
+# This software is free for non-commercial, research and evaluation use
 # under the terms of the thirdparty/gaussian_splatting/LICENSE.md file.
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+import json
 import os
-import torch
-from random import randint
-import random 
+import pickle
+import random
 import sys
+import time
 import uuid
-import json 
 
+from argparse import ArgumentParser, Namespace
+from random import randint
 
-sys.path.append("./thirdparty/gaussian_splatting")
-### do no
-from thirdparty.gaussian_splatting.utils.loss_utils import l1_loss, ssim, l2_loss, rel_loss, ssimmap
-from helper_train import getrenderpip, getmodel, getloss, removeminmax, reloadhelper, trbfunction,undistortimage
+import cv2
+import numpy as np
+import torch
+import torch.nn.functional as F
+import torchvision
+
+from torchvision.utils import save_image
+from tqdm import tqdm
+
+from helper_train import (
+    get_loss,
+    get_model,
+    get_render_pipe,
+    reload_helper,
+    remove_min_max,
+    trb_function,
+    undistort_image,
+)
+from thirdparty.gaussian_splatting.arguments import (
+    ModelParams,
+    OptimizationParams,
+    PipelineParams,
+)
 from thirdparty.gaussian_splatting.scene import Scene
 from thirdparty.gaussian_splatting.utils.general_utils import safe_state
-from tqdm import tqdm
 from thirdparty.gaussian_splatting.utils.image_utils import psnr
-from argparse import ArgumentParser, Namespace
-from thirdparty.gaussian_splatting.arguments import ModelParams, PipelineParams, OptimizationParams
+
+### do no
+from thirdparty.gaussian_splatting.utils.loss_utils import (
+    l1_loss,
+    l2_loss,
+    relative_loss,
+    ssim,
+    ssim_map,
+)
 
 
-
-from tqdm import tqdm
-import time 
-import torchvision
-import numpy as np 
-import torch.nn.functional as F
-import pickle 
-import cv2
 try:
     from torch.utils.tensorboard import SummaryWriter
+
     TENSORBOARD_FOUND = True
 except ImportError:
     TENSORBOARD_FOUND = False
 EPS = 1e-6
 
-def freezweightsbymasknounsqueeze(model, screenlist, mask):
-    for k in screenlist:
-        grad_tensor = getattr(getattr(model, k), 'grad')
-        newgrad =  mask*grad_tensor #torch.zeros_like(grad_tensor)
-        setattr(getattr(model, k), 'grad', newgrad)
-    return  
+
+def freeze_weights_by_mask_no_unsqueeze(model, screen_list, mask):
+    for k in screen_list:
+        grad_tensor = getattr(getattr(model, k), "grad")
+        new_grad = mask * grad_tensor  # torch.zeros_like(grad_tensor)
+        setattr(getattr(model, k), "grad", new_grad)
+    return
 
 
 def save_pkl(path, obj):
-    with open(path, 'wb') as f:
+    with open(path, "wb") as f:
         pickle.dump(obj, f)
+
+
 def load_pkl(path):
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         return pickle.load(f)
 
-def train(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, densify=0, duration=50, basicfunction="gaussian", rgbfunction="rgbv1", rdpip="v2"):
+
+def train(
+    model_args,
+    optim_args,
+    pipe_args,
+    testing_iterations,
+    saving_iterations,
+    checkpoint_iterations,
+    checkpoint,
+    debug_from,
+    densify=0,
+    duration=50,
+    basic_function="gaussian",
+    rgb_function="rgbv1",
+    rd_pipe="v2",
+):
     first_iter = 0
-    render, GRsetting, GRzer = getrenderpip(rdpip)
+    render, GRsetting, GRzer = get_render_pipe(rd_pipe)
 
-    tb_writer = prepare_output_and_logger(dataset)
-    print("use model {}".format(dataset.model))
-    GaussianModel = getmodel(dataset.model) 
-    
-    gaussians = GaussianModel(dataset.sh_degree, rgbfunction)
-    gaussians.trbfslinit = -1*opt.trbfslinit  # control the scale of trbf  
-    gaussians.preprocesspoints = opt.preprocesspoints 
+    tb_writer = prepare_output_and_logger(model_args)
+    print("use model {}".format(model_args.model))
+    GaussianModel = get_model(model_args.model)
 
-    rbfbasefunction = trbfunction
-    scene = Scene(dataset, gaussians, duration=duration, loader=dataset.loader)
+    gaussians = GaussianModel(model_args.sh_degree, rgb_function)
+    gaussians.trbf_scale_init = -1 * optim_args.trbf_scale_init  # control the scale of trbf
+    gaussians.preprocess_points = optim_args.preprocess_points
 
-    gaussians.training_setup(opt)
+    trbf_base_function = trb_function
+    scene = Scene(model_args, gaussians, duration=duration, loader=model_args.loader)
+
+    gaussians.training_setup(optim_args)
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
-        gaussians.restore(model_params, opt)
-    numchannel = 9 
+        gaussians.restore(model_params, optim_args)
+    num_channel = 9
 
-    bg_color = [1, 1, 1] if dataset.white_background else [0 for i in range(numchannel)]
+    bg_color = [1, 1, 1] if model_args.white_background else [0 for i in range(num_channel)]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
-    iter_start = torch.cuda.Event(enable_timing = True)
-    iter_end = torch.cuda.Event(enable_timing = True)
+    iter_start = torch.cuda.Event(enable_timing=True)
+    iter_end = torch.cuda.Event(enable_timing=True)
 
     viewpoint_stack = None
     ema_loss_for_log = 0.0
-    #if freeze != 1:
+    # if freeze != 1:
     first_iter = 0
-    progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
+    progress_bar = tqdm(range(first_iter, optim_args.iterations), desc="Training progress")
     first_iter += 1
 
     flag = 0
-    closethreshold = None
-    depthdict = {}
+    close_threshold = None
+    depth_dict = {}
 
-    if opt.batch > 1:
-        traincameralist = scene.getTrainCameras().copy()
-        traincamdict = {}
-        for i in range(duration): # 0 to 4, -> (0.0, to 0.8)
-            traincamdict[i] = [cam for cam in traincameralist if cam.timestamp == i/duration]
+    if optim_args.batch > 1:
+        train_camera_list = scene.getTrainCameras().copy()
+        train_cam_dict = {}
+        for i in range(duration):  # 0 to 4, -> (0.0, to 0.8)
+            train_cam_dict[i] = [cam for cam in train_camera_list if cam.timestamp == i / duration]
 
+    scale_threshold = gaussians.percent_dense * scene.cameras_extent
 
-    scalethreshold = gaussians.percent_dense * scene.cameras_extent  
-    
-    
-    if gaussians.ts is None :
-        H,W = traincameralist[0].image_height, traincameralist[0].image_width
-        gaussians.ts = torch.ones(1,1,H,W).cuda()
+    if gaussians.ts is None:
+        H, W = train_camera_list[0].image_height, train_camera_list[0].image_width
+        gaussians.ts = torch.ones(1, 1, H, W).cuda()
 
-    scene.recordpoints(0, "start training")
-    startime = time.time()
-    gaussians.raystart = opt.raystart
+    scene.record_points(0, "start training")
+    start_time = time.time()
+    gaussians.ray_start = optim_args.ray_start
 
-    currentxyz = gaussians._xyz 
+    current_xyz = gaussians._xyz
 
-    maxx, maxy, maxz = torch.amax(currentxyz[:,0]), torch.amax(currentxyz[:,1]), torch.amax(currentxyz[:,2])# 
-    minx, miny, minz = torch.amin(currentxyz[:,0]), torch.amin(currentxyz[:,1]), torch.amin(currentxyz[:,2])
-    
-    if os.path.exists(opt.prevpath): # reload trained model to boost results. 
-        print("load from " + opt.prevpath)
-        reloadhelper(gaussians, opt, maxx, maxy, maxz,  minx, miny, minz)
+    max_x, max_y, max_z = (
+        torch.amax(current_xyz[:, 0]),
+        torch.amax(current_xyz[:, 1]),
+        torch.amax(current_xyz[:, 2]),
+    )  #
+    min_x, min_y, min_z = torch.amin(current_xyz[:, 0]), torch.amin(current_xyz[:, 1]), torch.amin(current_xyz[:, 2])
 
+    if os.path.exists(optim_args.prev_path):  # reload trained model to boost results.
+        print("load from " + optim_args.prev_path)
+        reload_helper(gaussians, optim_args, max_x, max_y, max_z, min_x, min_y, min_z)
 
-    maxbounds = [maxx, maxy, maxz]
-    minbounds = [minx, miny, minz]
+    max_bounds = [max_x, max_y, max_z]
+    min_bounds = [min_x, min_y, min_z]
 
-                                                            
-    flagems = 0 # chagne to 1 to start ems
-    emscnt = 0
-    maxloss = None
-    maxlosscamera = None
-    lossdiect = {}
-    ssimdict = {}
-    depthdict = {}
-    validdepthdict = {}
-    emsstartfromiterations = opt.emsstart 
-    assert opt.losstart < opt.emsstart
-    
+    flag_ems = 0  # change to 1 to start ems
+    ems_cnt = 0
+    max_loss = None
+    max_loss_camera = None
+    loss_dict = {}
+    ssim_dict = {}
+    depth_dict = {}
+    valid_depth_dict = {}
+    ems_start_from_iterations = optim_args.ems_start
+    assert optim_args.loss_tart < optim_args.ems_start
+
     with torch.no_grad():
-        timeindex = 0 # 0 to 49
-        viewpointset = traincamdict[timeindex]
+        time_index = 0  # 0 to 49
+        view_point_set = train_cam_dict[time_index]
 
-        for viewpoint_cam in viewpointset:
-            render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
-            
+        for viewpoint_cam in view_point_set:
+            render_pkg = render(
+                viewpoint_cam,
+                gaussians,
+                pipe_args,
+                background,
+                override_color=None,
+                basic_function=trbf_base_function,
+                GRsetting=GRsetting,
+                GRzer=GRzer,
+            )
+
             _, depthH, depthW = render_pkg["depth"].shape
-            borderH = int(depthH/2)
-            borderW = int(depthW/2)
+            border_H = int(depthH / 2)
+            border_W = int(depthW / 2)
 
-            midh =  int(viewpoint_cam.image_height/2)
-            midw =  int(viewpoint_cam.image_width/2)
-            
+            mid_h = int(viewpoint_cam.image_height / 2)
+            mid_w = int(viewpoint_cam.image_width / 2)
+
             depth = render_pkg["depth"]
-            slectemask = depth != 15.0 
+            select_mask = depth != 15.0
 
-            validdepthdict[viewpoint_cam.image_name] = depth[slectemask].var().item()
-            depthdict[viewpoint_cam.image_name] = torch.amax(depth[slectemask]).item() 
-            ssimdict[viewpoint_cam.image_name] =  ssim(render_pkg["render"].detach(), viewpoint_cam.original_image.float().detach()).item()
+            valid_depth_dict[viewpoint_cam.image_name] = depth[select_mask].var().item()
+            depth_dict[viewpoint_cam.image_name] = torch.amax(depth[select_mask]).item()
+            ssim_dict[viewpoint_cam.image_name] = ssim(
+                render_pkg["render"].detach(), viewpoint_cam.original_image.float().detach()
+            ).item()
 
+    ordered_loss_dict = sorted(ssim_dict.items(), key=lambda item: item[1], reverse=False)
+    ordered_depth = sorted(valid_depth_dict.items(), key=lambda item: item[1], reverse=True)
 
+    total_length = len(ordered_depth)
+    mid = int(total_length / 2)
+    mid_depth_list = [p[0] for p in ordered_depth[:mid]]
 
-    orderedlossdiect = sorted(ssimdict.items(), key=lambda item: item[1], reverse=False)
-    orderedestph = sorted(validdepthdict.items(), key=lambda item: item[1], reverse=True)
+    for k in mid_depth_list:
+        scene.record_points(0, "selective: " + k)
 
-    totalength = len(orderedestph)
-    mid = int(totalength/2)
-    middepthlist = [p[0] for p in orderedestph[:mid]]#  
+    mid_loss_list = [p[0] for p in ordered_loss_dict[:mid]]
 
-    for k in middepthlist:
-        scene.recordpoints(0, "selective: " + k )
-
-    midlosslist = [p[0] for p in orderedlossdiect[:mid]]
-
-    datasetroot = os.path.dirname(dataset.source_path)
-    pickedviewspath = os.path.join(datasetroot, "pickview.pkl")
-    selectviews = midlosslist[1:4] 
-    if not os.path.exists(pickedviewspath):
+    dataset_root = os.path.dirname(model_args.source_path)
+    picked_views_path = os.path.join(dataset_root, "pick_view.pkl")
+    select_views = mid_loss_list[1:4]
+    if not os.path.exists(picked_views_path):
         print("please copy pick view")
         quit()
-        # with open(pickedviewspath, 'wb') as handle:
-        #     pickle.dump(selectviews, handle, protocol=pickle.HIGHEST_PROTOCOL) # uncomment to dump the selectview to the dataset please select the duration = 1 
+        # with open(picked_views_path, 'wb') as handle:
+        #     pickle.dump(select_views, handle, protocol=pickle.HIGHEST_PROTOCOL) # uncomment to dump the select_view to the model_args please select the duration = 1
 
     else:
-        selectviews = load_pkl(pickedviewspath)
+        select_views = load_pkl(picked_views_path)
 
-    for k in selectviews:
-        scene.recordpoints(0, "load: " + k )
+    for k in select_views:
+        scene.record_points(0, "load: " + k)
 
+    selected_length = 3
+    laster_ems = 0
+    last_rest = 0
 
-    selectedlength = 3
-    lasterems = 0 
-    lastrest = 0
-    
-    
-    for iteration in range(first_iter, opt.iterations + 1): 
+    for iteration in range(first_iter, optim_args.iterations + 1):
 
-             
-        if iteration ==  opt.emsstart:
-            flagems = 2 # start ems
-
-
+        if iteration == optim_args.ems_start:
+            flag_ems = 2  # start ems
 
         iter_start.record()
 
         gaussians.update_learning_rate(iteration)
 
         if iteration % 1000 == 0:
-            gaussians.oneupSHdegree()
+            gaussians.one_up_sh_degree()
 
         # Pick a random Camera, or fewer than batch to pop
-        if opt.batch == 1 and not viewpoint_stack: 
+        if optim_args.batch == 1 and not viewpoint_stack:
             viewpoint_stack = scene.getTrainCameras().copy()
-        
-        
-        if (iteration - 1) == debug_from:
-            pipe.debug = True
-        if gaussians.rgbdecoder is not None:
-            gaussians.rgbdecoder.train()
 
-        if opt.batch > 1:
+        if (iteration - 1) == debug_from:
+            pipe_args.debug = True
+        if gaussians.rgb_decoder is not None:
+            gaussians.rgb_decoder.train()
+
+        if optim_args.batch > 1:
             gaussians.zero_gradient_cache()
 
+            time_index = randint(0, duration - 1)  # 0 to 49
+            view_point_set = train_cam_dict[time_index]
+            cam_index = random.sample(view_point_set, optim_args.batch)
 
-            timeindex = randint(0, duration-1) # 0 to 49
-            viewpointset = traincamdict[timeindex]
-            camindex = random.sample(viewpointset, opt.batch)
+            for i in range(optim_args.batch):
+                viewpoint_cam = cam_index[i]
+                render_pkg = render(
+                    viewpoint_cam,
+                    gaussians,
+                    pipe_args,
+                    background,
+                    override_color=None,
+                    basic_function=trbf_base_function,
+                    GRsetting=GRsetting,
+                    GRzer=GRzer,
+                )
+                image, viewspace_point_tensor, visibility_filter, radii = (
+                    render_pkg["render"],
+                    render_pkg["viewspace_points"],
+                    render_pkg["visibility_filter"],
+                    render_pkg["radii"],
+                )
+                gt_image = viewpoint_cam.original_image.float().cuda()
 
-
-            for i in range(opt.batch):
-                viewpoint_cam = camindex[i]
-                render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
-                image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-                gt_image = viewpoint_cam.original_image.float().cuda() 
-
-
-                
-                if opt.reg == 2:
+                if optim_args.reg == 2:
                     Ll1 = l2_loss(image, gt_image)
                     loss = Ll1
-                elif opt.reg == 3:
-                    Ll1 = rel_loss(image, gt_image)
+                elif optim_args.reg == 3:
+                    Ll1 = relative_loss(image, gt_image)
                     loss = Ll1
                 else:
                     Ll1 = l1_loss(image, gt_image)
-                    loss = getloss(opt, Ll1, ssim, image, gt_image, gaussians, radii)
-                
+                    loss = get_loss(optim_args, Ll1, ssim, image, gt_image, gaussians, radii)
+
                 loss.backward()
                 gaussians.cache_gradient()
-                gaussians.optimizer.zero_grad(set_to_none = True)# 
+                gaussians.optimizer.zero_grad(set_to_none=True)  #
 
-
-
-            
             iter_end.record()
-            gaussians.set_batch_gradient(opt.batch)
-
+            gaussians.set_batch_gradient(optim_args.batch)
 
         else:
             raise NotImplementedError("Batch size 1 is not supported anymore")
@@ -291,326 +338,402 @@ def train(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_
             if iteration % 10 == 0:
                 progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
                 progress_bar.update(10)
-            if iteration == opt.iterations:
+            if iteration == optim_args.iterations:
                 progress_bar.close()
 
-            # Log and save                                                                                                         #viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, basicfunction = None
-            if (iteration in saving_iterations):
+            # Log and save                                                                                                         #viewpoint_camera, pc : GaussianModel, pipe_args, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, basic_function = None
+            if iteration in saving_iterations:
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
-                durationtime = time.time() - startime
-                txtpath = scene.model_path + "/trainingtime.txt"
-                with open(txtpath, "w") as f:
-                    f.write(str(iteration) + " cost time: "+ str(durationtime))
+                duration_time = time.time() - start_time
+                txt_path = scene.model_path + "/training_time.txt"
+                with open(txt_path, "w") as f:
+                    f.write(str(iteration) + " cost time: " + str(duration_time))
 
             # ensure that parameters are same as in the model
-            if (iteration in checkpoint_iterations):
+            if iteration in checkpoint_iterations:
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
-                torch.save((gaussians.capture(), iteration), scene.model_path + "/chkpnt" + str(iteration) + ".pth")
+                torch.save((gaussians.capture(), iteration), scene.model_path + "/ckp" + str(iteration) + ".pth")
 
             # Densification
-            
-            if densify == 4: # 
-                if iteration < opt.densify_until_iter :
-                    gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
+
+            if densify == 4:  #
+                if iteration < optim_args.densify_until_iter:
+                    gaussians.max_radii2D[visibility_filter] = torch.max(
+                        gaussians.max_radii2D[visibility_filter], radii[visibility_filter]
+                    )
                     gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
-                    if iteration ==  8001 : # 8001
-                        omegamask = gaussians.zero_omegabymotion() # 1 we keep omega, 0 we freeze omega
-                        gaussians.omegamask  = omegamask
-                        scene.recordpoints(iteration, "seperate omega"+str(torch.sum(omegamask).item()))
-                    elif iteration > 8001: # 8001
-                        freezweightsbymasknounsqueeze(gaussians, ["_omega"], gaussians.omegamask)
-                        rotationmask = torch.logical_not(gaussians.omegamask)
-                        freezweightsbymasknounsqueeze(gaussians, ["_rotation"], rotationmask)
-                    if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
-                        if flag < opt.desicnt:
-                            scene.recordpoints(iteration, "before densify")
-                            size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                            gaussians.densify_prunecloneim(opt.densify_grad_threshold, op.opthr, scene.cameras_extent, size_threshold)
-                            flag+=1
-                            scene.recordpoints(iteration, "after densify")
+                    if iteration == 8001:  # 8001
+                        omega_mask = gaussians.zero_omega_by_motion()  # 1 we keep omega, 0 we freeze omega
+                        gaussians.omega_mask = omega_mask
+                        scene.record_points(iteration, "separate omega" + str(torch.sum(omega_mask).item()))
+                    elif iteration > 8001:  # 8001
+                        freeze_weights_by_mask_no_unsqueeze(gaussians, ["_omega"], gaussians.omega_mask)
+                        rotation_mask = torch.logical_not(gaussians.omega_mask)
+                        freeze_weights_by_mask_no_unsqueeze(gaussians, ["_rotation"], rotation_mask)
+                    if iteration > optim_args.densify_from_iter and iteration % optim_args.densification_interval == 0:
+                        if flag < optim_args.densify_cnt:
+                            scene.record_points(iteration, "before densify")
+                            size_threshold = 20 if iteration > optim_args.opacity_reset_interval else None
+                            gaussians.densify_prune_clone_im(
+                                optim_args.densify_grad_threshold,
+                                optim_args.opacity_threshold,
+                                scene.cameras_extent,
+                                size_threshold,
+                            )
+                            flag += 1
+                            scene.record_points(iteration, "after densify")
                         else:
                             if iteration < 5000:
-                                prune_mask =  (gaussians.get_opacity < op.opthr).squeeze()
-                                if opt.prunebysize :
+                                prune_mask = (gaussians.get_opacity < optim_args.opacity_threshold).squeeze()
+                                if optim_args.prune_by_size:
                                     big_points_vs = gaussians.max_radii2D > 20
-                                    big_points_ws = gaussians.get_scaling.max(dim=1).values > 0.1 * scene.cameras_extent
-                                    prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
-                                if (iteration > (500 + lastrest)) and lastrest > 1000: #
+                                    big_points_ws = (
+                                        gaussians.get_scaling.max(dim=1).values > 0.1 * scene.cameras_extent
+                                    )
+                                    prune_mask = torch.logical_or(
+                                        torch.logical_or(prune_mask, big_points_vs), big_points_ws
+                                    )
+                                if (iteration > (500 + last_rest)) and last_rest > 1000:  #
                                     gaussians.prune_points(prune_mask)
                                     torch.cuda.empty_cache()
-                                    scene.recordpoints(iteration, "addionally prune_mask")
-                    if iteration % opt.opacity_reset_interval == 0 and iteration < 4000:
+                                    scene.record_points(iteration, "additionally prune_mask")
+                    if iteration % optim_args.opacity_reset_interval == 0 and iteration < 4000:
                         gaussians.reset_opacity()
-                        lastrest = iteration
+                        last_rest = iteration
 
-            if densify == 6: # 
-                if iteration < opt.densify_until_iter :
-                    gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
+            if densify == 6:  #
+                if iteration < optim_args.densify_until_iter:
+                    gaussians.max_radii2D[visibility_filter] = torch.max(
+                        gaussians.max_radii2D[visibility_filter], radii[visibility_filter]
+                    )
                     gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
-                    if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
-                        if flag < opt.desicnt:
-                            scene.recordpoints(iteration, "before densify")
-                            size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                            gaussians.densify_prunecloneimgeneral(opt.densify_grad_threshold, op.opthr, scene.cameras_extent, size_threshold)
-                            flag+=1
-                            scene.recordpoints(iteration, "after densify")
+                    if iteration > optim_args.densify_from_iter and iteration % optim_args.densification_interval == 0:
+                        if flag < optim_args.densify_cnt:
+                            scene.record_points(iteration, "before densify")
+                            size_threshold = 20 if iteration > optim_args.opacity_reset_interval else None
+                            gaussians.densify_prune_clone_image_neral(
+                                optim_args.densify_grad_threshold,
+                                optim_args.opacity_threshold,
+                                scene.cameras_extent,
+                                size_threshold,
+                            )
+                            flag += 1
+                            scene.record_points(iteration, "after densify")
                         else:
                             if iteration < 9000:
-                                prune_mask =  (gaussians.get_opacity < op.opthr).squeeze()
-                                if opt.prunebysize :
+                                prune_mask = (gaussians.get_opacity < optim_args.opacity_threshold).squeeze()
+                                if optim_args.prune_by_size:
                                     big_points_vs = gaussians.max_radii2D > 20
-                                    big_points_ws = gaussians.get_scaling.max(dim=1).values > 0.1 * scene.cameras_extent
-                                    prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+                                    big_points_ws = (
+                                        gaussians.get_scaling.max(dim=1).values > 0.1 * scene.cameras_extent
+                                    )
+                                    prune_mask = torch.logical_or(
+                                        torch.logical_or(prune_mask, big_points_vs), big_points_ws
+                                    )
                                 gaussians.prune_points(prune_mask)
                                 torch.cuda.empty_cache()
-                                scene.recordpoints(iteration, "addionally prune_mask")
-                    if iteration % opt.opacity_reset_interval == 0:
+                                scene.record_points(iteration, "additionally prune_mask")
+                    if iteration % optim_args.opacity_reset_interval == 0:
                         gaussians.reset_opacity()
 
-                        
-            if densify == 7: # more general
-                if iteration < opt.densify_until_iter :
-                    gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
+            if densify == 7:  # more general
+                if iteration < optim_args.densify_until_iter:
+                    gaussians.max_radii2D[visibility_filter] = torch.max(
+                        gaussians.max_radii2D[visibility_filter], radii[visibility_filter]
+                    )
                     gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
-                    if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
-                        if flag < opt.desicnt:
-                            scene.recordpoints(iteration, "before densify")
-                            size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                            gaussians.densify_prunecloneimgeneral(opt.densify_grad_threshold, op.opthr, scene.cameras_extent, size_threshold)
-                            flag+=1
-                            scene.recordpoints(iteration, "after densify")
+                    if iteration > optim_args.densify_from_iter and iteration % optim_args.densification_interval == 0:
+                        if flag < optim_args.densify_cnt:
+                            scene.record_points(iteration, "before densify")
+                            size_threshold = 20 if iteration > optim_args.opacity_reset_interval else None
+                            gaussians.densify_prune_clone_image_neral(
+                                optim_args.densify_grad_threshold,
+                                optim_args.opacity_threshold,
+                                scene.cameras_extent,
+                                size_threshold,
+                            )
+                            flag += 1
+                            scene.record_points(iteration, "after densify")
                         else:
-                            prune_mask =  (gaussians.get_opacity < op.opthr).squeeze()
-                            if opt.prunebysize :
+                            prune_mask = (gaussians.get_opacity < optim_args.opacity_threshold).squeeze()
+                            if optim_args.prune_by_size:
                                 big_points_vs = gaussians.max_radii2D > 20
                                 big_points_ws = gaussians.get_scaling.max(dim=1).values > 0.1 * scene.cameras_extent
-                                prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+                                prune_mask = torch.logical_or(
+                                    torch.logical_or(prune_mask, big_points_vs), big_points_ws
+                                )
                             gaussians.prune_points(prune_mask)
                             torch.cuda.empty_cache()
-                            scene.recordpoints(iteration, "addionally prune_mask")
-                    if iteration % opt.opacity_reset_interval == 0:
+                            scene.record_points(iteration, "additionally prune_mask")
+                    if iteration % optim_args.opacity_reset_interval == 0:
                         gaussians.reset_opacity()
 
-
-            if densify == 8: # more generate method also remove minmax points
-                if iteration < opt.densify_until_iter :
-                    gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
+            if densify == 8:  # more generate method also remove min_max points
+                if iteration < optim_args.densify_until_iter:
+                    gaussians.max_radii2D[visibility_filter] = torch.max(
+                        gaussians.max_radii2D[visibility_filter], radii[visibility_filter]
+                    )
                     gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
-                    if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
-                        if flag < opt.desicnt:
-                            scene.recordpoints(iteration, "before densify")
-                            size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                            gaussians.densify_prunecloneimgeneral(opt.densify_grad_threshold, op.opthr, scene.cameras_extent, size_threshold)
-                            flag+=1
-                            scene.recordpoints(iteration, "after densify")
+                    if iteration > optim_args.densify_from_iter and iteration % optim_args.densification_interval == 0:
+                        if flag < optim_args.densify_cnt:
+                            scene.record_points(iteration, "before densify")
+                            size_threshold = 20 if iteration > optim_args.opacity_reset_interval else None
+                            gaussians.densify_prune_clone_image_neral(
+                                optim_args.densify_grad_threshold,
+                                optim_args.opacity_threshold,
+                                scene.cameras_extent,
+                                size_threshold,
+                            )
+                            flag += 1
+                            scene.record_points(iteration, "after densify")
                         else:
-                            prune_mask =  (gaussians.get_opacity < op.opthr).squeeze()
-                            if opt.prunebysize :
+                            prune_mask = (gaussians.get_opacity < optim_args.opacity_threshold).squeeze()
+                            if optim_args.prune_by_size:
                                 big_points_vs = gaussians.max_radii2D > 20
                                 big_points_ws = gaussians.get_scaling.max(dim=1).values > 0.1 * scene.cameras_extent
-                                prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+                                prune_mask = torch.logical_or(
+                                    torch.logical_or(prune_mask, big_points_vs), big_points_ws
+                                )
                             gaussians.prune_points(prune_mask)
                             torch.cuda.empty_cache()
-                            scene.recordpoints(iteration, "addionally prune_mask")
-                    if iteration % opt.opacity_reset_interval == 0:
+                            scene.record_points(iteration, "additionally prune_mask")
+                    if iteration % optim_args.opacity_reset_interval == 0:
                         gaussians.reset_opacity()
 
-                if iteration == 10000: 
-                    removeminmax(gaussians, maxbounds, minbounds)
+                if iteration == 10000:
+                    remove_min_max(gaussians, max_bounds, min_bounds)
                     torch.cuda.empty_cache()
-                    scene.recordpoints(iteration, "addionally prune_mask")
+                    scene.record_points(iteration, "additionally prune_mask")
 
+            # after densification
+            if (
+                iteration > ems_start_from_iterations
+                and flag_ems == 2
+                and ems_cnt < selected_length
+                and viewpoint_cam.image_name in select_views
+                and (iteration - laster_ems > 100)
+            ):  #
+                scene.record_points(iteration, "current ems time " + str(time_index))
 
-           # after densification 
-            if iteration > emsstartfromiterations and flagems == 2 and emscnt < selectedlength and viewpoint_cam.image_name in selectviews and (iteration - lasterems > 100): #
-                scene.recordpoints(iteration, "current ems time " +  str(timeindex))
-                
+                select_views.remove(viewpoint_cam.image_name)
 
-                selectviews.remove(viewpoint_cam.image_name)
+                ems_cnt += 1
+                laster_ems = iteration
 
-                emscnt += 1
-                lasterems = iteration
+                diff = 1.0 - ssim_map(image.detach(), gt_image)  # we choose ares with large d-ssim..
+                diff = torch.sum(diff, dim=0)  # h, w
+                diff_sorted, _ = torch.sort(diff.reshape(-1))
+                num_pixels = diff.shape[0] * diff.shape[1]
+                threshold = diff_sorted[int(num_pixels * optim_args.ems_threshold)].item()
 
-                diff = 1.0 - ssimmap(image.detach(), gt_image) # we choose ares with large d-ssim..
-                diff = torch.sum(diff,        dim=0) # h, w
-                diff_sorted, _ = torch.sort(diff.reshape(-1)) 
-                numpixels = diff.shape[0] * diff.shape[1]
-                threshold = diff_sorted[int(numpixels*opt.emsthr)].item()
-                
-                outmask = diff > threshold# 0.03  #error threshold
-                kh, kw = 16, 16 # kernel size
-                dh, dw = 16, 16 # stride
-                idealh, idealw = int(image.shape[1] / dh  + 1) * kw, int(image.shape[2] / dw + 1) * kw # compute the ideal size for padding
-                outmask = torch.nn.functional.pad(outmask, (0, idealw - outmask.shape[1], 0, idealh - outmask.shape[0]), mode='constant', value=0)
+                out_mask = diff > threshold  # 0.03  #error threshold
+                kh, kw = 16, 16  # kernel size
+                dh, dw = 16, 16  # stride
+                ideal_h, ideal_w = (
+                    int(image.shape[1] / dh + 1) * kw,
+                    int(image.shape[2] / dw + 1) * kw,
+                )  # compute the ideal size for padding
+                out_mask = F.pad(
+                    out_mask,
+                    (0, ideal_w - out_mask.shape[1], 0, ideal_h - out_mask.shape[0]),
+                    mode="constant",
+                    value=0,
+                )
 
-                patches = outmask.unfold(0, kh, dh).unfold(1, kw, dw)
-                dummypatch = torch.ones_like(patches)
-                patchessum = patches.sum(dim=(2,3)) 
-                patchesmusk = patchessum  >  kh * kh * 0.85
-                patchesmusk = patchesmusk.unsqueeze(2).unsqueeze(3).repeat(1,1,kh,kh).float()
-                patches = dummypatch * patchesmusk
+                patches = out_mask.unfold(0, kh, dh).unfold(1, kw, dw)
+                dummy_patch = torch.ones_like(patches)
+                patches_sum = patches.sum(dim=(2, 3))
+                patches_mask = patches_sum > kh * kh * 0.85
+                patches_mask = patches_mask.unsqueeze(2).unsqueeze(3).repeat(1, 1, kh, kh).float()
+                patches = dummy_patch * patches_mask
 
-                # midpatch = torch.ones_like(patches)
+                # mid_patch = torch.ones_like(patches)
                 depth = render_pkg["depth"]
                 depth = depth.squeeze(0)
-                idealdepthh, idealdepthw = int(depth.shape[0] / dh  + 1) * kw, int(depth.shape[1] / dw + 1) * kw # compute the ideal size for padding
+                ideal_depth_h, ideal_depth_w = (
+                    int(depth.shape[0] / dh + 1) * kw,
+                    int(depth.shape[1] / dw + 1) * kw,
+                )  # compute the ideal size for padding
 
-                depth = torch.nn.functional.pad(depth, (0, idealdepthw - depth.shape[1], 0, idealdepthh - depth.shape[0]), mode='constant', value=0)
+                depth = torch.nn.functional.pad(
+                    depth,
+                    (0, ideal_depth_w - depth.shape[1], 0, ideal_depth_h - depth.shape[0]),
+                    mode="constant",
+                    value=0,
+                )
 
-                depthpaches = depth.unfold(0, kh, dh).unfold(1, kw, dw)
-                dummydepthpatches =  torch.ones_like(depthpaches)
-                a,b,c,d = depthpaches.shape
-                depthpaches = depthpaches.reshape(a,b,c*d)
-                mediandepthpatch = torch.median(depthpaches, dim=(2))[0]
-                depthpaches = dummydepthpatches * (mediandepthpatch.unsqueeze(2).unsqueeze(3))
-                unfold_depth_shape = dummydepthpatches.size()
+                depth_patches = depth.unfold(0, kh, dh).unfold(1, kw, dw)
+                dummy_depth_patches = torch.ones_like(depth_patches)
+                a, b, c, d = depth_patches.shape
+                depth_patches = depth_patches.reshape(a, b, c * d)
+                median_depth_patch = torch.median(depth_patches, dim=(2))[0]
+                depth_patches = dummy_depth_patches * (median_depth_patch.unsqueeze(2).unsqueeze(3))
+                unfold_depth_shape = dummy_depth_patches.size()
                 output_depth_h = unfold_depth_shape[0] * unfold_depth_shape[2]
                 output_depth_w = unfold_depth_shape[1] * unfold_depth_shape[3]
 
-                patches_depth_orig = depthpaches.view(unfold_depth_shape)
+                patches_depth_orig = depth_patches.view(unfold_depth_shape)
                 patches_depth_orig = patches_depth_orig.permute(0, 2, 1, 3).contiguous()
-                patches_depth = patches_depth_orig.view(output_depth_h, output_depth_w).float() # H * W  mask, # 1 for error, 0 for no error
+                # H * W  mask, # 1 for error, 0 for no error
+                patches_depth = patches_depth_orig.view(output_depth_h, output_depth_w).float()
 
-                depth = patches_depth[:render_pkg["depth"].shape[1], :render_pkg["depth"].shape[2]]
+                depth = patches_depth[: render_pkg["depth"].shape[1], : render_pkg["depth"].shape[2]]
                 depth = depth.unsqueeze(0)
 
- 
-                midpatch = torch.ones_like(patches)
+                mid_patch = torch.ones_like(patches)
 
-                centerpatches = patches * midpatch
+                center_patches = patches * mid_patch
 
                 unfold_shape = patches.size()
                 patches_orig = patches.view(unfold_shape)
-                centerpatches_orig = centerpatches.view(unfold_shape)
+                center_patches_orig = center_patches.view(unfold_shape)
 
                 output_h = unfold_shape[0] * unfold_shape[2]
                 output_w = unfold_shape[1] * unfold_shape[3]
                 patches_orig = patches_orig.permute(0, 2, 1, 3).contiguous()
-                centerpatches_orig = centerpatches_orig.permute(0, 2, 1, 3).contiguous()
-                centermask = centerpatches_orig.view(output_h, output_w).float() # H * W  mask, # 1 for error, 0 for no error
-                centermask = centermask[:image.shape[1], :image.shape[2]] # reverse back
-                
-                errormask = patches_orig.view(output_h, output_w).float() # H * W  mask, # 1 for error, 0 for no error
-                errormask = errormask[:image.shape[1], :image.shape[2]] # reverse back
+                center_patches_orig = center_patches_orig.permute(0, 2, 1, 3).contiguous()
+                # H * W  mask, # 1 for error, 0 for no error
+                center_mask = center_patches_orig.view(output_h, output_w).float()
+                center_mask = center_mask[: image.shape[1], : image.shape[2]]  # reverse back
 
-                H, W = centermask.shape
+                error_mask = patches_orig.view(
+                    output_h, output_w
+                ).float()  # H * W  mask, # 1 for error, 0 for no error
+                error_mask = error_mask[: image.shape[1], : image.shape[2]]  # reverse back
 
-                offsetH = int(H/10)
-                offsetW = int(W/10) # fish eye boundary artifacts, we don't sample there
-                
-                centermask[0:offsetH, :] = 0.0
-                centermask[:, 0:offsetW] = 0.0
+                H, W = center_mask.shape
 
-                centermask[-offsetH:, :] = 0.0
-                centermask[:, -offsetW:] = 0.0
+                offsetH = int(H / 10)
+                offsetW = int(W / 10)  # fish eye boundary artifacts, we don't sample there
 
+                center_mask[0:offsetH, :] = 0.0
+                center_mask[:, 0:offsetW] = 0.0
 
-                depthmap = torch.cat((depth, depth, depth), dim=0)
-                invaliddepthmask = depth == 15.0
+                center_mask[-offsetH:, :] = 0.0
+                center_mask[:, -offsetW:] = 0.0
 
-                    
+                depth_map = torch.cat((depth, depth, depth), dim=0)
+                invalid_depth_mask = depth == 15.0
 
+                path_dir = scene.model_path + "/ems_" + str(ems_cnt - 1)
+                if not os.path.exists(path_dir):
+                    os.makedirs(path_dir)
 
-                pathdir = scene.model_path + "/ems_" + str(emscnt-1)
-                if not os.path.exists(pathdir): 
-                    os.makedirs(pathdir)
-                
-                depthmap = depthmap / torch.amax(depthmap)
-                invalideptmap = torch.cat((invaliddepthmask, invaliddepthmask, invaliddepthmask), dim=0).float()  
+                depth_map = depth_map / torch.amax(depth_map)
+                invalid_depth_map = torch.cat(
+                    (invalid_depth_mask, invalid_depth_mask, invalid_depth_mask), dim=0
+                ).float()
 
+                save_image(gt_image, os.path.join(path_dir, "gt" + str(iteration) + ".png"))
+                save_image(image, os.path.join(path_dir, "render" + str(iteration) + ".png"))
+                save_image(depth_map, os.path.join(path_dir, "depth" + str(iteration) + ".png"))
+                save_image(invalid_depth_map, os.path.join(path_dir, "invalid_depth" + str(iteration) + ".png"))
 
-                torchvision.utils.save_image(gt_image, os.path.join(pathdir,  "gt" + str(iteration) + ".png"))
-                torchvision.utils.save_image(image, os.path.join(pathdir,  "render" + str(iteration) + ".png"))
-                torchvision.utils.save_image(depthmap, os.path.join(pathdir,  "depth" + str(iteration) + ".png"))
-                torchvision.utils.save_image(invalideptmap, os.path.join(pathdir,  "indepth" + str(iteration) + ".png"))
-                  
+                center_masked_images = torch.stack((center_mask, center_mask, center_mask), dim=2).float().cpu()  # 0,1
+                center_masked_images = center_masked_images.numpy()
+                # resize to x2
+                # masked_images = cv2.resize()
+                center_masked_images = cv2.resize(
+                    center_masked_images,
+                    dsize=(viewpoint_cam.image_width, viewpoint_cam.image_height),
+                    interpolation=cv2.INTER_CUBIC,
+                )
 
-                centermaskedimages =torch.stack((centermask, centermask, centermask), dim=2).float().cpu()  #0,1 
-                centermaskedimages = centermaskedimages.numpy()
-                # resize to x2 
-                #maskedimages = cv2.resize()
-                centermaskedimages = cv2.resize(centermaskedimages, dsize=(viewpoint_cam.image_width, viewpoint_cam.image_height), interpolation=cv2.INTER_CUBIC)
+                # retrieve current camera's K
 
+                ud_center_masked_images = undistort_image(
+                    viewpoint_cam.image_name, model_args.source_path, center_masked_images
+                )
+                gt_image_numpy = gt_image.clone().permute(1, 2, 0).cpu().numpy()
+                gt_image_x2 = cv2.resize(
+                    gt_image_numpy,
+                    dsize=(viewpoint_cam.image_width, viewpoint_cam.image_height),
+                    interpolation=cv2.INTER_CUBIC,
+                )
+                gt_image_x2_ud = undistort_image(viewpoint_cam.image_name, model_args.source_path, gt_image_x2)
+                gt_image_x2_ud_torch = torch.from_numpy(gt_image_x2_ud).cuda().permute(2, 0, 1)
 
-
-
-                # retrive current camera's K
-
-              
-                udcentermaskedimages = undistortimage(viewpoint_cam.image_name, dataset.source_path, centermaskedimages)
-                gt_imagenumpy = gt_image.clone().permute(1,2,0).cpu().numpy()
-                gt_imagex2 =  cv2.resize(gt_imagenumpy, dsize=(viewpoint_cam.image_width, viewpoint_cam.image_height), interpolation=cv2.INTER_CUBIC)
-                gt_imagex2ud = undistortimage(viewpoint_cam.image_name, dataset.source_path, gt_imagex2)
-                gt_imagex2udtorch = torch.from_numpy(gt_imagex2ud).cuda().permute(2,0,1)
-
-
-           
                 # use opencv undistort points to undistort these points
-                udcentermaskedimages = np.sum(udcentermaskedimages, axis=2)
-                udcentermaskedimages = torch.from_numpy(udcentermaskedimages).cuda()
-                depthmask = udcentermaskedimages > torch.mean(udcentermaskedimages)# avoid close objects
-                udcentermaskedimages = udcentermaskedimages * depthmask.float()
+                ud_center_masked_images = np.sum(ud_center_masked_images, axis=2)
+                ud_center_masked_images = torch.from_numpy(ud_center_masked_images).cuda()
+                depth_mask = ud_center_masked_images > torch.mean(ud_center_masked_images)  # avoid close objects
+                ud_center_masked_images = ud_center_masked_images * depth_mask.float()
 
-                undistortbadindics = (udcentermaskedimages > 1.0).nonzero() # baduvidx, viewpoint_cam, depthmap, gt_image, numperay=3
-                
-                
+                undistort_bad_indices = (
+                    ud_center_masked_images > 1.0
+                ).nonzero()  # bad_uv_idx, viewpoint_cam, depth_map, gt_image, new_ray_step=3
 
-                #mediandepth = torch.median(depth)
-                diff_sorted , _ = torch.sort(depth.reshape(-1)) 
+                # median_depth = torch.median(depth)
+                diff_sorted, _ = torch.sort(depth.reshape(-1))
                 N = diff_sorted.shape[0]
-                mediandepth = int(0.7 * N)
-                mediandepth = diff_sorted[mediandepth]
+                median_depth = int(0.7 * N)
+                median_depth = diff_sorted[median_depth]
 
-
-                depth = torch.where(depth>mediandepth, depth,mediandepth )
-                if opt.shuffleems == 0:
-                    totalNnewpoints = gaussians.addgaussians(undistortbadindics, viewpoint_cam, depth, gt_imagex2udtorch.squeeze(0), numperay=opt.farray, ratioend=opt.rayends, depthmax=depthdict[viewpoint_cam.image_name])
+                depth = torch.where(depth > median_depth, depth, median_depth)
+                if optim_args.shuffle_ems == 0:
+                    total_N_new_points = gaussians.add_gaussians(
+                        undistort_bad_indices,
+                        viewpoint_cam,
+                        depth,
+                        gt_image_x2_ud_torch.squeeze(0),
+                        new_ray_step=optim_args.new_ray_step,
+                        ray_end=optim_args.ray_end,
+                        depth_max=depth_dict[viewpoint_cam.image_name],
+                    )
                 else:
-                    totalNnewpoints = gaussians.addgaussians(undistortbadindics, viewpoint_cam, depth, gt_imagex2udtorch.squeeze(0), numperay=opt.farray, ratioend=opt.rayends, depthmax=depthdict[viewpoint_cam.image_name], shuffle=True)
+                    total_N_new_points = gaussians.add_gaussians(
+                        undistort_bad_indices,
+                        viewpoint_cam,
+                        depth,
+                        gt_image_x2_ud_torch.squeeze(0),
+                        new_ray_step=optim_args.new_ray_step,
+                        ray_end=optim_args.ray_end,
+                        depth_max=depth_dict[viewpoint_cam.image_name],
+                        shuffle=True,
+                    )
 
-                scene.recordpoints(iteration, "depth" + str(torch.max(depth).item()))
+                scene.record_points(iteration, "depth" + str(torch.max(depth).item()))
 
+                ud_center_masked_images_binary = ud_center_masked_images > 1.0
+                ud_center_masked_images_binary = ud_center_masked_images_binary.float()
+                gt_image = gt_image_x2_ud_torch * ud_center_masked_images_binary
+                image = render_pkg["render"] * error_mask
 
+                scene.record_points(iteration, "after add_points_by_uv" + viewpoint_cam.image_name)
 
-                udcentermaskedimagesbinary = udcentermaskedimages > 1.0 
-                udcentermaskedimagesbinary = udcentermaskedimagesbinary.float()
-                gt_image = gt_imagex2udtorch * udcentermaskedimagesbinary 
-                image = render_pkg["render"] * errormask
+                torchvision.utils.save_image(
+                    ud_center_masked_images, os.path.join(path_dir, "masked_undisted_mask" + str(iteration) + ".png")
+                )
 
-                scene.recordpoints(iteration, "after addpointsbyuv" + viewpoint_cam.image_name)
-
-       
-                torchvision.utils.save_image(udcentermaskedimages, os.path.join(pathdir,  "maskedundistedmask" + str(iteration) + ".png"))
-    
-                torchvision.utils.save_image(gt_image, os.path.join(pathdir,  "maskedudgt" + str(iteration) + ".png"))
-                torchvision.utils.save_image(image, os.path.join(pathdir,  "maskedrender" + str(iteration) + ".png"))
-                visibility_filter = torch.cat((visibility_filter, torch.zeros(totalNnewpoints).cuda(0)), dim=0)
+                torchvision.utils.save_image(
+                    gt_image, os.path.join(path_dir, "masked_ud_gt" + str(iteration) + ".png")
+                )
+                torchvision.utils.save_image(image, os.path.join(path_dir, "masked_render" + str(iteration) + ".png"))
+                visibility_filter = torch.cat((visibility_filter, torch.zeros(total_N_new_points).cuda(0)), dim=0)
                 visibility_filter = visibility_filter.bool()
-                radii = torch.cat((radii, torch.zeros(totalNnewpoints).cuda(0)), dim=0)
-                viewspace_point_tensor = torch.cat((viewspace_point_tensor, torch.zeros(totalNnewpoints, 3).cuda(0)), dim=0)
+                radii = torch.cat((radii, torch.zeros(total_N_new_points).cuda(0)), dim=0)
+                viewspace_point_tensor = torch.cat(
+                    (viewspace_point_tensor, torch.zeros(total_N_new_points, 3).cuda(0)), dim=0
+                )
 
-
-            if iteration < opt.iterations:
+            if iteration < optim_args.iterations:
                 gaussians.optimizer.step()
-                gaussians.optimizer.zero_grad(set_to_none = True)
+                gaussians.optimizer.zero_grad(set_to_none=True)
 
 
-
-
-
-def prepare_output_and_logger(args):    
+def prepare_output_and_logger(args):
     if not args.model_path:
-        if os.getenv('OAR_JOB_ID'):
-            unique_str=os.getenv('OAR_JOB_ID')
+        if os.getenv("OAR_JOB_ID"):
+            unique_str = os.getenv("OAR_JOB_ID")
         else:
             unique_str = str(uuid.uuid4())
         args.model_path = os.path.join("./output/", unique_str[0:10])
-        
+
     # Set up output folder
     print("Output folder: {}".format(args.model_path))
-    os.makedirs(args.model_path, exist_ok = True)
-    with open(os.path.join(args.model_path, "cfg_args"), 'w') as cfg_log_f:
+    os.makedirs(args.model_path, exist_ok=True)
+    with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
 
     # Create Tensorboard writer
@@ -623,60 +746,75 @@ def prepare_output_and_logger(args):
 
 
 if __name__ == "__main__":
-    # Set up command line argument parser; 
+    # Set up command line argument parser;
     parser = ArgumentParser(description="Training script parameters")
     lp = ModelParams(parser)
-    op = OptimizationParams(parser) #we put more parameters in optimization params, just for convenience.
+    op = OptimizationParams(parser)  # we put more parameters in optimization params, just for convenience.
     pp = PipelineParams(parser)
-    parser.add_argument('--ip', type=str, default="127.0.0.1")
-    parser.add_argument('--port', type=int, default=6029)
-    parser.add_argument('--debug_from', type=int, default=-2)
-    parser.add_argument('--detect_anomaly', action='store_true', default=False)
-    parser.add_argument("--save_iterations", nargs="+", type=int, default=[ 7_000,  10000, 12000, 15000, 20_000, 25_000, 30_000])
-    parser.add_argument("--test_iterations", nargs="+", type=int, default=[ 20_000, 30_000])
+    parser.add_argument("--ip", type=str, default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=6029)
+    parser.add_argument("--debug_from", type=int, default=-2)
+    parser.add_argument("--detect_anomaly", action="store_true", default=False)
+    parser.add_argument(
+        "--save_iterations", nargs="+", type=int, default=[7_000, 10000, 12000, 15000, 20_000, 25_000, 30_000]
+    )
+    parser.add_argument("--test_iterations", nargs="+", type=int, default=[20_000, 30_000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
-    parser.add_argument("--start_checkpoint", type=str, default = None)
-    parser.add_argument("--densify", type=int, default=1, help="densify =1, we control points on N3d dataset")
+    parser.add_argument("--start_checkpoint", type=str, default=None)
+    parser.add_argument("--densify", type=int, default=1, help="densify =1, we control points on N3d model_args")
     parser.add_argument("--duration", type=int, default=50, help="5 debug , 50 used")
-    parser.add_argument("--basicfunction", type=str, default = "gaussian")
-    parser.add_argument("--rgbfunction", type=str, default = "rgbv1")
-    parser.add_argument("--rdpip", type=str, default = "v2")
-    parser.add_argument("--configpath", type=str, default = "None")
+    parser.add_argument("--basic_function", type=str, default="gaussian")
+    parser.add_argument("--rgb_function", type=str, default="rgbv1")
+    parser.add_argument("--rd_pipe", type=str, default="v2")
+    parser.add_argument("--config_path", type=str, default="None")
 
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
-    
-    print("Optimizing " + args.model_path)
-    
-    # Initialize system state (RNG)
-    safe_state(args.quiet) # important !!!! seed 0, 
 
+    print("Optimizing " + args.model_path)
+
+    # Initialize system state (RNG)
+    safe_state(args.quiet)  # important !!!! seed 0,
 
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
 
     # incase we provide config file not directly pass to the file     config will overwrite the argument... to change to the reverse?
-    if os.path.exists(args.configpath) and args.configpath != "None":
-        print("overload config from " + args.configpath)
-        config = json.load(open(args.configpath))
+    if os.path.exists(args.config_path) and args.config_path != "None":
+        print("overload config from " + args.config_path)
+        config = json.load(open(args.config_path))
         for k in config.keys():
             try:
-                value = getattr(args, k) 
+                value = getattr(args, k)
                 newvalue = config[k]
                 setattr(args, k, newvalue)
             except:
                 print("failed set config: " + k)
-        print("finish load config from " + args.configpath)
+        print("finish load config from " + args.config_path)
     else:
         print("config file not exist or not provided")
 
     if not os.path.exists(args.model_path):
         os.makedirs(args.model_path)
-    
-    # refactor the code may affect results? unsure. keep the original structure
-    args.iterations = 20000 # hard coded do not change
 
-    train(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from, densify=args.densify, duration=args.duration, basicfunction=args.basicfunction, rgbfunction=args.rgbfunction, rdpip=args.rdpip)
+    # refactor the code may affect results? unsure. keep the original structure
+    args.iterations = 20000  # hard coded do not change
+
+    train(
+        lp.extract(args),
+        op.extract(args),
+        pp.extract(args),
+        args.test_iterations,
+        args.save_iterations,
+        args.checkpoint_iterations,
+        args.start_checkpoint,
+        args.debug_from,
+        densify=args.densify,
+        duration=args.duration,
+        basic_function=args.basic_function,
+        rgb_function=args.rgb_function,
+        rd_pipe=args.rd_pipe,
+    )
 
     # All done
     print("\nTraining complete.")

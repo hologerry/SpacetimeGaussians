@@ -26,10 +26,14 @@ import os
 import cv2
 import natsort
 import numpy as np
-# import sys 
+
+# import sys
 # sys.path.append(".")
-from thirdparty.colmap.pre_colmap import * 
-from thirdparty.gaussian_splatting.colmap_loader import read_extrinsics_binary, read_intrinsics_binary
+from thirdparty.colmap.pre_colmap import *
+from thirdparty.gaussian_splatting.colmap_loader import (
+    read_extrinsics_binary,
+    read_intrinsics_binary,
+)
 
 
 def compare_spatial_temporal():
@@ -105,7 +109,6 @@ def look_for_image():
         img2 = cv2.imread(image_path).astype(np.float32)
         img2 = cv2.resize(img2.astype(np.float32), (1352, 1014), interpolation=cv2.INTER_CUBIC)
 
-
         psnr = cv2.PSNR(image, img2)
         if psnr > max_psnr:
             second_psnr = max_psnr
@@ -121,8 +124,7 @@ def look_for_image():
 def remove_nfs():
     # remove not used nfs files
 
-    nfslist = glob.glob("//.nfs*")
-
+    nfs_list = glob.glob("//.nfs*")
 
     for f in nfs_list:
         cmd = " lsof -t " + f + " | xargs kill -9 "
@@ -130,122 +132,138 @@ def remove_nfs():
         print(cmd)
 
 
-def extractcolmapmodel2db(path, offset=1):
-    # 
+def extract_colmap_model_to_db(path, offset=1):
 
-    projectfolder = os.path.join(path, "colmap_" + str(offset))
-    refprojectfolder =  os.path.join(path, "colmap_" + str(0))
-    manualfolder = os.path.join(projectfolder, "manual")
+    project_folder = os.path.join(path, "colmap_" + str(offset))
+    ref_project_folder = os.path.join(path, "colmap_" + str(0))
+    manual_folder = os.path.join(project_folder, "manual")
 
-    
-    cameras_extrinsic_file = os.path.join(refprojectfolder, "sparse/0/", "images.bin") # from distorted?
-    cameras_intrinsic_file = os.path.join(refprojectfolder, "sparse/0/", "cameras.bin")
+    cameras_extrinsic_file = os.path.join(ref_project_folder, "sparse/0/", "images.bin")  # from distorted?
+    cameras_intrinsic_file = os.path.join(ref_project_folder, "sparse/0/", "cameras.bin")
 
     cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)
     cam_intrinsics = read_intrinsics_binary(cameras_intrinsic_file)
 
-    if not os.path.exists(manualfolder):
-        os.makedirs(manualfolder)
+    if not os.path.exists(manual_folder):
+        os.makedirs(manual_folder)
 
-    savetxt = os.path.join(manualfolder, "images.txt")
-    savecamera = os.path.join(manualfolder, "cameras.txt")
-    savepoints = os.path.join(manualfolder, "points3D.txt")
-    imagetxtlist = []
-    cameratxtlist = []
-    if os.path.exists(os.path.join(projectfolder, "input.db")):
-        os.remove(os.path.join(projectfolder, "input.db"))
+    save_txt = os.path.join(manual_folder, "images.txt")
+    save_camera = os.path.join(manual_folder, "cameras.txt")
+    savepoints = os.path.join(manual_folder, "points3D.txt")
+    image_txt_list = []
+    camera_txt_list = []
+    if os.path.exists(os.path.join(project_folder, "input.db")):
+        os.remove(os.path.join(project_folder, "input.db"))
 
-    db = COLMAPDatabase.connect(os.path.join(projectfolder, "input.db"))
+    db = COLMAPDatabase.connect(os.path.join(project_folder, "input.db"))
 
     db.create_tables()
 
-
-    helperdict = {}
-    totalcamname = []
-    for idx, key in enumerate(cam_extrinsics): # first is cam20_ so we strictly sort by camera name
+    helper_dict = {}
+    total_cam_name = []
+    for idx, key in enumerate(cam_extrinsics):  # first is cam20_ so we strictly sort by camera name
         extr = cam_extrinsics[key]
         intr = cam_intrinsics[extr.camera_id]
-        totalcamname.append(extr.name)
-        helperdict[extr.name] = [extr, intr]
-    
-    sortedtotalcamelist =  natsort.natsorted(totalcamname)
-    sortednamedict = {}
-    for i in  range(len(sortedtotalcamelist)):
-        sortednamedict[sortedtotalcamelist[i]] = i # map each cam with a number
+        total_cam_name.append(extr.name)
+        helper_dict[extr.name] = [extr, intr]
 
-    videopath = glob.glob(refprojectfolder + "/images/*.png")
-    for i in range(len(videopath)):
-        cameraname = os.path.basename(videopath[i])[:-4]#"cam" + str(i).zfill(2)
-        cameranameaskey = cameraname + ".png"
-        extr, intr =  helperdict[cameranameaskey] # extr.name
+    sorted_total_cam_name_list = natsort.natsorted(total_cam_name)
+    sorted_name_dict = {}
+    for i in range(len(sorted_total_cam_name_list)):
+        sorted_name_dict[sorted_total_cam_name_list[i]] = i  # map each cam with a number
+
+    video_path = glob.glob(ref_project_folder + "/images/*.png")
+    for i in range(len(video_path)):
+        camera_name = os.path.basename(video_path[i])[:-4]  # "cam" + str(i).zfill(2)
+        camera_name_as_key = camera_name + ".png"
+        extr, intr = helper_dict[camera_name_as_key]  # extr.name
 
         width, height, params = intr.width, intr.height, intr.params
-        focolength = intr.params[0]
+        focal_length = intr.params[0]
         fw, fh = intr.params[2], intr.params[3]
 
         colmapQ = extr.qvec
         T = extr.tvec
-        
 
-        imageid = str(i+1)
-        cameraid = imageid
-        pngname = cameraname + ".png"
-        
-        line =  imageid + " "
+        image_id = str(i + 1)
+        camera_id = image_id
+        png_name = camera_name + ".png"
+
+        line = image_id + " "
 
         for j in range(4):
             line += str(colmapQ[j]) + " "
         for j in range(3):
             line += str(T[j]) + " "
-        line = line  + cameraid + " " + pngname + "\n"
-        empltyline = "\n"
-        imagetxtlist.append(line)
-        imagetxtlist.append(empltyline)
+        line = line + camera_id + " " + png_name + "\n"
+        empty_line = "\n"
+        image_txt_list.append(line)
+        image_txt_list.append(empty_line)
 
-        
-
-        #model, width, height, params = i, W, H, np.array((focolength, W//2, H//2, 0.1))
+        # model, width, height, params = i, W, H, np.array((focal_length, W//2, H//2, 0.1))
 
         camera_id = db.add_camera(1, width, height, params)
-        cameraline = str(i+1) + " " + "PINHOLE " + str(width) +  " " + str(height) + " " + str(focolength) + " " + str(focolength) + " " + str(fw) + " " + str(fh) + "\n"
-        cameratxtlist.append(cameraline)
-        
-        image_id = db.add_image(pngname, camera_id,  prior_q=np.array((colmapQ[0], colmapQ[1], colmapQ[2], colmapQ[3])), prior_t=np.array((T[0], T[1], T[2])), image_id=i+1)
+        camera_line = (
+            str(i + 1)
+            + " "
+            + "PINHOLE "
+            + str(width)
+            + " "
+            + str(height)
+            + " "
+            + str(focal_length)
+            + " "
+            + str(focal_length)
+            + " "
+            + str(fw)
+            + " "
+            + str(fh)
+            + "\n"
+        )
+        camera_txt_list.append(camera_line)
+
+        image_id = db.add_image(
+            png_name,
+            camera_id,
+            prior_q=np.array((colmapQ[0], colmapQ[1], colmapQ[2], colmapQ[3])),
+            prior_t=np.array((T[0], T[1], T[2])),
+            image_id=i + 1,
+        )
         db.commit()
     db.close()
 
-    with open(savetxt, "w") as f:
-        for line in imagetxtlist :
+    with open(save_txt, "w") as f:
+        for line in image_txt_list:
             f.write(line)
-    with open(savecamera, "w") as f:
-        for line in cameratxtlist :
+    with open(save_camera, "w") as f:
+        for line in camera_txt_list:
             f.write(line)
     with open(savepoints, "w") as f:
-        pass 
+        pass
     print("done")
 
 
-
-WEIGHTDICT={}
-DATADICT={}
-n3d =  ["flame_salmon_1","flame_steak","cook_spinach", "cut_roasted_beef", "coffee_martini", "sear_steak"]
+WEIGHT_DICT = {}
+DATA_DICT = {}
+n3d = ["flame_salmon_1", "flame_steak", "cook_spinach", "cut_roasted_beef", "coffee_martini", "sear_steak"]
 Techni = ["Birthday", "Fabien", "Painter", "Theater", "Train"]
-IMdist = []
-CONFIGDICT = {}
+IM_dist = []
+CONFIG_DICT = {}
 
 
 for k in n3d:
-    WEIGHTDICT[k]= "/"
-    DATADICT[k] = "/"
+    WEIGHT_DICT[k] = "/"
+    DATA_DICT[k] = "/"
 
 for k in Techni:
-    WEIGHTDICT[k]= "/techni/"
-    DATADICT[k] = "/technicolor/"
+    WEIGHT_DICT[k] = "/techni/"
+    DATA_DICT[k] = "/technicolor/"
 
-for k in IMdist:
-    WEIGHTDICT[k]= "/IMdist/"
-    DATADICT[k] = "/IMdist/"
-    
+for k in IM_dist:
+    WEIGHT_DICT[k] = "/IM_dist/"
+    DATA_DICT[k] = "/IM_dist/"
+
+
 def get_value_from_args(args_str, key):
     args_list = args_str.split()
     try:
@@ -255,68 +273,107 @@ def get_value_from_args(args_str, key):
         return None
 
 
-def generatescript(gpulist, gpuserver, framerange=[0, 50], step=50, scenelist=["flame_salmon_1"],  option="train",testiter=30000, spetialname="", additional="", add='w', script="trainv2",densifydict=None, cofigroot=None):
+def generate_script(
+    gpu_list,
+    gpu_server,
+    frame_range=[0, 50],
+    step=50,
+    scene_list=["flame_salmon_1"],
+    option="train",
+    test_iter=30000,
+    special_name="",
+    additional="",
+    add="w",
+    script="train_v2",
+    densify_dict=None,
+    config_root=None,
+):
 
-    if scenelist[0] not in Techni:
-        traincommand = " python " + script + ".py -r 2 --quiet --eval --test_iterations -1" 
-        testcommand = " python test.py -r 2" +" --quiet --eval --skip_train"
+    if scene_list[0] not in Techni:
+        train_command = " python " + script + ".py -r 2 --quiet --eval --test_iterations -1"
+        test_command = " python test.py -r 2" + " --quiet --eval --skip_train"
     else:
-        traincommand = " python " + script + ".py --quiet --eval --test_iterations -1" 
-        testcommand = " python test.py" +" --quiet --eval --skip_train"
-    cmdlist = []
+        train_command = " python " + script + ".py --quiet --eval --test_iterations -1"
+        test_command = " python test.py" + " --quiet --eval --skip_train"
+    cmd_list = []
 
+    if option == "g_model":
+        for scene in scene_list:
+            for i in frame_range:
+                colmap_folder = DATA_DICT[scene] + scene + "/colmap_" + str(i)
+                model_save_folder = WEIGHT_DICT[scene] + special_name + "/" + scene + "/colmap_" + str(i)
+                tmp_command = (
+                    train_command
+                    + " -s "
+                    + colmap_folder
+                    + " -m "
+                    + model_save_folder
+                    + " --config "
+                    + config_root
+                    + scene
+                    + ".json"
+                )
+                curtest_command = (
+                    test_command
+                    + " -s "
+                    + colmap_folder
+                    + " -m "
+                    + model_save_folder
+                    + " --config "
+                    + config_root
+                    + scene
+                    + ".json"
+                )  # how to overwrite config with additional input?
 
-    if option == "gmodel":
-        for scene in scenelist:
-            for i in framerange:
-                colmapfolder = DATADICT[scene]+ scene +"/colmap_" + str(i)
-                modelsavefolder =WEIGHTDICT[scene] + spetialname + "/" + scene +"/colmap_" + str(i)
-                tmpcommdad = traincommand + " -s " + colmapfolder + " -m " + modelsavefolder  + " --config "+  cofigroot + scene + ".json" 
-                curtestcommand = testcommand + " -s " + colmapfolder + " -m " + modelsavefolder  + " --config "+ cofigroot + scene + ".json" # how to overwrite config with additional input?
-      
                 try:
-                    if scene in densifydict:
-                        tmpcommdad += " --densify " + str(densifydict[scene])
+                    if scene in densify_dict:
+                        tmp_command += " --densify " + str(densify_dict[scene])
                 except:
                     pass
-      
-                curtestcommand += " --test_iteration " + str(testiter)
 
-                cmdlist.append((tmpcommdad, curtestcommand))
+                curtest_command += " --test_iteration " + str(test_iter)
 
-    sequences = np.array_split(cmdlist, len(gpulist))
+                cmd_list.append((tmp_command, curtest_command))
+
+    sequences = np.array_split(cmd_list, len(gpu_list))
 
     if scene in n3d:
-        additonaltest = " --valloader colmapvalid"
+        additional_test = " --val_loader colmap_valid"
     elif scene in Techni:
-        additonaltest = " --valloader technicolor"
-    elif scene in IMdist:
-        additonaltest = " --valoader immersivevalidss"
-    for idx in range(len(gpulist)):
-        gpuid = gpulist[idx]
-        scriptname = gpuserver + '_gpu' + str(gpuid).zfill(1) + option +".sh" # to acrross different server 
-        thisfilecommands =  sequences[idx]
-        print("writing to ", scriptname)
-        with open(scriptname, add) as filescript:
-            if len(thisfilecommands[0]) == 3:
-                for op, testop, metricop in thisfilecommands:
-                    train = "PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES=" + str(gpuid) +  " "+ op + " " + additional # PYTHONDONTWRITEBYTECODE=1 important !
-                    test = "PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES=" + str(gpuid) +  " "+ testop  + additonaltest
-                    if testiter == 30000:
-                        filescript.write("%s ;\n" % train)
-                        filescript.write("%s ;\n" % test) # skip test f
-            else :
-              for op in thisfilecommands:
-                    train = "CUDA_VISIBLE_DEVICES=" + str(gpuid) +  " "+ op 
-                    filescript.write("%s ;\n" % train)
+        additional_test = " --val_loader technicolor"
+    elif scene in IM_dist:
+        additional_test = " --val_loader immersive_valid_ss"
+    for idx in range(len(gpu_list)):
+        gpu_id = gpu_list[idx]
+        script_name = gpu_server + "_gpu" + str(gpu_id).zfill(1) + option + ".sh"  # to across different server
+        this_file_commands = sequences[idx]
+        print("writing to ", script_name)
+        with open(script_name, add) as file_script:
+            if len(this_file_commands[0]) == 3:
+                for op, test_op, metric_op in this_file_commands:
+                    train = (
+                        "PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES=" + str(gpu_id) + " " + op + " " + additional
+                    )  # PYTHONDONTWRITEBYTECODE=1 important !
+                    test = (
+                        "PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES="
+                        + str(gpu_id)
+                        + " "
+                        + test_op
+                        + additional_test
+                    )
+                    if test_iter == 30000:
+                        file_script.write("%s ;\n" % train)
+                        file_script.write("%s ;\n" % test)  # skip test f
+            else:
+                for op in this_file_commands:
+                    train = "CUDA_VISIBLE_DEVICES=" + str(gpu_id) + " " + op
+                    file_script.write("%s ;\n" % train)
 
-            filescript.close()
+            file_script.close()
 
 
-
-if __name__ == "__main__" :
-    #removenfs()
-    #compareSpatialtemporal()
-    # convertvideos()
-    pass # 
-
+if __name__ == "__main__":
+    # remove_nfs()
+    # compare_spatial_temporal()
+    # convert_videos()
+    pass  #

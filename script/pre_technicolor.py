@@ -109,7 +109,7 @@ def convert_model_to_db_files(path, offset=0):
             )
 
             camera_id = db.add_camera(1, new_width, new_height, params)
-            # RADIAL_FISHEYE                                                                                 # width and height
+            # RADIAL_FISHEYE                   # width and height
 
             camera_line = (
                 str(idx + 1)

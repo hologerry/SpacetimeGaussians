@@ -86,44 +86,59 @@ def get_render_pipe(option="train_ours_full"):
         from thirdparty.gaussian_splatting.renderer import test_ours_lite
 
         return test_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
-    elif option == "train_ours_fullss":
-        from thirdparty.gaussian_splatting.renderer import train_ours_fullss
-        from diff_gaussian_rasterization_ch9 import GaussianRasterizationSettings 
-        from diff_gaussian_rasterization_ch9 import GaussianRasterizer  
-        return train_ours_fullss, GaussianRasterizationSettings, GaussianRasterizer
-    
-    elif option == "test_ours_fullss":
-        from thirdparty.gaussian_splatting.renderer import test_ours_fullss
-        from diff_gaussian_rasterization_ch9 import GaussianRasterizationSettings 
-        from diff_gaussian_rasterization_ch9 import GaussianRasterizer  
-        return test_ours_fullss, GaussianRasterizationSettings, GaussianRasterizer
-    
-    elif option == "test_ours_fullss_fused": # fused mlp in rendering
-        from thirdparty.gaussian_splatting.renderer import test_ours_fullss_fused
-        from forward_full import GaussianRasterizationSettings
-        from forward_full import GaussianRasterizer
-        return test_ours_fullss_fused, GaussianRasterizationSettings, GaussianRasterizer
-    
-    elif option == "train_ours_litess": 
-        from thirdparty.gaussian_splatting.renderer import train_ours_litess
-        from diff_gaussian_rasterization_ch3 import GaussianRasterizationSettings 
-        from diff_gaussian_rasterization_ch3 import GaussianRasterizer 
-        return train_ours_litess, GaussianRasterizationSettings, GaussianRasterizer    
-    
-    elif option == "test_ours_litess":
-        from thirdparty.gaussian_splatting.renderer import test_ours_litess
-        from forward_lite import GaussianRasterizationSettings 
-        from forward_lite import GaussianRasterizer  
-        return test_ours_litess,  GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "train_ours_full_ss":
+        from diff_gaussian_rasterization_ch9 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_full_ss
+
+        return train_ours_full_ss, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_full_ss":
+        from diff_gaussian_rasterization_ch9 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_full_ss
+
+        return test_ours_full_ss, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_full_ss_fused":  # fused mlp in rendering
+        from forward_full import GaussianRasterizationSettings, GaussianRasterizer
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_full_ss_fused
+
+        return test_ours_full_ss_fused, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "train_ours_lite_ss":
+        from diff_gaussian_rasterization_ch3 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_ss
+
+        return train_ours_lite_ss, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_ss":
+        from forward_lite import GaussianRasterizationSettings, GaussianRasterizer
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_lite_ss
+
+        return test_ours_lite_ss, GaussianRasterizationSettings, GaussianRasterizer
     else:
         raise NotImplementedError("Render {} not implemented".format(option))
 
 
 def get_model(model="ours_full"):
     if model == "ours_full":
-        from thirdparty.gaussian_splatting.scene.oursfull import GaussianModel
+        from thirdparty.gaussian_splatting.scene.ours_full import GaussianModel
     elif model == "ours_lite":
-        from thirdparty.gaussian_splatting.scene.ourslite import GaussianModel
+        from thirdparty.gaussian_splatting.scene.ours_lite import GaussianModel
     else:
         raise NotImplementedError("model {} not implemented".format(model))
     return GaussianModel
@@ -173,24 +188,24 @@ def get_loss(opt, Ll1, ssim, image, gt_image, gaussians, radii):
     return loss
 
 
-def freeze_weights(model, screen_list):
-    for k in screen_list:
+def freeze_weights(model, key_list):
+    for k in key_list:
         grad_tensor = getattr(getattr(model, k), "grad")
         new_grad = torch.zeros_like(grad_tensor)
         setattr(getattr(model, k), "grad", new_grad)
     return
 
 
-def freeze_weights_by_mask(model, screen_list, mask):
-    for k in screen_list:
+def freeze_weights_by_mask(model, key_list, mask):
+    for k in key_list:
         grad_tensor = getattr(getattr(model, k), "grad")
         new_grad = mask.unsqueeze(1) * grad_tensor  # torch.zeros_like(grad_tensor)
         setattr(getattr(model, k), "grad", new_grad)
     return
 
 
-def freeze_weights_by_mask_no_unsqueeze(model, screen_list, mask):
-    for k in screen_list:
+def freeze_weights_by_mask_no_unsqueeze(model, key_list, mask):
+    for k in key_list:
         grad_tensor = getattr(getattr(model, k), "grad")
         new_grad = mask * grad_tensor  # torch.zeros_like(grad_tensor)
         setattr(getattr(model, k), "grad", new_grad)
@@ -226,8 +241,26 @@ def control_gaussians(
     train_camera_with_distance=None,
     max_bounds=None,
     min_bounds=None,
+    white_background=False,
 ):
-    if densify == 1:  # n3d
+    if densify == 0:  # raw gaussian splatting
+        if iteration < opt.densify_until_iter:
+
+            if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
+                size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+                gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
+
+            if iteration % opt.opacity_reset_interval == 0 or (
+                white_background and iteration == opt.densify_from_iter
+            ):
+                gaussians.reset_opacity()
+
+            ## bbox pruning not working, cause optimizer state to None, directly use the range to initialize points
+            # gaussians.prune_points_bbox(scene.bbox_model)
+
+        return flag
+
+    elif densify == 1:  # n3d
         if iteration < opt.densify_until_iter:
             if iteration == 8001:
                 omega_mask = gaussians.zero_omega_by_motion()  # 1 we keep omega, 0 we freeze omega
@@ -252,7 +285,7 @@ def control_gaussians(
                         gaussians.prune_points(prune_mask)
                         torch.cuda.empty_cache()
                         scene.record_points(iteration, "additionally prune_mask")
-            if iteration % 3000 == 0:
+            if iteration % opt.opacity_reset_interval == 0:
                 gaussians.reset_opacity()
         else:
             freeze_weights_by_mask_no_unsqueeze(gaussians, ["_omega"], gaussians.omega_mask)
@@ -408,20 +441,21 @@ def undistort_image(image_name, dataset_path, data):
 
         image_size = (w, h)
         knew = np.zeros((3, 3), dtype=np.float32)
-        knew[0,0] = focalscale * intrinsics[0,0]
-        knew[1,1] = focalscale * intrinsics[1,1]
-        knew[0,2] =  view['principal_point'][0] # cx fixed half of the width
-        knew[1,2] =  view['principal_point'][1] #
-        knew[2,2] =  1.0
+        knew[0, 0] = focal_scale * intrinsics[0, 0]
+        knew[1, 1] = focal_scale * intrinsics[1, 1]
+        knew[0, 2] = view["principal_point"][0]  # cx fixed half of the width
+        knew[1, 2] = view["principal_point"][1]  #
+        knew[2, 2] = 1.0
 
-        map1, map2 = cv2.fisheye.initUndistortRectifyMap(intrinsics, dis_cef, R=None, P=knew, size=(w, h), m1type=cv2.CV_32FC1)
+        map1, map2 = cv2.fisheye.initUndistortRectifyMap(
+            intrinsics, dis_cef, R=None, P=knew, size=(w, h), m1type=cv2.CV_32FC1
+        )
 
         undistorted_image = cv2.remap(data, map1, map2, interpolation=cv2.INTER_CUBIC, borderMode=cv2.BORDER_CONSTANT)
-        undistorted_image = undistorted_image.clip(0,255.0) 
+        undistorted_image = undistorted_image.clip(0, 255.0)
         return undistorted_image
 
 
 def trb_function(x):
     # Temporal Radial Basis Function
     return torch.exp(-1 * x.pow(2))
-

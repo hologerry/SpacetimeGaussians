@@ -217,28 +217,39 @@ class GaussianModel:
         )
 
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
+        print("self._xyz inited", self._xyz.shape)
 
         features9channel = fused_color
 
         self._features_dc = nn.Parameter(features9channel.contiguous().requires_grad_(True))
+        print("self._features_dc inited", self._features_dc.shape)
 
         N, _ = fused_color.shape
 
         self._scaling = nn.Parameter(scales.requires_grad_(True))
+        print("self._scaling inited", self._scaling.shape)
+
         self._rotation = nn.Parameter(rots.requires_grad_(True))
+        print("self._rotation inited", self._rotation.shape)
 
         omega = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
         self._omega = nn.Parameter(omega.requires_grad_(True))
+        print("self._omega inited", self._omega.shape)
 
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
+        print("self._opacity inited", self._opacity.shape)
 
         motion = torch.zeros((fused_point_cloud.shape[0], 9), device="cuda")  # x1,x2,x3, y1,y2,y3, z1,z2,z3
         self._motion = nn.Parameter(motion.requires_grad_(True))
+        print("self._motion inited", self._motion.shape)
 
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
+        print("self.max_radii2D inited", self.max_radii2D.shape)
 
         self._trbf_center = nn.Parameter(times.contiguous().requires_grad_(True))
         self._trbf_scale = nn.Parameter(torch.ones((self.get_xyz.shape[0], 1), device="cuda").requires_grad_(True))
+
+        print("self._trbf_center inited", self._trbf_center.shape)
 
         ## store gradients
 
@@ -392,9 +403,12 @@ class GaussianModel:
         el = PlyElement.describe(elements, "vertex")
         PlyData([el]).write(path)
 
-        model_fname = path.replace(".ply", ".pt")
-        print(f"Saving model checkpoint to: {model_fname}")
+        # model_fname = path.replace(".ply", ".pt")
+        # print(f"Saving model checkpoint to: {model_fname}")
         # torch.save(self.rgb_decoder.state_dict(), model_fname)
+
+        txt_fname = path.replace(".ply", ".txt")
+        np.savetxt(txt_fname, attributes, delimiter=",")
 
     def reset_opacity(self):
         opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity) * 0.01))

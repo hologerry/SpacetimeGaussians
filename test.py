@@ -255,6 +255,7 @@ def run_test(
     print("use model {}".format(model_args.model))
     GaussianModel = get_model(model_args.model)  # default, g_model, we are testing
 
+    print(f"iteration {iteration}")
     gaussians = GaussianModel(model_args.sh_degree, rgb_function)
 
     scene = Scene(

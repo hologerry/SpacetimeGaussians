@@ -22,7 +22,7 @@ from thirdparty.gaussian_splatting.arguments import ModelParams
 from thirdparty.gaussian_splatting.scene.dataset_readers import (
     scene_load_type_callbacks,
 )
-from thirdparty.gaussian_splatting.scene.oursfull import GaussianModel
+from thirdparty.gaussian_splatting.scene.ours_full import GaussianModel
 from thirdparty.gaussian_splatting.utils.camera_utils import (
     camera_list_from_cam_infos,
     camera_list_from_cam_infos_v2,
@@ -44,6 +44,8 @@ class Scene:
         multi_view=False,
         duration=50,
         loader="colmap",
+        start_time=50,
+        time_step=1,
     ):
         """b
         :param path: Path to colmap scene main folder.
@@ -90,8 +92,9 @@ class Scene:
 
         elif loader == "hyfluid" or loader == "hyfluid_valid":
             scene_info = scene_load_type_callbacks["hyfluid"](
-                args.source_path, args.white_background, args.eval, duration=duration
+                args.source_path, args.white_background, args.eval, start_time=start_time, duration=duration, time_step=time_step,
             )
+
         else:
             assert False, "Could not recognize scene type!"
 
@@ -116,6 +119,7 @@ class Scene:
             random.shuffle(scene_info.test_cameras)  # Multi-res consistent random shuffling
 
         self.cameras_extent = scene_info.nerf_normalization["radius"]
+        self.bbox_model = scene_info.bbox_model
 
         for resolution_scale in resolution_scales:
             print("Loading Training Cameras")
@@ -206,14 +210,13 @@ class Scene:
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
 
     def save(self, iteration):
-        point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))
+        point_cloud_path = os.path.join(self.model_path, f"point_cloud/iteration_{iteration}")
         self.gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))
 
-    # record_points_helper(model_path, numpoints, iteration, string):
+    # record_points_helper(model_path, num_points, iteration, string):
     def record_points(self, iteration, string):
-        txt_path = os.path.join(self.model_path, "exp_log.txt")
-        numpoints = self.gaussians._xyz.shape[0]
-        record_points_helper(self.model_path, numpoints, iteration, string)
+        num_points = self.gaussians._xyz.shape[0]
+        record_points_helper(self.model_path, num_points, iteration, string)
 
     def get_train_cameras(self, scale=1.0):
         return self.train_cameras[scale]

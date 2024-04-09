@@ -74,7 +74,7 @@ def get_projection_matrix(z_near, z_far, fovX, fovY):  # ndc to
     P[0, 2] = (right + left) / (right - left)
     P[1, 2] = (top + bottom) / (top - bottom)
     P[3, 2] = z_sign
-    #    P[2, 2] = z_sign * z_far / (z_far - z_near)
+    # P[2, 2] = z_sign * z_far / (z_far - z_near)
     P[2, 2] = z_sign * (z_far + z_near) / (z_far - z_near)
 
     P[2, 3] = -(z_far * z_near) / (z_far - z_near)

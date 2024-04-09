@@ -161,7 +161,7 @@ class MiniCam:
         self.camera_center = view_inv[3][:3]
 
 
-class Camerass(nn.Module):
+class Camera_ss(nn.Module):
     def __init__(
         self,
         colmap_id,

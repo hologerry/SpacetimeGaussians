@@ -36,7 +36,6 @@ import torch
 import torch.nn.functional as F
 import torchvision
 
-from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import save_image
 from tqdm import tqdm
 
@@ -50,6 +49,7 @@ from helper_train import (
 )
 from thirdparty.gaussian_splatting.helper3dg import get_parser, get_render_parts
 from thirdparty.gaussian_splatting.scene import Scene
+from thirdparty.gaussian_splatting.utils.graphics_utils import get_world_2_view2
 from thirdparty.gaussian_splatting.utils.image_utils import psnr
 from thirdparty.gaussian_splatting.utils.loss_utils import (
     l1_loss,
@@ -73,18 +73,21 @@ def train(
     pipe_args,
     testing_iterations,
     saving_iterations,
+    checkpoint_iterations,
     debug_from,
     densify=0,
     duration=50,
     rgb_function="rgbv1",
     rd_pipe="v2",
+    start_time=0,
+    time_step=1,
 ):
     with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
 
     tb_writer = prepare_output_and_logger(model_args)
     first_iter = 0
-    render, GRsetting, GRzer = get_render_pipe(rd_pipe)
+    render_func, GRsetting, GRzer = get_render_pipe(rd_pipe)
 
     print("use model {}".format(model_args.model))
     GaussianModel = get_model(model_args.model)  # g_model, g_model_rgb_only
@@ -98,9 +101,18 @@ def train(
     gaussians.ray_start = optim_args.ray_start
 
     trbf_base_function = trb_function
-    scene = Scene(model_args, gaussians, duration=duration, loader=model_args.loader)
+    scene = Scene(
+        model_args,
+        gaussians,
+        loader=model_args.loader,
+        start_time=start_time,
+        duration=duration,
+        time_step=time_step,
+    )
 
     current_xyz = gaussians._xyz
+    os.makedirs("cam_vis", exist_ok=True)
+    np.save(os.path.join("cam_vis", "input_xyz.npy"), current_xyz.detach().cpu().numpy())
     # z wrong... # ???
     max_x, max_y, max_z = torch.amax(current_xyz[:, 0]), torch.amax(current_xyz[:, 1]), torch.amax(current_xyz[:, 2])
     min_x, min_y, min_z = torch.amin(current_xyz[:, 0]), torch.amin(current_xyz[:, 1]), torch.amin(current_xyz[:, 2])
@@ -122,7 +134,7 @@ def train(
     iter_start = torch.cuda.Event(enable_timing=True)
     iter_end = torch.cuda.Event(enable_timing=True)
 
-    viewpoint_stack = None
+    # viewpoint_stack = None
     ema_loss_for_log = 0.0
     # if freeze != 1:
     first_iter = 0
@@ -133,11 +145,12 @@ def train(
 
     depth_dict = {}
 
-    if optim_args.batch > 1:
-        train_camera_list = scene.get_train_cameras().copy()
-        train_cam_dict = {}
-        for i in range(duration):  # 0 to 4, -> (0.0, to 0.8)
-            train_cam_dict[i] = [cam for cam in train_camera_list if cam.timestamp == i / duration]
+    train_camera_list = scene.get_train_cameras().copy()
+    train_cam_dict = {}
+    unique_time_stamps = sorted(list(set([cam.timestamp for cam in train_camera_list])))
+
+    for i, time_stamp in enumerate(unique_time_stamps):  # 0 to 4, -> (0.0, to 0.8)
+        train_cam_dict[i] = [cam for cam in train_camera_list if cam.timestamp == time_stamp]
 
     if gaussians.ts is None:
         H, W = train_camera_list[0].image_height, train_camera_list[0].image_width
@@ -145,21 +158,19 @@ def train(
 
     scene.record_points(0, "start training")
 
-    print("after scene.record_points : ", gaussians._xyz.shape[0])
-
     flag_ems = 0
     ems_cnt = 0
     loss_dict = {}
     ssim_dict = {}
     depth_dict = {}
     valid_depth_dict = {}
-    ems_start_from_iterations = optim_args.ems_start
+    ems_start_from_iterations = optim_args.ems_start  # guided sampling start from iteration
 
     with torch.no_grad():
         time_index = 0  # 0 to 49
         viewpoint_set = train_cam_dict[time_index]
         for viewpoint_cam in viewpoint_set:
-            render_pkg = render(
+            render_pkg = render_func(
                 viewpoint_cam,
                 gaussians,
                 pipe_args,
@@ -170,6 +181,12 @@ def train(
                 GRzer=GRzer,
             )
 
+            w2c = get_world_2_view2(viewpoint_cam.R, viewpoint_cam.T)
+            c2w = np.linalg.inv(w2c)
+            c2w[:3, 1:3] *= -1
+            os.makedirs("cam_vis", exist_ok=True)
+            np.save(f"cam_vis/cam_{viewpoint_cam.image_name}_pose.npy", c2w)
+
             _, depthH, depthW = render_pkg["depth"].shape
             border_H = int(depthH / 2)
             border_W = int(depthW / 2)
@@ -178,27 +195,27 @@ def train(
             mid_w = int(viewpoint_cam.image_width / 2)
 
             depth = render_pkg["depth"]
+            print(f"cam {viewpoint_cam.image_name} depth: {depth.shape} {depth.min()} {depth.max()}")
             select_mask = depth != 15.0
+            select_mask_sum = torch.sum(select_mask)
+            assert select_mask_sum > 0, f"no valid depth for {viewpoint_cam.image_name}"
+
             initial_image = render_pkg["render"]
 
             valid_depth_dict[viewpoint_cam.image_name] = torch.median(depth[select_mask]).item()
             depth_dict[viewpoint_cam.image_name] = torch.amax(depth[select_mask]).item()
-            save_image(initial_image, os.path.join(scene.model_path, f"initial_render_{viewpoint_cam.image_name}.png"))
+            # save_image(initial_image, os.path.join(scene.model_path, f"initial_render_{viewpoint_cam.image_name}.png"))
 
-    print("after depth_dict[viewpoint_cam.image_name] : ", gaussians._xyz.shape[0])
-
-    if args.loader != "hyfluid" and (densify == 1 or densify == 2):
-        z_mask = gaussians._xyz[:, 2] < 4.5
-        gaussians.prune_points(z_mask)
-        torch.cuda.empty_cache()
+    # if densify == 1 or densify == 2:
+    #     z_mask = gaussians._xyz[:, 2] < 4.5
+    #     gaussians.prune_points(z_mask)
+    #     torch.cuda.empty_cache()
 
     selected_length = 2
     laster_ems = 0
 
-    print("before training iteration: ", gaussians._xyz.shape[0])
-
     for iteration in range(first_iter, optim_args.iterations + 1):
-        if iteration == optim_args.ems_start:
+        if args.loader != "hyfluid" and iteration == optim_args.ems_start:
             flag_ems = 1  # start ems
 
         iter_start.record()
@@ -206,95 +223,131 @@ def train(
 
         if (iteration - 1) == debug_from:
             pipe_args.debug = True
+
         if gaussians.rgb_decoder is not None:
             gaussians.rgb_decoder.train()
 
-        if optim_args.batch > 1:
-            gaussians.zero_gradient_cache()
-            time_index = randint(0, duration - 1)  # 0 to 49
-            viewpoint_set = train_cam_dict[time_index]
-            cam_index = random.sample(viewpoint_set, optim_args.batch)
+        gaussians.zero_gradient_cache()
+        time_index = randint(0, (len(unique_time_stamps) - 1))
+        viewpoint_set = train_cam_dict[time_index]
+        cam_index = random.sample(viewpoint_set, optim_args.batch)
 
-            for i in range(optim_args.batch):
-                viewpoint_cam = cam_index[i]
-                render_pkg = render(
-                    viewpoint_cam,
-                    gaussians,
-                    pipe_args,
-                    background,
-                    override_color=None,
-                    basic_function=trbf_base_function,
-                    GRsetting=GRsetting,
-                    GRzer=GRzer,
+        for i in range(optim_args.batch):
+            viewpoint_cam = cam_index[i]
+            render_pkg = render_func(
+                viewpoint_cam,
+                gaussians,
+                pipe_args,
+                background,
+                override_color=None,
+                basic_function=trbf_base_function,
+                GRsetting=GRsetting,
+                GRzer=GRzer,
+            )
+            image, viewspace_point_tensor, visibility_filter, radii = get_render_parts(render_pkg)
+            depth = render_pkg["depth"]
+            # print(f"iter: {iteration}, batch: {i}")
+            # print(f"image: {image.shape} {image.min()} {image.max()}")
+            # print(
+            #     f"viewspace_point_tensor: {viewspace_point_tensor.shape} {viewspace_point_tensor.min()} {viewspace_point_tensor.max()}"
+            # )
+            # print(f"visibility_filter: {visibility_filter.shape} {visibility_filter.min()} {visibility_filter.max()}")
+            # print(f"radii: {radii.shape} {radii.min()} {radii.max()}")
+            # print(f"depth: {depth.shape} {depth.min()} {depth.max()}")
+
+            gt_image = viewpoint_cam.original_image.float().cuda()
+
+            if iteration % 500 == 0:
+                save_image(
+                    depth,
+                    os.path.join(
+                        scene.model_path,
+                        f"depth_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
+                    ),
                 )
-                image, viewspace_point_tensor, visibility_filter, radii = get_render_parts(render_pkg)
-                gt_image = viewpoint_cam.original_image.float().cuda()
+                save_image(
+                    image,
+                    os.path.join(
+                        scene.model_path,
+                        f"render_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
+                    ),
+                )
+                save_image(
+                    gt_image,
+                    os.path.join(
+                        scene.model_path, f"gt_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png"
+                    ),
+                )
+                # current_xyz = gaussians.get_xyz
+                # xyz_min = torch.min(current_xyz, dim=0).values
+                # xyz_max = torch.max(current_xyz, dim=0).values
+                # print(f"Iter {iteration} min: {xyz_min}, max: {xyz_max}")
 
-                if optim_args.gtmask: # for training with undistorted immerisve image, masking black pixels in undistorted image. 
-                    mask = torch.sum(gt_image, dim=0) == 0
-                    mask = mask.float()
-                    image = image * (1- mask) +  gt_image * (mask)
+            if optim_args.gt_mask:
+                # for training with undistorted immersive image, masking black pixels in undistorted image.
+                mask = torch.sum(gt_image, dim=0) == 0
+                mask = mask.float()
+                image = image * (1 - mask) + gt_image * (mask)
 
+            if optim_args.reg == 2:
+                Ll1 = l2_loss(image, gt_image)
+                loss = Ll1
+            elif optim_args.reg == 3:
+                Ll1 = relative_loss(image, gt_image)
+                loss = Ll1
+            else:
+                Ll1 = l1_loss(image, gt_image)
+                loss = get_loss(optim_args, Ll1, ssim, image, gt_image, gaussians, radii)
 
-                if optim_args.reg == 2:
-                    Ll1 = l2_loss(image, gt_image)
-                    loss = Ll1
-                elif optim_args.reg == 3:
-                    Ll1 = relative_loss(image, gt_image)
-                    loss = Ll1
-                else:
-                    Ll1 = l1_loss(image, gt_image)
-                    loss = get_loss(optim_args, Ll1, ssim, image, gt_image, gaussians, radii)
+            if flag_ems == 1:
+                if viewpoint_cam.image_name not in loss_dict:
+                    loss_dict[viewpoint_cam.image_name] = loss.item()
+                    ssim_dict[viewpoint_cam.image_name] = ssim(
+                        image.clone().detach(), gt_image.clone().detach()
+                    ).item()
 
-                if flag_ems == 1:
-                    if viewpoint_cam.image_name not in loss_dict:
-                        loss_dict[viewpoint_cam.image_name] = loss.item()
-                        ssim_dict[viewpoint_cam.image_name] = ssim(
-                            image.clone().detach(), gt_image.clone().detach()
-                        ).item()
+            loss.backward()
+            gaussians.cache_gradient()
+            gaussians.optimizer.zero_grad(set_to_none=True)
 
-                loss.backward()
-                gaussians.cache_gradient()
-                gaussians.optimizer.zero_grad(set_to_none=True)
+        if flag_ems == 1 and len(loss_dict.keys()) == len(viewpoint_set):
+            # sort dict by value
+            # ssim_dict loss_dict
+            ordered_loss_dict = sorted(ssim_dict.items(), key=lambda item: item[1], reverse=False)
+            flag_ems = 2
+            select_views_list = []
+            select_views = {}
+            for idx, pair in enumerate(ordered_loss_dict):
+                viewname, loss_score = pair
+                ssim_score = ssim_dict[viewname]
+                if ssim_score < 0.91:  # avoid large ssim
+                    select_views_list.append((viewname, "rk" + str(idx) + "_ssim" + str(ssim_score)[0:4]))
+            if len(select_views_list) < 2:
+                select_views = []
+            else:
+                select_views_list = select_views_list[:2]
+                for v in select_views_list:
+                    select_views[v[0]] = v[1]
 
-            if flag_ems == 1 and len(loss_dict.keys()) == len(viewpoint_set):
-                # sort dict by value
-                # ssim_dict loss_dict
-                ordered_loss_dict = sorted(ssim_dict.items(), key=lambda item: item[1], reverse=False)
-                flag_ems = 2
-                select_views_list = []
-                select_views = {}
-                for idx, pair in enumerate(ordered_loss_dict):
-                    viewname, loss_score = pair
-                    ssim_score = ssim_dict[viewname]
-                    if ssim_score < 0.91:  # avoid large ssim
-                        select_views_list.append((viewname, "rk" + str(idx) + "_ssim" + str(ssim_score)[0:4]))
-                if len(select_views_list) < 2:
-                    select_views = []
-                else:
-                    select_views_list = select_views_list[:2]
-                    for v in select_views_list:
-                        select_views[v[0]] = v[1]
+            selected_length = len(select_views)
 
-                selected_length = len(select_views)
-
-            iter_end.record()
-            gaussians.set_batch_gradient(optim_args.batch)
-            # note we retrieve the correct gradient except the mask
-        else:
-            raise NotImplementedError("Batch size 1 is not supported")
+        iter_end.record()
+        gaussians.set_batch_gradient(optim_args.batch)
+        # note we retrieve the correct gradient except the mask
 
         with torch.no_grad():
             # Progress bar
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
+
             if iteration % 10 == 0:
                 progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
                 progress_bar.update(10)
+
             if iteration == optim_args.iterations:
                 progress_bar.close()
 
             if iteration in saving_iterations:
-                print("\n[ITER {}] Saving Gaussians".format(iteration))
+                print(f"\n[ITER {iteration}] Saving Gaussians")
                 scene.save(iteration)
 
             # Log and save
@@ -307,12 +360,12 @@ def train(
                 iter_start.elapsed_time(iter_end),
                 testing_iterations,
                 scene,
-                render,
+                render_func,
                 (pipe_args, background),
+                trbf_base_function,
+                GRsetting,
+                GRzer,
             )
-            if iteration in saving_iterations:
-                print("\n[ITER {}] Saving Gaussians".format(iteration))
-                scene.save(iteration)
 
             # Densification and pruning here
 
@@ -335,6 +388,7 @@ def train(
                 train_camera_with_distance=None,
                 max_bounds=max_bounds,
                 min_bounds=min_bounds,
+                white_background=model_args.white_background,
             )
 
             # guided sampling step
@@ -504,8 +558,11 @@ def train(
             # Optimizer step
             if iteration < optim_args.iterations:
                 gaussians.optimizer.step()
-
                 gaussians.optimizer.zero_grad(set_to_none=True)
+
+            if iteration in checkpoint_iterations:
+                print("\n[ITER {}] Saving Checkpoint".format(iteration))
+                torch.save((gaussians.capture(), iteration), scene.model_path + "/ckp" + str(iteration) + ".pth")
 
 
 def prepare_output_and_logger(args):
@@ -532,7 +589,7 @@ def prepare_output_and_logger(args):
 
 
 def training_report(
-    tb_writer,
+    tb_writer: SummaryWriter,
     iteration,
     Ll1,
     loss,
@@ -542,6 +599,9 @@ def training_report(
     scene: Scene,
     render_func,
     render_args,
+    trbf_base_function,
+    GRsetting,
+    GRzer,
 ):
     if tb_writer:
         tb_writer.add_scalar("train_loss_patches/l1_loss", Ll1.item(), iteration)
@@ -556,7 +616,8 @@ def training_report(
             {
                 "name": "train",
                 "cameras": [
-                    scene.get_train_cameras()[idx % len(scene.get_train_cameras())] for idx in range(5, 30, 5)
+                    scene.get_train_cameras()[idx % len(scene.get_train_cameras())]
+                    for idx in range(5, 30, 5)  # random get some train cameras
                 ],
             },
         )
@@ -566,8 +627,29 @@ def training_report(
                 l1_test = 0.0
                 psnr_test = 0.0
                 for idx, viewpoint in enumerate(config["cameras"]):
-                    image = torch.clamp(render_func(viewpoint, scene.gaussians, *render_args)["render"], 0.0, 1.0)
+                    rendered = render_func(
+                        viewpoint,
+                        scene.gaussians,
+                        *render_args,
+                        override_color=None,
+                        basic_function=trbf_base_function,
+                        GRsetting=GRsetting,
+                        GRzer=GRzer,
+                    )
+                    image = torch.clamp(rendered["render"], 0.0, 1.0)
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
+                    save_image(
+                        image,
+                        os.path.join(
+                            scene.model_path, f"test_render_{viewpoint.image_name}_{viewpoint.uid}_{iteration:05d}.png"
+                        ),
+                    )
+                    save_image(
+                        gt_image,
+                        os.path.join(
+                            scene.model_path, f"test_gt_{viewpoint.image_name}_{viewpoint.uid}_{iteration:05d}.png"
+                        ),
+                    )
                     if tb_writer and (idx < 5):
                         tb_writer.add_images(
                             config["name"] + "_view_{}/render".format(viewpoint.image_name),
@@ -585,6 +667,7 @@ def training_report(
                 psnr_test /= len(config["cameras"])
                 l1_test /= len(config["cameras"])
                 print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, config["name"], l1_test, psnr_test))
+
                 if tb_writer:
                     tb_writer.add_scalar(config["name"] + "/loss_viewpoint - l1_loss", l1_test, iteration)
                     tb_writer.add_scalar(config["name"] + "/loss_viewpoint - psnr", psnr_test, iteration)
@@ -592,6 +675,7 @@ def training_report(
         if tb_writer:
             tb_writer.add_histogram("scene/opacity_histogram", scene.gaussians.get_opacity, iteration)
             tb_writer.add_scalar("total_points", scene.gaussians.get_xyz.shape[0], iteration)
+
         torch.cuda.empty_cache()
 
 
@@ -604,11 +688,14 @@ if __name__ == "__main__":
         pp_extract,
         args.test_iterations,
         args.save_iterations,
+        args.checkpoint_iterations,
         args.debug_from,
         densify=args.densify,
-        duration=args.duration,
         rgb_function=args.rgb_function,
         rd_pipe=args.rd_pipe,
+        start_time=args.start_time,
+        duration=args.duration,
+        time_step=args.time_step,
     )
 
     # All done
