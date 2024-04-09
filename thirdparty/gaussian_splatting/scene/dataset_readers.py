@@ -1325,7 +1325,7 @@ def read_cameras_from_transforms_hyfluid(
                 uid = camera_uid  # idx * duration//time_step + time_idx
                 camera_uid += 1
 
-                print(f"cam_name {cam_name} timestamp {timestamp} camera uid {uid}")
+                # print(f"cam_name {cam_name} timestamp {timestamp} camera uid {uid}")
 
                 cam_infos.append(
                     CameraInfo(

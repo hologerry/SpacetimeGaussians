@@ -63,7 +63,7 @@ warnings.filterwarnings("ignore")
 
 # modified from https://github.com/graphdeco-inria/gaussian-splatting/blob/main/render.py
 # and https://github.com/graphdeco-inria/gaussian-splatting/blob/main/metrics.py
-def render_set(model_path, name, iteration, views, gaussians, pipe_args, background, rbf_base_function, rd_pipe):
+def render_set(model_path, name, iteration, views, gaussians, pipe_args, background, trbf_base_function, rd_pipe):
     render, GRsetting, GRzer = get_render_pipe(rd_pipe)
     render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
     gts_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt")
@@ -117,9 +117,9 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
     elif rd_pipe == "train_ours_lite":
         render, GRsetting, GRzer = get_render_pipe("test_ours_lite")
     elif rd_pipe == "train_ours_full_ss":
-        render, GRsetting, GRzer = get_render_pipe("test_ours_full_ss_fused")  #
+        render, GRsetting, GRzer = get_render_pipe("test_ours_full_ss_fused")
     elif rd_pipe == "train_ours_lite_ss":
-        render, GRsetting, GRzer = get_render_pipe("test_ours_lite_ss")  #
+        render, GRsetting, GRzer = get_render_pipe("test_ours_lite_ss")
 
     else:
         render, GRsetting, GRzer = get_render_pipe(rd_pipe)
@@ -131,10 +131,10 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
             pipe_args,
             background,
             scaling_modifier=1.0,
-            basic_function=rbf_base_function,
+            basic_function=trbf_base_function,
             GRsetting=GRsetting,
             GRzer=GRzer,
-        )  # C x H x W
+        )
         rendering = rendering_pkg["render"]
         rendering = torch.clamp(rendering, 0, 1.0)
         gt = view.original_image[0:3, :, :].cuda().float()
@@ -154,32 +154,34 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
         save_image(rendering, os.path.join(render_path, "{0:05d}".format(idx) + ".png"))
         save_image(gt, os.path.join(gts_path, "{0:05d}".format(idx) + ".png"))
         image_names.append("{0:05d}".format(idx) + ".png")
+
     images_to_video(render_path, ".png", os.path.join(model_path, name + "_ours_{}.mp4".format(iteration)), fps=25)
     images_to_video(gts_path, ".png", os.path.join(model_path, name + "_gt_{}.mp4".format(iteration)), fps=25)
 
-    for idx, view in enumerate(tqdm(views, desc="release gt images cuda memory for timing")):
-        view.original_image = None  # .detach()
-        torch.cuda.empty_cache()
+    # for idx, view in enumerate(tqdm(views, desc="release gt images cuda memory for timing")):
+    #     view.original_image = None  # .detach()
+    #     torch.cuda.empty_cache()
 
-    # start timing
-    for _ in range(4):
-        for idx, view in enumerate(tqdm(views, desc="timing ")):
+    # # start timing
 
-            render_pack = render(
-                view,
-                gaussians,
-                pipe_args,
-                background,
-                scaling_modifier=1.0,
-                basic_function=rbf_base_function,
-                GRsetting=GRsetting,
-                GRzer=GRzer,
-            )  # ["time"] # C x H x W
-            duration = render_pack["duration"]
-            if idx > 10:  # warm up
-                times.append(duration)
+    # for idx, view in enumerate(tqdm(views, desc="timing ")):
+    #     for _ in range(20):
+    #         render_pack = render(
+    #             view,
+    #             gaussians,
+    #             pipe_args,
+    #             background,
+    #             scaling_modifier=1.0,
+    #             basic_function=trbf_base_function,
+    #             GRsetting=GRsetting,
+    #             GRzer=GRzer,
+    #         )  # ["time"] # C x H x W
+    #         duration = render_pack["duration"]
+    #         if idx > 10:  # warm up
+    #             times.append(duration)
 
-    print(np.mean(np.array(times)))
+    # print("mean time for rendering", np.mean(np.array(times)))
+
     if len(views) > 0:
         full_dict[model_path][iteration].update(
             {
@@ -205,14 +207,18 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
         )
 
         with open(model_path + "/" + str(iteration) + "_runtime_results.json", "w") as fp:
+            print("saving results")
             json.dump(full_dict, fp, indent=True)
 
         with open(model_path + "/" + str(iteration) + "_runtime_per_view.json", "w") as fp:
+            print("saving per view results")
             json.dump(per_view_dict, fp, indent=True)
 
 
 # render free view
-def render_set_no_gt(model_path, name, iteration, views, gaussians, pipe_args, background, rbf_base_function, rd_pipe):
+def render_set_no_gt(
+    model_path, name, iteration, views, gaussians, pipe_args, background, trbf_base_function, rd_pipe
+):
     render, GRsetting, GRzer = get_render_pipe(rd_pipe)
     render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
 
@@ -229,7 +235,7 @@ def render_set_no_gt(model_path, name, iteration, views, gaussians, pipe_args, b
             pipe_args,
             background,
             scaling_modifier=1.0,
-            basic_function=rbf_base_function,
+            basic_function=trbf_base_function,
             GRsetting=GRsetting,
             GRzer=GRzer,
         )
@@ -250,6 +256,8 @@ def run_test(
     rgb_function="rgbv1",
     rd_pipe="v2",
     loader="colmap",
+    start_time=0,
+    time_step=1,
 ):
 
     print("use model {}".format(model_args.model))
@@ -264,10 +272,12 @@ def run_test(
         load_iteration=iteration,
         shuffle=False,
         multi_view=multi_view,
-        duration=duration,
         loader=loader,
+        start_time=start_time,
+        duration=duration,
+        time_step=time_step,
     )
-    rbf_base_function = trb_function
+    trbf_base_function = trb_function
     num_channels = 9
     bg_color = [0 for _ in range(num_channels)]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -287,7 +297,7 @@ def run_test(
             gaussians,
             pipe_args,
             background,
-            rbf_base_function,
+            trbf_base_function,
             rd_pipe,
         )
     if multi_view:
@@ -300,7 +310,7 @@ def run_test(
             gaussians,
             pipe_args,
             background,
-            rbf_base_function,
+            trbf_base_function,
             rd_pipe,
         )
 
@@ -315,8 +325,10 @@ if __name__ == "__main__":
         args.skip_train,
         args.skip_test,
         multi_view,
-        args.duration,
         rgb_function=args.rgb_function,
         rd_pipe=args.rd_pipe,
         loader=args.val_loader,
+        start_time=args.start_time,
+        duration=args.duration,
+        time_step=args.time_step,
     )

@@ -114,9 +114,10 @@ class Scene:
             with open(os.path.join(self.model_path, "cameras.json"), "w") as file:
                 json.dump(json_cams, file, indent=2)
 
-        if shuffle:
+        if shuffle and "hyfluid" not in loader:
             random.shuffle(scene_info.train_cameras)  # Multi-res consistent random shuffling
             random.shuffle(scene_info.test_cameras)  # Multi-res consistent random shuffling
+            # shuffle will cause the uid change
 
         self.cameras_extent = scene_info.nerf_normalization["radius"]
         self.bbox_model = scene_info.bbox_model

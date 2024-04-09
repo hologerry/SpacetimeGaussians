@@ -107,7 +107,11 @@ def get_test_parser():
     parser.add_argument("--skip_train", action="store_true")
     parser.add_argument("--skip_test", action="store_true")
     parser.add_argument("--multi_view", action="store_true")
-    parser.add_argument("--duration", default=50, type=int)
+
+    parser.add_argument("--start_time", type=int, default=0, help="the frames start idx")
+    parser.add_argument("--duration", type=int, default=5, help="5 debug , 50 used")
+    parser.add_argument("--time_step", type=int, default=1, help="the time step")
+
     parser.add_argument("--rgb_function", type=str, default="rgbv1")
     parser.add_argument("--rd_pipe", type=str, default="v3", help="render pipeline")
     parser.add_argument("--val_loader", type=str, default="colmap")

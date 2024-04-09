@@ -34,7 +34,7 @@ class Sandwich(nn.Module):
     def __init__(self, dim, outdim=3, bias=False):
         super().__init__()
 
-        self.mlp1 = nn.Conv2d(12, 6, kernel_size=1, bias=bias)  #
+        self.mlp1 = nn.Conv2d(12, 6, kernel_size=1, bias=bias)
 
         self.mlp2 = nn.Conv2d(6, 3, kernel_size=1, bias=bias)
         self.relu = nn.ReLU()
@@ -104,229 +104,229 @@ class RGBDecoderVRayShift(nn.Module):
         self.mlp3 = nn.Conv2d(6, outdim, kernel_size=1, bias=bias)
         self.sigmoid = torch.nn.Sigmoid()
 
-        self.dwconv1 = nn.Conv2d(9, 9, kernel_size=1, bias=bias)
+        self.dw_conv = nn.Conv2d(9, 9, kernel_size=1, bias=bias)
 
     def forward(self, input, rays, t=None):
-        x = self.dwconv1(input) + input
-        albeado = self.mlp1(x)
-        specualr = torch.cat([x, rays], dim=1)
-        specualr = self.mlp2(specualr)
+        x = self.dw_conv(input) + input
+        albedo = self.mlp1(x)
+        specular = torch.cat([x, rays], dim=1)
+        specular = self.mlp2(specular)
 
-        finalfeature = torch.cat([albeado, specualr], dim=1)
-        result = self.mlp3(finalfeature)
+        final_feature = torch.cat([albedo, specular], dim=1)
+        result = self.mlp3(final_feature)
         result = self.sigmoid(result)
         return result
 
 
 def interpolate_point(pcd, N=4):
 
-    oldxyz = pcd.points
-    oldcolor = pcd.colors
-    oldnormal = pcd.normals
-    oldtime = pcd.times
+    old_xyz = pcd.points
+    old_color = pcd.colors
+    old_normal = pcd.normals
+    old_time = pcd.times
 
-    timestamps = np.unique(oldtime)
+    time_stamps = np.unique(old_time)
 
-    newxyz = []
-    newcolor = []
-    newnormal = []
-    newtime = []
-    for timeidx, time in enumerate(timestamps):
-        selected_mask = oldtime == time
+    new_xyz = []
+    new_color = []
+    new_normal = []
+    new_time = []
+    for time_idx, time in enumerate(time_stamps):
+        selected_mask = old_time == time
         selected_mask = selected_mask.squeeze(1)
 
-        if timeidx == 0:
-            newxyz.append(oldxyz[selected_mask])
-            newcolor.append(oldcolor[selected_mask])
-            newnormal.append(oldnormal[selected_mask])
-            newtime.append(oldtime[selected_mask])
+        if time_idx == 0:
+            new_xyz.append(old_xyz[selected_mask])
+            new_color.append(old_color[selected_mask])
+            new_normal.append(old_normal[selected_mask])
+            new_time.append(old_time[selected_mask])
         else:
-            xyzinput = oldxyz[selected_mask]
-            xyzinput = torch.from_numpy(xyzinput).float().cuda()
-            xyzinput = xyzinput.unsqueeze(0).contiguous()  # 1 x N x 3
-            xyznnpoints = knn(2, xyzinput, xyzinput, False)
+            xyz_input = old_xyz[selected_mask]
+            xyz_input = torch.from_numpy(xyz_input).float().cuda()
+            xyz_input = xyz_input.unsqueeze(0).contiguous()  # 1 x N x 3
+            xyz_nn_points = knn(2, xyz_input, xyz_input, False)
 
-            nearestneibourindx = xyznnpoints[0, 1].long()  # N x 1
-            spatialdistance = torch.norm(xyzinput - xyzinput[:, nearestneibourindx, :], dim=2)  #  1 x N
-            spatialdistance = spatialdistance.squeeze(0)
+            nearest_neighbour_idx = xyz_nn_points[0, 1].long()  # N x 1
+            spatial_distance = torch.norm(xyz_input - xyz_input[:, nearest_neighbour_idx, :], dim=2)  #  1 x N
+            spatial_distance = spatial_distance.squeeze(0)
 
-            diff_sorted, _ = torch.sort(spatialdistance)
-            N = spatialdistance.shape[0]
+            diff_sorted, _ = torch.sort(spatial_distance)
+            N = spatial_distance.shape[0]
             num_take = int(N * 0.25)
-            masks = spatialdistance > diff_sorted[-num_take]
-            masksnumpy = masks.cpu().numpy()
+            masks = spatial_distance > diff_sorted[-num_take]
+            masks_numpy = masks.cpu().numpy()
 
-            newxyz.append(oldxyz[selected_mask][masksnumpy])
-            newcolor.append(oldcolor[selected_mask][masksnumpy])
-            newnormal.append(oldnormal[selected_mask][masksnumpy])
-            newtime.append(oldtime[selected_mask][masksnumpy])
-            #
-    newxyz = np.concatenate(newxyz, axis=0)
-    newcolor = np.concatenate(newcolor, axis=0)
-    newtime = np.concatenate(newtime, axis=0)
-    assert newxyz.shape[0] == newcolor.shape[0]
+            new_xyz.append(old_xyz[selected_mask][masks_numpy])
+            new_color.append(old_color[selected_mask][masks_numpy])
+            new_normal.append(old_normal[selected_mask][masks_numpy])
+            new_time.append(old_time[selected_mask][masks_numpy])
 
-    newpcd = BasicPointCloud(points=newxyz, colors=newcolor, normals=None, times=newtime)
+    new_xyz = np.concatenate(new_xyz, axis=0)
+    new_color = np.concatenate(new_color, axis=0)
+    new_time = np.concatenate(new_time, axis=0)
+    assert new_xyz.shape[0] == new_color.shape[0]
 
-    return newpcd
+    new_pcd = BasicPointCloud(points=new_xyz, colors=new_color, normals=None, times=new_time)
+
+    return new_pcd
 
 
 def interpolate_point_v3(pcd, N=4, m=0.25):
 
-    oldxyz = pcd.points
-    oldcolor = pcd.colors
-    oldnormal = pcd.normals
-    oldtime = pcd.times
+    old_xyz = pcd.points
+    old_color = pcd.colors
+    old_normal = pcd.normals
+    old_time = pcd.times
 
-    timestamps = np.unique(oldtime)
+    time_stamps = np.unique(old_time)
 
-    newxyz = []
-    newcolor = []
-    newnormal = []
-    newtime = []
-    for timeidx, time in enumerate(timestamps):
-        selected_mask = oldtime == time
+    new_xyz = []
+    new_color = []
+    new_normal = []
+    new_time = []
+    for time_idx, time in enumerate(time_stamps):
+        selected_mask = old_time == time
         selected_mask = selected_mask.squeeze(1)
 
-        if timeidx % N == 0:
-            newxyz.append(oldxyz[selected_mask])
-            newcolor.append(oldcolor[selected_mask])
-            newnormal.append(oldnormal[selected_mask])
-            newtime.append(oldtime[selected_mask])
+        if time_idx % N == 0:
+            new_xyz.append(old_xyz[selected_mask])
+            new_color.append(old_color[selected_mask])
+            new_normal.append(old_normal[selected_mask])
+            new_time.append(old_time[selected_mask])
 
         else:
-            xyzinput = oldxyz[selected_mask]
-            xyzinput = torch.from_numpy(xyzinput).float().cuda()
-            xyzinput = xyzinput.unsqueeze(0).contiguous()  # 1 x N x 3
-            xyznnpoints = knn(2, xyzinput, xyzinput, False)
+            xyz_input = old_xyz[selected_mask]
+            xyz_input = torch.from_numpy(xyz_input).float().cuda()
+            xyz_input = xyz_input.unsqueeze(0).contiguous()  # 1 x N x 3
+            xyz_nn_points = knn(2, xyz_input, xyz_input, False)
 
-            nearestneibourindx = xyznnpoints[
+            nearest_neighbour_idx = xyz_nn_points[
                 0, 1
             ].long()  # N x 1  skip the first one, we select the second closest one
-            spatialdistance = torch.norm(xyzinput - xyzinput[:, nearestneibourindx, :], dim=2)  #  1 x N
-            spatialdistance = spatialdistance.squeeze(0)
+            spatial_distance = torch.norm(xyz_input - xyz_input[:, nearest_neighbour_idx, :], dim=2)  #  1 x N
+            spatial_distance = spatial_distance.squeeze(0)
 
-            diff_sorted, _ = torch.sort(spatialdistance)
-            M = spatialdistance.shape[0]
+            diff_sorted, _ = torch.sort(spatial_distance)
+            M = spatial_distance.shape[0]
             num_take = int(M * m)
-            masks = spatialdistance > diff_sorted[-num_take]
-            masksnumpy = masks.cpu().numpy()
+            masks = spatial_distance > diff_sorted[-num_take]
+            masks_numpy = masks.cpu().numpy()
 
-            newxyz.append(oldxyz[selected_mask][masksnumpy])
-            newcolor.append(oldcolor[selected_mask][masksnumpy])
-            newnormal.append(oldnormal[selected_mask][masksnumpy])
-            newtime.append(oldtime[selected_mask][masksnumpy])
+            new_xyz.append(old_xyz[selected_mask][masks_numpy])
+            new_color.append(old_color[selected_mask][masks_numpy])
+            new_normal.append(old_normal[selected_mask][masks_numpy])
+            new_time.append(old_time[selected_mask][masks_numpy])
             #
-    newxyz = np.concatenate(newxyz, axis=0)
-    newcolor = np.concatenate(newcolor, axis=0)
-    newtime = np.concatenate(newtime, axis=0)
-    assert newxyz.shape[0] == newcolor.shape[0]
+    new_xyz = np.concatenate(new_xyz, axis=0)
+    new_color = np.concatenate(new_color, axis=0)
+    new_time = np.concatenate(new_time, axis=0)
+    assert new_xyz.shape[0] == new_color.shape[0]
 
-    newpcd = BasicPointCloud(points=newxyz, colors=newcolor, normals=None, times=newtime)
+    new_pcd = BasicPointCloud(points=new_xyz, colors=new_color, normals=None, times=new_time)
 
-    return newpcd
+    return new_pcd
 
 
 def interpolate_part_use(pcd, N=4):
     # used in ablation study
-    oldxyz = pcd.points
-    oldcolor = pcd.colors
-    oldnormal = pcd.normals
-    oldtime = pcd.times
+    old_xyz = pcd.points
+    old_color = pcd.colors
+    old_normal = pcd.normals
+    old_time = pcd.times
 
-    timestamps = np.unique(oldtime)
+    time_stamps = np.unique(old_time)
 
-    newxyz = []
-    newcolor = []
-    newnormal = []
-    newtime = []
-    for timeidx, time in enumerate(timestamps):
-        selected_mask = oldtime == time
+    new_xyz = []
+    new_color = []
+    new_normal = []
+    new_time = []
+    for time_idx, time in enumerate(time_stamps):
+        selected_mask = old_time == time
         selected_mask = selected_mask.squeeze(1)
 
-        if timeidx % N == 0:
-            newxyz.append(oldxyz[selected_mask])
-            newcolor.append(oldcolor[selected_mask])
-            newnormal.append(oldnormal[selected_mask])
-            newtime.append(oldtime[selected_mask])
+        if time_idx % N == 0:
+            new_xyz.append(old_xyz[selected_mask])
+            new_color.append(old_color[selected_mask])
+            new_normal.append(old_normal[selected_mask])
+            new_time.append(old_time[selected_mask])
 
         else:
             pass
             #
-    newxyz = np.concatenate(newxyz, axis=0)
-    newcolor = np.concatenate(newcolor, axis=0)
-    newtime = np.concatenate(newtime, axis=0)
-    assert newxyz.shape[0] == newcolor.shape[0]
+    new_xyz = np.concatenate(new_xyz, axis=0)
+    new_color = np.concatenate(new_color, axis=0)
+    new_time = np.concatenate(new_time, axis=0)
+    assert new_xyz.shape[0] == new_color.shape[0]
 
-    newpcd = BasicPointCloud(points=newxyz, colors=newcolor, normals=None, times=newtime)
+    new_pcd = BasicPointCloud(points=new_xyz, colors=new_color, normals=None, times=new_time)
 
-    return newpcd
+    return new_pcd
 
 
 def padding_point(pcd, N=4):
 
-    oldxyz = pcd.points
-    oldcolor = pcd.colors
-    oldnormal = pcd.normals
-    oldtime = pcd.times
+    old_xyz = pcd.points
+    old_color = pcd.colors
+    old_normal = pcd.normals
+    old_time = pcd.times
 
-    timestamps = np.unique(oldtime)
-    totallength = len(timestamps)
+    time_stamps = np.unique(old_time)
+    total_length = len(time_stamps)
 
-    newxyz = []
-    newcolor = []
-    newnormal = []
-    newtime = []
-    for timeidx, time in enumerate(timestamps):
-        selected_mask = oldtime == time
+    new_xyz = []
+    new_color = []
+    new_normal = []
+    new_time = []
+    for time_idx, time in enumerate(time_stamps):
+        selected_mask = old_time == time
         selected_mask = selected_mask.squeeze(1)
 
-        if timeidx != 0 and timeidx != len(timestamps) - 1:
-            newxyz.append(oldxyz[selected_mask])
-            newcolor.append(oldcolor[selected_mask])
-            newnormal.append(oldnormal[selected_mask])
-            newtime.append(oldtime[selected_mask])
+        if time_idx != 0 and time_idx != len(time_stamps) - 1:
+            new_xyz.append(old_xyz[selected_mask])
+            new_color.append(old_color[selected_mask])
+            new_normal.append(old_normal[selected_mask])
+            new_time.append(old_time[selected_mask])
 
         else:
-            newxyz.append(oldxyz[selected_mask])
-            newcolor.append(oldcolor[selected_mask])
-            newnormal.append(oldnormal[selected_mask])
-            newtime.append(oldtime[selected_mask])
+            new_xyz.append(old_xyz[selected_mask])
+            new_color.append(old_color[selected_mask])
+            new_normal.append(old_normal[selected_mask])
+            new_time.append(old_time[selected_mask])
 
-            xyzinput = oldxyz[selected_mask]
-            xyzinput = torch.from_numpy(xyzinput).float().cuda()
-            xyzinput = xyzinput.unsqueeze(0).contiguous()  # 1 x N x 3
+            xyz_input = old_xyz[selected_mask]
+            xyz_input = torch.from_numpy(xyz_input).float().cuda()
+            xyz_input = xyz_input.unsqueeze(0).contiguous()  # 1 x N x 3
 
-            xyznnpoints = knn(2, xyzinput, xyzinput, False)
+            xyz_nn_points = knn(2, xyz_input, xyz_input, False)
 
-            nearestneibourindx = xyznnpoints[
+            nearest_neighbour_idx = xyz_nn_points[
                 0, 1
             ].long()  # N x 1  skip the first one, we select the second closest one
-            spatialdistance = torch.norm(xyzinput - xyzinput[:, nearestneibourindx, :], dim=2)  #  1 x N
-            spatialdistance = spatialdistance.squeeze(0)
+            spatial_distance = torch.norm(xyz_input - xyz_input[:, nearest_neighbour_idx, :], dim=2)  #  1 x N
+            spatial_distance = spatial_distance.squeeze(0)
 
-            diff_sorted, _ = torch.sort(spatialdistance)
-            N = spatialdistance.shape[0]
+            diff_sorted, _ = torch.sort(spatial_distance)
+            N = spatial_distance.shape[0]
             num_take = int(N * 0.125)
-            masks = spatialdistance > diff_sorted[-num_take]
-            masksnumpy = masks.cpu().numpy()
+            masks = spatial_distance > diff_sorted[-num_take]
+            masks_numpy = masks.cpu().numpy()
 
-            newxyz.append(oldxyz[selected_mask][masksnumpy])
-            newcolor.append(oldcolor[selected_mask][masksnumpy])
-            newnormal.append(oldnormal[selected_mask][masksnumpy])
+            new_xyz.append(old_xyz[selected_mask][masks_numpy])
+            new_color.append(old_color[selected_mask][masks_numpy])
+            new_normal.append(old_normal[selected_mask][masks_numpy])
 
-            if timeidx == 0:
-                newtime.append(oldtime[selected_mask][masksnumpy] - (1 / totallength))
+            if time_idx == 0:
+                new_time.append(old_time[selected_mask][masks_numpy] - (1 / total_length))
             else:
-                newtime.append(oldtime[selected_mask][masksnumpy] + (1 / totallength))
-    newxyz = np.concatenate(newxyz, axis=0)
-    newcolor = np.concatenate(newcolor, axis=0)
-    newtime = np.concatenate(newtime, axis=0)
-    assert newxyz.shape[0] == newcolor.shape[0]
+                new_time.append(old_time[selected_mask][masks_numpy] + (1 / total_length))
+    new_xyz = np.concatenate(new_xyz, axis=0)
+    new_color = np.concatenate(new_color, axis=0)
+    new_time = np.concatenate(new_time, axis=0)
+    assert new_xyz.shape[0] == new_color.shape[0]
 
-    newpcd = BasicPointCloud(points=newxyz, colors=newcolor, normals=None, times=newtime)
+    new_pcd = BasicPointCloud(points=new_xyz, colors=new_color, normals=None, times=new_time)
 
-    return newpcd
+    return new_pcd
 
 
 def get_color_model(rgb_function):

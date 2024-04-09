@@ -219,9 +219,10 @@ class GaussianModel:
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
         print("self._xyz inited", self._xyz.shape)
 
-        features9channel = fused_color
+        # features9channel = fused_color
+        # lite just use the base color
 
-        self._features_dc = nn.Parameter(features9channel.contiguous().requires_grad_(True))
+        self._features_dc = nn.Parameter(fused_color.contiguous().requires_grad_(True))
         print("self._features_dc inited", self._features_dc.shape)
 
         N, _ = fused_color.shape

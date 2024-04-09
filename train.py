@@ -149,7 +149,7 @@ def train(
     train_cam_dict = {}
     unique_time_stamps = sorted(list(set([cam.timestamp for cam in train_camera_list])))
 
-    for i, time_stamp in enumerate(unique_time_stamps):  # 0 to 4, -> (0.0, to 0.8)
+    for i, time_stamp in enumerate(unique_time_stamps):
         train_cam_dict[i] = [cam for cam in train_camera_list if cam.timestamp == time_stamp]
 
     if gaussians.ts is None:
@@ -167,7 +167,7 @@ def train(
     ems_start_from_iterations = optim_args.ems_start  # guided sampling start from iteration
 
     with torch.no_grad():
-        time_index = 0  # 0 to 49
+        time_index = 0
         viewpoint_set = train_cam_dict[time_index]
         for viewpoint_cam in viewpoint_set:
             render_pkg = render_func(
