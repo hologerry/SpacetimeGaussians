@@ -74,7 +74,7 @@ namespace sibr {
 		struct RemoteRenderInfo
 		{
 			Vector2i imgResolution;
-			float fovy;
+			float fov_y;
 			float fovx;
 			float znear;
 			float zfar;

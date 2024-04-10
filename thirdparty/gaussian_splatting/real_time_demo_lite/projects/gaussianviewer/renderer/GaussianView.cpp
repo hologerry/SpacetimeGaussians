@@ -576,8 +576,8 @@ void sibr::GaussianView::onRenderIBR(sibr::IRenderTarget& dst, const sibr::Camer
 		proj_mat.row(1) *= -1;
 
 		// Compute additional view parameters
-		float tan_fovy = tan(eye.fovy() * 0.5f);
-		float tan_fovx = tan_fovy * eye.aspect();
+		float tan_fov_y = tan(eye.fov_y() * 0.5f);
+		float tan_fov_x = tan_fov_y * eye.aspect();
 
 
 		// Copy frame-dependent data to GPU
@@ -658,8 +658,8 @@ void sibr::GaussianView::onRenderIBR(sibr::IRenderTarget& dst, const sibr::Camer
 			view_cuda,
 			proj_cuda,
 			cam_pos_cuda,
-			tan_fovx,
-			tan_fovy,
+			tan_fov_x,
+			tan_fov_y,
 			false,
 			image_cuda,
 			nullptr,

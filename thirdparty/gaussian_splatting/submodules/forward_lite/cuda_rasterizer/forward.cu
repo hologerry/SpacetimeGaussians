@@ -3,7 +3,7 @@
  * GRAPHDECO research group, https://team.inria.fr/graphdeco
  * All rights reserved.
  *
- * This software is free for non-commercial, research and evaluation use 
+ * This software is free for non-commercial, research and evaluation use
  * under the terms of the LICENSE.md file.
  *
  * For inquiries contact  george.drettakis@inria.fr
@@ -19,8 +19,8 @@ namespace cg = cooperative_groups;
 // coefficients of each Gaussian to a simple RGB color.
 __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const glm::vec3* means, glm::vec3 campos, const float* shs, bool* clamped)
 {
-	// The implementation is loosely based on code for 
-	// "Differentiable Point-Based Radiance Fields for 
+	// The implementation is loosely based on code for
+	// "Differentiable Point-Based Radiance Fields for
 	// Efficient View Synthesis" by Zhang et al. (2022)
 	glm::vec3 pos = means[idx];
 	glm::vec3 dir = pos - campos;
@@ -74,7 +74,7 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y, float tan_fov_x, float tan_fov_y, const float* cov3D, const float* view_matrix)
 {
 	// The following models the steps outlined by equations 29
-	// and 31 in "EWA Splatting" (Zwicker et al., 2002). 
+	// and 31 in "EWA Splatting" (Zwicker et al., 2002).
 	// Additionally considers aspect / scaling of viewport.
 	// Transposes used to account for row-/column-major conventions.
 	float3 t = transformPoint4x3(mean, view_matrix);
@@ -167,7 +167,7 @@ __device__ void computeCov3D(const glm::vec3 scale, float mod, const glm::vec4 r
 
 template<int C>
 __global__ void prepreprocessCUDA(
-	int P, 
+	int P,
 	const float timestamp,
 	const float* trbf_center,
 	const float* trbf_scale,
@@ -186,20 +186,20 @@ __global__ void prepreprocessCUDA(
 	float trbf_distance = timestamp - trbf_center[idx];
 	float trbf_distance2 = trbf_distance * trbf_distance;
 	float trbf_distance3 = trbf_distance2 * trbf_distance;
-	
-	// orig_pointsdummy[3 * idx] = orig_points[3 * idx] ;//+ trbf_distance * motion[9 * idx] +  trbf_distance2 * motion[9 * idx + 3]  +  trbf_distance3 * motion[9 * idx + 6];      
-	// orig_pointsdummy[3 * idx + 1] = orig_points[3 * idx + 1] ; //+ trbf_distance * motion[9 * idx + 1] +  trbf_distance2 * motion[9 * idx + 4]  +  trbf_distance3 * motion[9 * idx + 7];      
-	// orig_pointsdummy[3 * idx + 2 ] = orig_points[3 * idx + 2] ; //+  trbf_distance * motion[9 * idx + 2] + trbf_distance2 * motion[9 * idx + 5]  +  trbf_distance3 * motion[9 * idx + 8];      
-	
 
-		
-	orig_pointsdummy[3 * idx] = orig_points[3 * idx]  + trbf_distance * motion[9 * idx] +  trbf_distance2 * motion[9 * idx + 3]  +  trbf_distance3 * motion[9 * idx + 6];      
-	orig_pointsdummy[3 * idx + 1] = orig_points[3 * idx + 1] + trbf_distance * motion[9 * idx + 1] +  trbf_distance2 * motion[9 * idx + 4]  +  trbf_distance3 * motion[9 * idx + 7];      
-	orig_pointsdummy[3 * idx + 2 ] = orig_points[3 * idx + 2] +  trbf_distance * motion[9 * idx + 2] + trbf_distance2 * motion[9 * idx + 5]  +  trbf_distance3 * motion[9 * idx + 8];      
-	
+	// orig_pointsdummy[3 * idx] = orig_points[3 * idx] ;//+ trbf_distance * motion[9 * idx] +  trbf_distance2 * motion[9 * idx + 3]  +  trbf_distance3 * motion[9 * idx + 6];
+	// orig_pointsdummy[3 * idx + 1] = orig_points[3 * idx + 1] ; //+ trbf_distance * motion[9 * idx + 1] +  trbf_distance2 * motion[9 * idx + 4]  +  trbf_distance3 * motion[9 * idx + 7];
+	// orig_pointsdummy[3 * idx + 2 ] = orig_points[3 * idx + 2] ; //+  trbf_distance * motion[9 * idx + 2] + trbf_distance2 * motion[9 * idx + 5]  +  trbf_distance3 * motion[9 * idx + 8];
 
 
-	trbf_distance = trbf_distance / trbf_scale[idx]; 
+
+	orig_pointsdummy[3 * idx] = orig_points[3 * idx]  + trbf_distance * motion[9 * idx] +  trbf_distance2 * motion[9 * idx + 3]  +  trbf_distance3 * motion[9 * idx + 6];
+	orig_pointsdummy[3 * idx + 1] = orig_points[3 * idx + 1] + trbf_distance * motion[9 * idx + 1] +  trbf_distance2 * motion[9 * idx + 4]  +  trbf_distance3 * motion[9 * idx + 7];
+	orig_pointsdummy[3 * idx + 2 ] = orig_points[3 * idx + 2] +  trbf_distance * motion[9 * idx + 2] + trbf_distance2 * motion[9 * idx + 5]  +  trbf_distance3 * motion[9 * idx + 8];
+
+
+
+	trbf_distance = trbf_distance / trbf_scale[idx];
 	trbf_distance = exp(-1 * trbf_distance * trbf_distance);
 	oppacitiesdummy[idx] = opacities[idx] * trbf_distance;
 }
@@ -215,7 +215,7 @@ __global__ void prepreprocessCUDA(
 // 	// Initialize radius and touched tiles to 0. If this isn't changed,
 // 	// this Gaussian will not be processed further.
 // 	// oppacitiesdummy[idx] = opacities[idx];
-	
+
 // 	// orig_pointsdummy[3 * idx] = orig_points[3 * idx];
 // 	// orig_pointsdummy[3 * idx + 1] = orig_points[3 * idx + 1];
 // 	// orig_pointsdummy[3 * idx + 2 ] = orig_points[3 * idx + 2];
@@ -275,7 +275,7 @@ __global__ void preprocessCUDA(
 	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
 
 	// If 3D covariance matrix is precomputed, use it, otherwise compute
-	// from scaling and rotation parameters. 
+	// from scaling and rotation parameters.
 	const float* cov3D;
 	if (cov3D_precomp != nullptr)
 	{
@@ -300,7 +300,7 @@ __global__ void preprocessCUDA(
 	// Compute extent in screen space (by finding eigenvalues of
 	// 2D covariance matrix). Use extent to compute a bounding rectangle
 	// of screen-space tiles that this Gaussian overlaps with. Quit if
-	// rectangle covers 0 tiles. 
+	// rectangle covers 0 tiles.
 	float mid = 0.5f * (cov.x + cov.z);
 	float lambda1 = mid + sqrt(max(0.1f, mid * mid - det));
 	float lambda2 = mid - sqrt(max(0.1f, mid * mid - det));
@@ -331,7 +331,7 @@ __global__ void preprocessCUDA(
 }
 
 // Main rasterization method. Collaboratively works on one tile per
-// block, each thread treats one pixel. Alternates between fetching 
+// block, each thread treats one pixel. Alternates between fetching
 // and rasterizing data.
 template <uint32_t CHANNELS>
 __global__ void __launch_bounds__(BLOCK_X * BLOCK_Y)
@@ -402,7 +402,7 @@ renderCUDA(
 			// Keep track of current position in range
 			contributor++;
 
-			// Resample using conic matrix (cf. "Surface 
+			// Resample using conic matrix (cf. "Surface
 			// Splatting" by Zwicker et al., 2001)
 			float2 xy = collected_xy[j];
 			float2 d = { xy.x - pixf.x, xy.y - pixf.y };
@@ -414,7 +414,7 @@ renderCUDA(
 			// Eq. (2) from 3D Gaussian splatting paper.
 			// Obtain alpha by multiplying with Gaussian opacity
 			// and its exponential falloff from mean.
-			// Avoid numerical instabilities (see paper appendix). 
+			// Avoid numerical instabilities (see paper appendix).
 			float alpha = min(0.99f, con_o.w * exp(power));
 			if (alpha < 1.0f / 255.0f)
 				continue;
@@ -474,7 +474,7 @@ void FORWARD::render(
 		out_color);
 }
 
-void FORWARD::prepreprocess(		
+void FORWARD::prepreprocess(
 	int P,
 	const float timestamp,
 	const float* trbf_center,
@@ -484,7 +484,7 @@ void FORWARD::prepreprocess(
 	float* orig_pointsdummy,
 	const float* opacities,
 	float* opacitiesdummy)
-{  
+{
 
 	prepreprocessCUDA<NUM_CHANNELS> << <(P + 255) / 256, 256 >> > (
 		P,
@@ -541,7 +541,7 @@ void FORWARD::preprocess(
 		clamped,
 		cov3D_precomp,
 		colors_precomp,
-		view_matrix, 
+		view_matrix,
 		proj_matrix,
 		cam_pos,
 		W, H,

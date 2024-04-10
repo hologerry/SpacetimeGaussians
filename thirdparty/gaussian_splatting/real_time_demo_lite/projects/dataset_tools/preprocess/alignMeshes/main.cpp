@@ -286,7 +286,7 @@ InputCamera rot90CC(InputCamera::Ptr& in)
 	InputCamera rotCam = *in;
 	rotCam.size(rotCam.h(), rotCam.w());
 	rotCam.aspect(1.0f / rotCam.aspect());
-	rotCam.fovy(2.0 * atan(0.5 * rotCam.h() / rotCam.focal()));
+	rotCam.fov_y(2.0 * atan(0.5 * rotCam.h() / rotCam.focal()));
 	rotCam.setLookAt(rotCam.position(), rotCam.position() + rotCam.dir(), rotCam.right());
 	return rotCam;
 }

@@ -61,7 +61,7 @@ void sibr::RemotePointView::send_receive()
 					sendData[jScalingModifier] = _scalingModifier;
 					sendData[jResX] = _remoteInfo.imgResolution.x();
 					sendData[jResY] = _remoteInfo.imgResolution.y();
-					sendData[jFovY] = _remoteInfo.fovy;
+					sendData[jFovY] = _remoteInfo.fov_y;
 					sendData[jFovX] = _remoteInfo.fovx;
 					sendData[jZFar] = _remoteInfo.zfar;
 					sendData[jZNear] = _remoteInfo.znear;
@@ -144,8 +144,8 @@ void sibr::RemotePointView::onRenderIBR(sibr::IRenderTarget & dst, const sibr::C
 		{
 			_remoteInfo.view = eye.view();
 			_remoteInfo.viewProj = eye.viewproj();
-			_remoteInfo.fovy = eye.fovy();
-			_remoteInfo.fovx = 2 * atan(tan(eye.fovy() * 0.5) * eye.aspect());
+			_remoteInfo.fov_y = eye.fov_y();
+			_remoteInfo.fovx = 2 * atan(tan(eye.fov_y() * 0.5) * eye.aspect());
 			_remoteInfo.znear = eye.znear();
 			_remoteInfo.zfar = eye.zfar();
 			_timestampRequested++;

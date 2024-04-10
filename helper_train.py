@@ -102,6 +102,24 @@ def get_render_pipe(option="train_ours_full"):
         return train_ours_full_ss, GaussianRasterizationSettings, GaussianRasterizer
 
 
+    elif option == "train_ours_lite_single":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite
+
+        return train_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single":
+        from forward_lite_single import GaussianRasterizationSettings, GaussianRasterizer
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_lite
+
+        return test_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
+
+
     elif option == "test_ours_full_ss":
         from diff_gaussian_rasterization_ch9 import (
             GaussianRasterizationSettings,

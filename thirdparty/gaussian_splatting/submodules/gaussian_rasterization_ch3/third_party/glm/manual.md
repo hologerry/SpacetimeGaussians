@@ -1335,7 +1335,7 @@ This extension exposes matrix transformation functions: `translate`, `rotate` an
 #include <glm/ext/matrix_float4x4.hpp> // mat4x4
 #include <glm/ext/matrix_transform.hpp> // translate, rotate, scale, identity
 
-glm::mat4 computeModelview_matrix(float Translate, glm::vec2 const & Rotate)
+glm::mat4 computeModelViewMatrix(float Translate, glm::vec2 const & Rotate)
 {
 	glm::mat4 View = glm::translate(glm::identity(), glm::vec3(0.0f, 0.0f, -Translate));
 	View = glm::rotate(View, Rotate.y, glm::vec3(-1.0f, 0.0f, 0.0f));

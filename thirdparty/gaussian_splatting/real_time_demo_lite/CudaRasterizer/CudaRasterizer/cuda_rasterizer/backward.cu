@@ -146,7 +146,7 @@ __global__ void computeCov2DCUDA(int P,
 	const int* radii,
 	const float* cov3Ds,
 	const float h_x, float h_y,
-	const float tan_fovx, float tan_fovy,
+	const float tan_fov_x, float tan_fov_y,
 	const float* view_matrix,
 	const float* dL_dconics,
 	float3* dL_dmeans,
@@ -165,8 +165,8 @@ __global__ void computeCov2DCUDA(int P,
 	float3 dL_dconic = { dL_dconics[4 * idx], dL_dconics[4 * idx + 1], dL_dconics[4 * idx + 3] };
 	float3 t = transformPoint4x3(mean, view_matrix);
 	
-	const float limx = 1.3f * tan_fovx;
-	const float limy = 1.3f * tan_fovy;
+	const float limx = 1.3f * tan_fov_x;
+	const float limy = 1.3f * tan_fov_y;
 	const float txtz = t.x / t.z;
 	const float tytz = t.y / t.z;
 	t.x = min(limx, max(-limx, txtz)) * t.z;
@@ -569,7 +569,7 @@ void BACKWARD::preprocess(
 	const float* view_matrix,
 	const float* proj_matrix,
 	const float focal_x, float focal_y,
-	const float tan_fovx, float tan_fovy,
+	const float tan_fov_x, float tan_fov_y,
 	const glm::vec3* campos,
 	const float3* dL_dmean2D,
 	const float* dL_dconic,
@@ -591,8 +591,8 @@ void BACKWARD::preprocess(
 		cov3Ds,
 		focal_x,
 		focal_y,
-		tan_fovx,
-		tan_fovy,
+		tan_fov_x,
+		tan_fov_y,
 		view_matrix,
 		dL_dconic,
 		(float3*)dL_dmean3D,

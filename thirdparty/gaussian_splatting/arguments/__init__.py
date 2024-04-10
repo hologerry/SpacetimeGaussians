@@ -74,8 +74,10 @@ class ModelParams(ParamGroup):
         self.data_device = "cuda"
         self.verify_llff = 0
         self.eval = False
-        self.model = "g_model"  #
-        self.loader = "colmap"  #
+        self.model = "g_model"
+        self.loader = "colmap"
+
+        self.grey_image = False
 
         super().__init__(parser, "Loading Parameters", sentinel)
 

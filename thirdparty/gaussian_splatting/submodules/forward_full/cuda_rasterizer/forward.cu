@@ -3,7 +3,7 @@
  * GRAPHDECO research group, https://team.inria.fr/graphdeco
  * All rights reserved.
  *
- * This software is free for non-commercial, research and evaluation use 
+ * This software is free for non-commercial, research and evaluation use
  * under the terms of the LICENSE.md file.
  *
  * For inquiries contact  george.drettakis@inria.fr
@@ -19,8 +19,8 @@ namespace cg = cooperative_groups;
 // coefficients of each Gaussian to a simple RGB color.
 __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const glm::vec3* means, glm::vec3 campos, const float* shs, bool* clamped)
 {
-	// The implementation is loosely based on code for 
-	// "Differentiable Point-Based Radiance Fields for 
+	// The implementation is loosely based on code for
+	// "Differentiable Point-Based Radiance Fields for
 	// Efficient View Synthesis" by Zhang et al. (2022)
 	glm::vec3 pos = means[idx];
 	glm::vec3 dir = pos - campos;
@@ -71,16 +71,16 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 }
 
 // Forward version of 2D covariance matrix computation
-__device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y, float tan_fovx, float tan_fovy, const float* cov3D, const float* viewmatrix)
+__device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y, float tan_fov_x, float tan_fov_y, const float* cov3D, const float* view_matrix)
 {
 	// The following models the steps outlined by equations 29
-	// and 31 in "EWA Splatting" (Zwicker et al., 2002). 
+	// and 31 in "EWA Splatting" (Zwicker et al., 2002).
 	// Additionally considers aspect / scaling of viewport.
 	// Transposes used to account for row-/column-major conventions.
-	float3 t = transformPoint4x3(mean, viewmatrix);
+	float3 t = transformPoint4x3(mean, view_matrix);
 
-	const float limx = 1.3f * tan_fovx;
-	const float limy = 1.3f * tan_fovy;
+	const float limx = 1.3f * tan_fov_x;
+	const float limy = 1.3f * tan_fov_y;
 	const float txtz = t.x / t.z;
 	const float tytz = t.y / t.z;
 	t.x = min(limx, max(-limx, txtz)) * t.z;
@@ -92,9 +92,9 @@ __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y,
 		0, 0, 0);
 
 	glm::mat3 W = glm::mat3(
-		viewmatrix[0], viewmatrix[4], viewmatrix[8],
-		viewmatrix[1], viewmatrix[5], viewmatrix[9],
-		viewmatrix[2], viewmatrix[6], viewmatrix[10]);
+		view_matrix[0], view_matrix[4], view_matrix[8],
+		view_matrix[1], view_matrix[5], view_matrix[9],
+		view_matrix[2], view_matrix[6], view_matrix[10]);
 
 	glm::mat3 T = W * J;
 
@@ -156,8 +156,8 @@ __device__ void computeCov3D(const glm::vec3 scale, float mod, const glm::vec4 r
 	// prepreprocessCUDA<NUM_CHANNELS> << <(P + 255) / 256, 256 >> > (
 	// P,
 	// timestamp,
-	// trbfcenter,
-	// trbfscale,
+	// trbf_center,
+	// trbf_scale,
 	// motion,
 	// orig_points,
 	// orig_pointsdummy,
@@ -167,10 +167,10 @@ __device__ void computeCov3D(const glm::vec3 scale, float mod, const glm::vec4 r
 
 template<int C>
 __global__ void prepreprocessCUDA(
-	int P, 
+	int P,
 	const float timestamp,
-	const float* trbfcenter,
-	const float* trbfscale,
+	const float* trbf_center,
+	const float* trbf_scale,
 	const float* motion,
 	const float* orig_points,
 	float* orig_pointsdummy,
@@ -183,21 +183,21 @@ __global__ void prepreprocessCUDA(
 
 	// Initialize radius and touched tiles to 0. If this isn't changed,
 	// this Gaussian will not be processed further.
-	float trbfdistance = timestamp - trbfcenter[idx];
-	float trbfdistance2 = trbfdistance * trbfdistance;
-	float trbfdistance3 = trbfdistance2 * trbfdistance;
-	
-
-		
-	orig_pointsdummy[3 * idx] = orig_points[3 * idx]  + trbfdistance * motion[9 * idx] +  trbfdistance2 * motion[9 * idx + 3]  +  trbfdistance3 * motion[9 * idx + 6];      
-	orig_pointsdummy[3 * idx + 1] = orig_points[3 * idx + 1] + trbfdistance * motion[9 * idx + 1] +  trbfdistance2 * motion[9 * idx + 4]  +  trbfdistance3 * motion[9 * idx + 7];      
-	orig_pointsdummy[3 * idx + 2 ] = orig_points[3 * idx + 2] +  trbfdistance * motion[9 * idx + 2] + trbfdistance2 * motion[9 * idx + 5]  +  trbfdistance3 * motion[9 * idx + 8];      
-	
+	float trbf_distance = timestamp - trbf_center[idx];
+	float trbf_distance2 = trbf_distance * trbf_distance;
+	float trbf_distance3 = trbf_distance2 * trbf_distance;
 
 
-	trbfdistance = trbfdistance / trbfscale[idx]; 
-	trbfdistance = exp(-1 * trbfdistance * trbfdistance);
-	oppacitiesdummy[idx] = opacities[idx] * trbfdistance;
+
+	orig_pointsdummy[3 * idx] = orig_points[3 * idx]  + trbf_distance * motion[9 * idx] +  trbf_distance2 * motion[9 * idx + 3]  +  trbf_distance3 * motion[9 * idx + 6];
+	orig_pointsdummy[3 * idx + 1] = orig_points[3 * idx + 1] + trbf_distance * motion[9 * idx + 1] +  trbf_distance2 * motion[9 * idx + 4]  +  trbf_distance3 * motion[9 * idx + 7];
+	orig_pointsdummy[3 * idx + 2 ] = orig_points[3 * idx + 2] +  trbf_distance * motion[9 * idx + 2] + trbf_distance2 * motion[9 * idx + 5]  +  trbf_distance3 * motion[9 * idx + 8];
+
+
+
+	trbf_distance = trbf_distance / trbf_scale[idx];
+	trbf_distance = exp(-1 * trbf_distance * trbf_distance);
+	oppacitiesdummy[idx] = opacities[idx] * trbf_distance;
 }
 
 
@@ -215,11 +215,11 @@ __global__ void preprocessCUDA(
 	bool* clamped,
 	const float* cov3D_precomp,
 	const float* colors_precomp,
-	const float* viewmatrix,
-	const float* projmatrix,
+	const float* view_matrix,
+	const float* proj_matrix,
 	const glm::vec3* cam_pos,
 	const int W, int H,
-	const float tan_fovx, float tan_fovy,
+	const float tan_fov_x, float tan_fov_y,
 	const float focal_x, float focal_y,
 	int* radii,
 	float2* points_xy_image,
@@ -242,17 +242,17 @@ __global__ void preprocessCUDA(
 
 	// Perform near culling, quit if outside.
 	float3 p_view;
-	if (!in_frustum(idx, orig_points, viewmatrix, projmatrix, prefiltered, p_view))
+	if (!in_frustum(idx, orig_points, view_matrix, proj_matrix, prefiltered, p_view))
 		return;
 
 	// Transform point by projecting
 	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
-	float4 p_hom = transformPoint4x4(p_orig, projmatrix);
+	float4 p_hom = transformPoint4x4(p_orig, proj_matrix);
 	float p_w = 1.0f / (p_hom.w + 0.0000001f);
 	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
 
 	// If 3D covariance matrix is precomputed, use it, otherwise compute
-	// from scaling and rotation parameters. 
+	// from scaling and rotation parameters.
 	const float* cov3D;
 	if (cov3D_precomp != nullptr)
 	{
@@ -265,7 +265,7 @@ __global__ void preprocessCUDA(
 	}
 
 	// Compute 2D screen-space covariance matrix
-	float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix);
+	float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fov_x, tan_fov_y, cov3D, view_matrix);
 
 	// Invert covariance (EWA algorithm)
 	float det = (cov.x * cov.z - cov.y * cov.y);
@@ -277,7 +277,7 @@ __global__ void preprocessCUDA(
 	// Compute extent in screen space (by finding eigenvalues of
 	// 2D covariance matrix). Use extent to compute a bounding rectangle
 	// of screen-space tiles that this Gaussian overlaps with. Quit if
-	// rectangle covers 0 tiles. 
+	// rectangle covers 0 tiles.
 	float mid = 0.5f * (cov.x + cov.z);
 	float lambda1 = mid + sqrt(max(0.1f, mid * mid - det));
 	float lambda2 = mid - sqrt(max(0.1f, mid * mid - det));
@@ -308,7 +308,7 @@ __global__ void preprocessCUDA(
 }
 
 // Main rasterization method. Collaboratively works on one tile per
-// block, each thread treats one pixel. Alternates between fetching 
+// block, each thread treats one pixel. Alternates between fetching
 // and rasterizing data.
 template <uint32_t CHANNELS>
 __global__ void __launch_bounds__(BLOCK_X * BLOCK_Y)
@@ -383,7 +383,7 @@ renderCUDA(
 			// Keep track of current position in range
 			contributor++;
 
-			// Resample using conic matrix (cf. "Surface 
+			// Resample using conic matrix (cf. "Surface
 			// Splatting" by Zwicker et al., 2001)
 			float2 xy = collected_xy[j];
 			float2 d = { xy.x - pixf.x, xy.y - pixf.y };
@@ -395,7 +395,7 @@ renderCUDA(
 			// Eq. (2) from 3D Gaussian splatting paper.
 			// Obtain alpha by multiplying with Gaussian opacity
 			// and its exponential falloff from mean.
-			// Avoid numerical instabilities (see paper appendix). 
+			// Avoid numerical instabilities (see paper appendix).
 			float alpha = min(0.99f, con_o.w * exp(power));
 			if (alpha < 1.0f / 255.0f)
 				continue;
@@ -420,7 +420,7 @@ renderCUDA(
 
 	// All threads that treat valid pixel write out their final.
 	// rendering data to the frame and auxiliary buffers.
-	// use cuda implement the MLP multiplying 
+	// use cuda implement the MLP multiplying
 	if (inside)
 	{
 		final_T[pix_id] = T;
@@ -449,12 +449,12 @@ renderCUDA(
 			// float ray0 = rayimage[ch0]; // ray center 0; improved by direct feed
 			// float ray1 = rayimage[ch1]; // ray center 1;
 			// float ray2 = rayimage[ch2]; // ray center 2;
-			// float ray3 = rayimage[ch3]; // ray d 
+			// float ray3 = rayimage[ch3]; // ray d
 			// float ray4 = rayimage[ch4]; // ray d
-			// float ray5 = rayimage[ch5]; // ray d 
-			
+			// float ray5 = rayimage[ch5]; // ray d
+
 			// printf("a: %f, b: %f, c: %f\n", ray0, ray1, ray2);
-			
+
 
 		    float mlpresult1[6];
 			float mlpresult2[3];
@@ -462,27 +462,27 @@ renderCUDA(
 
 			// printf("a: %f, b: %f, c: %f\n", mlp1[0], mlp1[1], mlp1[11]);
 
-	        
-			// mlp1, spec, time, camera 12 input feature output 6 
+
+			// mlp1, spec, time, camera 12 input feature output 6
             #pragma unroll
 			for (int ch =0; ch < 6; ch++){
 			    int mlpoffset = ch * 12 ;
                 mlpresult1[ch] = C[3] * mlp1[mlpoffset] + C[4] * mlp1[1+mlpoffset] +  C[5] * mlp1[2+mlpoffset] +  C[6] * mlp1[3+mlpoffset] + C[7] * mlp1[4+mlpoffset] + C[8] * mlp1[5+mlpoffset]  + rayimage[ch0] * mlp1[6+mlpoffset] + rayimage[ch1] * mlp1[7+mlpoffset] + rayimage[ch2] * mlp1[8+mlpoffset] + rayimage[ch3] * mlp1[9+mlpoffset]  + rayimage[ch4] * mlp1[10+mlpoffset] + rayimage[ch5] * mlp1[11+mlpoffset] ;                                                                                        ;
-	            mlpresult1[ch] = mlpresult1[ch] > 0.0f ? mlpresult1[ch] : 0.0f; // 
+	            mlpresult1[ch] = mlpresult1[ch] > 0.0f ? mlpresult1[ch] : 0.0f; //
 			}
-            
+
 			// relu
             // #pragma unroll
 	        // for (int ch =0; ch < 6; ch++){
-			//     mlpresult1[ch] = mlpresult1[ch] > 0.0f ? mlpresult1[ch] : 0.0f; 
+			//     mlpresult1[ch] = mlpresult1[ch] > 0.0f ? mlpresult1[ch] : 0.0f;
 			// }
-			
+
 			// mlp2
             #pragma unroll
 	        for (int ch =0; ch < 3; ch++){
-			    int mlpoffset = ch * 6 ;  // 
+			    int mlpoffset = ch * 6 ;  //
                 mlpresult2[ch] = mlpresult1[0] * mlp2[mlpoffset] + mlpresult1[1] * mlp2[1+mlpoffset] +  mlpresult1[2] * mlp2[2+mlpoffset] + mlpresult1[3] * mlp2[3+mlpoffset] + mlpresult1[4] * mlp2[4+mlpoffset] + mlpresult1[5] * mlp2[5+mlpoffset]  ;
-			}   
+			}
 
 			out_color[ch0] =  C[0]  +  mlpresult2[0];
 			out_color[ch1] =  C[1]  +  mlpresult2[1];
@@ -523,23 +523,23 @@ void FORWARD::render(
 		rayimage);
 }
 
-void FORWARD::prepreprocess(		
+void FORWARD::prepreprocess(
 	int P,
 	const float timestamp,
-	const float* trbfcenter,
-	const float* trbfscale,
+	const float* trbf_center,
+	const float* trbf_scale,
 	const float* motion,
 	const float* orig_points,
 	float* orig_pointsdummy,
 	const float* opacities,
 	float* opacitiesdummy)
-{  
+{
 
 	prepreprocessCUDA<NUM_CHANNELS> << <(P + 255) / 256, 256 >> > (
 		P,
 		timestamp,
-		trbfcenter,
-		trbfscale,
+		trbf_center,
+		trbf_scale,
 		motion,
 		orig_points,
 		orig_pointsdummy,
@@ -563,12 +563,12 @@ void FORWARD::preprocess(
 	bool* clamped,
 	const float* cov3D_precomp,
 	const float* colors_precomp,
-	const float* viewmatrix,
-	const float* projmatrix,
+	const float* view_matrix,
+	const float* proj_matrix,
 	const glm::vec3* cam_pos,
 	const int W, int H,
 	const float focal_x, float focal_y,
-	const float tan_fovx, float tan_fovy,
+	const float tan_fov_x, float tan_fov_y,
 	int* radii,
 	float2* means2D,
 	float* depths,
@@ -590,11 +590,11 @@ void FORWARD::preprocess(
 		clamped,
 		cov3D_precomp,
 		colors_precomp,
-		viewmatrix, 
-		projmatrix,
+		view_matrix,
+		proj_matrix,
 		cam_pos,
 		W, H,
-		tan_fovx, tan_fovy,
+		tan_fov_x, tan_fov_y,
 		focal_x, focal_y,
 		radii,
 		means2D,

@@ -63,7 +63,18 @@ warnings.filterwarnings("ignore")
 
 # modified from https://github.com/graphdeco-inria/gaussian-splatting/blob/main/render.py
 # and https://github.com/graphdeco-inria/gaussian-splatting/blob/main/metrics.py
-def render_set(model_path, name, iteration, views, gaussians, pipe_args, background, trbf_base_function, rd_pipe):
+def render_set(
+    model_path,
+    name,
+    iteration,
+    views,
+    gaussians,
+    pipe_args,
+    background,
+    trbf_base_function,
+    rd_pipe,
+    grey_image=False,
+):
     render, GRsetting, GRzer = get_render_pipe(rd_pipe)
     render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
     gts_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt")
@@ -98,13 +109,15 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
     lpipss = []
     lpipss_vggs = []
 
-    full_dict = {}
-    per_view_dict = {}
+    l1s = []
     ssims = []
     ssims_v2 = []
     scene_dir = model_path
     image_names = []
     times = []
+
+    full_dict = {}
+    per_view_dict = {}
 
     full_dict[scene_dir] = {}
     per_view_dict[scene_dir] = {}
@@ -124,6 +137,7 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
     else:
         render, GRsetting, GRzer = get_render_pipe(rd_pipe)
 
+    img_channel = 1 if grey_image else 3
     for idx, view in enumerate(tqdm(views, desc="Rendering and metric progress")):
         rendering_pkg = render(
             view,
@@ -137,8 +151,9 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
         )
         rendering = rendering_pkg["render"]
         rendering = torch.clamp(rendering, 0, 1.0)
-        gt = view.original_image[0:3, :, :].cuda().float()
+        gt = view.original_image[0:img_channel, :, :].cuda().float()
         ssims.append(ssim(rendering.unsqueeze(0), gt.unsqueeze(0)))
+        l1s.append(torch.mean(torch.abs(rendering - gt)).item())
 
         psnrs.append(psnr(rendering.unsqueeze(0), gt.unsqueeze(0)))
         lpipss.append(lpips(rendering.unsqueeze(0), gt.unsqueeze(0), net_type="alex"))
@@ -188,6 +203,7 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
                 "SSIM": torch.tensor(ssims).mean().item(),
                 "PSNR": torch.tensor(psnrs).mean().item(),
                 "LPIPS": torch.tensor(lpipss).mean().item(),
+                "L1": torch.tensor(l1s).mean().item(),
                 "SSIM_v2": torch.tensor(ssims_v2).mean().item(),
                 "LPIPS_VGG": torch.tensor(lpipss_vggs).mean().item(),
                 "times": torch.tensor(times).mean().item(),
@@ -199,6 +215,7 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
                 "SSIM": {name: ssim for ssim, name in zip(torch.tensor(ssims).tolist(), image_names)},
                 "PSNR": {name: psnr for psnr, name in zip(torch.tensor(psnrs).tolist(), image_names)},
                 "LPIPS": {name: lpips for lpips, name in zip(torch.tensor(lpipss).tolist(), image_names)},
+                "L1": {name: l1 for l1, name in zip(torch.tensor(l1s).tolist(), image_names)},
                 "SSIM_v2": {name: ssim2 for ssim2, name in zip(torch.tensor(ssims_v2).tolist(), image_names)},
                 "LPIPS_VGG": {
                     name: lpips_vgg for lpips_vgg, name in zip(torch.tensor(lpipss_vggs).tolist(), image_names)
@@ -217,7 +234,16 @@ def render_set(model_path, name, iteration, views, gaussians, pipe_args, backgro
 
 # render free view
 def render_set_no_gt(
-    model_path, name, iteration, views, gaussians, pipe_args, background, trbf_base_function, rd_pipe
+    model_path,
+    name,
+    iteration,
+    views,
+    gaussians,
+    pipe_args,
+    background,
+    trbf_base_function,
+    rd_pipe,
+    grey_image=False,
 ):
     render, GRsetting, GRzer = get_render_pipe(rd_pipe)
     render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
@@ -276,6 +302,7 @@ def run_test(
         start_time=start_time,
         duration=duration,
         time_step=time_step,
+        grey_image=model_args.grey_image,
     )
     trbf_base_function = trb_function
     num_channels = 9
@@ -299,6 +326,7 @@ def run_test(
             background,
             trbf_base_function,
             rd_pipe,
+            grey_image=model_args.grey_image,
         )
     if multi_view:
         print("rendering multi-view set no gt")
@@ -312,6 +340,7 @@ def run_test(
             background,
             trbf_base_function,
             rd_pipe,
+            grey_image=model_args.grey_image,
         )
 
 

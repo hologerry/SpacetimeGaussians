@@ -108,6 +108,7 @@ def train(
         start_time=start_time,
         duration=duration,
         time_step=time_step,
+        grey_image=model_args.grey_image,
     )
 
     current_xyz = gaussians._xyz
@@ -681,9 +682,9 @@ def training_report(
 
 if __name__ == "__main__":
 
-    args, lp_extract, op_extract, pp_extract = get_parser()
+    args, mp_extract, op_extract, pp_extract = get_parser()
     train(
-        lp_extract,
+        mp_extract,
         op_extract,
         pp_extract,
         args.test_iterations,

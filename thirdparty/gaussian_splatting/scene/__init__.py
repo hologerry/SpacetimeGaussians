@@ -46,6 +46,7 @@ class Scene:
         loader="colmap",
         start_time=50,
         time_step=1,
+        grey_image=False,
     ):
         """b
         :param path: Path to colmap scene main folder.
@@ -92,7 +93,7 @@ class Scene:
 
         elif loader == "hyfluid" or loader == "hyfluid_valid":
             scene_info = scene_load_type_callbacks["hyfluid"](
-                args.source_path, args.white_background, args.eval, start_time=start_time, duration=duration, time_step=time_step,
+                args.source_path, args.white_background, args.eval, start_time=start_time, duration=duration, time_step=time_step, grey_image=grey_image,
             )
 
         else:

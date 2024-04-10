@@ -731,17 +731,20 @@ def read_colmap_cameras_immersive_test_only(
     return cam_infos
 
 
-def fetch_ply(path):
+def fetch_ply(path, grey_image=False):
     ply_data = PlyData.read(path)
     vertices = ply_data["vertex"]
     positions = np.vstack([vertices["x"], vertices["y"], vertices["z"]]).T
     times = np.vstack([vertices["t"]]).T
-    colors = np.vstack([vertices["red"], vertices["green"], vertices["blue"]]).T / 255.0
+    if grey_image:
+        colors = np.vstack([vertices["grey"]]).T / 255.0
+    else:
+        colors = np.vstack([vertices["red"], vertices["green"], vertices["blue"]]).T / 255.0
     normals = np.vstack([vertices["nx"], vertices["ny"], vertices["nz"]]).T
     return BasicPointCloud(points=positions, colors=colors, normals=normals, times=times)
 
 
-def store_ply(path, xyzt, rgb):
+def store_ply(path, xyzt, rgb, grey_image=False):
     # Define the dtype for the structured array
     dtype = [
         ("x", "f4"),
@@ -751,10 +754,11 @@ def store_ply(path, xyzt, rgb):
         ("nx", "f4"),
         ("ny", "f4"),
         ("nz", "f4"),
-        ("red", "u1"),
-        ("green", "u1"),
-        ("blue", "u1"),
     ]
+    if grey_image:
+        dtype += [("grey", "u1")]
+    else:
+        dtype += [("red", "u1"), ("green", "u1"), ("blue", "u1")]
 
     xyz = xyzt[:, :3]
     normals = np.zeros_like(xyz)
@@ -1254,9 +1258,10 @@ def read_cameras_from_transforms_hyfluid(
     start_time=50,
     duration=50,
     time_step=1,
+    grey_image=False,
 ):
     cam_infos = []
-    print(f"start time {start_time} duration {duration} time_step {time_step}")
+    print(f"start_time {start_time} duration {duration} time_step {time_step}")
 
     with open(os.path.join(path, transforms_file)) as json_file:
         contents = json.load(json_file)
@@ -1319,6 +1324,9 @@ def read_cameras_from_transforms_hyfluid(
                 arr = norm_data[:, :, :3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
                 image = Image.fromarray(np.array(arr * 255.0, dtype=np.byte), "RGB")
 
+                if grey_image:
+                    image = image.convert("L")
+
                 pose = 1 if time_idx == start_time else None
                 hp_directions = 1 if time_idx == start_time else None
 
@@ -1353,15 +1361,36 @@ def read_cameras_from_transforms_hyfluid(
 
 
 def read_nerf_synthetic_info_hyfluid(
-    path, white_background, eval, extension=".png", start_time=50, duration=50, time_step=1
+    path,
+    white_background,
+    eval,
+    extension=".png",
+    start_time=50,
+    duration=50,
+    time_step=1,
+    grey_image=False,
 ):
     print("Reading Training Transforms")
     train_cam_infos, bbox_model = read_cameras_from_transforms_hyfluid(
-        path, "transforms_train_hyfluid.json", white_background, extension, start_time, duration, time_step
+        path,
+        "transforms_train_hyfluid.json",
+        white_background,
+        extension,
+        start_time,
+        duration,
+        time_step,
+        grey_image,
     )
     print("Reading Test Transforms")
     test_cam_infos, _ = read_cameras_from_transforms_hyfluid(
-        path, "transforms_test_hyfluid.json", white_background, extension, start_time, duration, time_step
+        path,
+        "transforms_test_hyfluid.json",
+        white_background,
+        extension,
+        start_time,
+        duration,
+        time_step,
+        grey_image,
     )
 
     if not eval:
@@ -1374,68 +1403,69 @@ def read_nerf_synthetic_info_hyfluid(
     if os.path.exists(total_ply_path):
         os.remove(total_ply_path)
 
-    if not os.path.exists(total_ply_path):
-        # Since this data set has no colmap data, we start with random points
-        num_pts = 100_000 // (duration // time_step)
-        print(f"Generating random {(duration // time_step)} point cloud ({num_pts})...")
+    # Since this data set has no colmap data, we start with random points
+    num_pts = 100_000 // (duration // time_step)
+    print(f"Generating random {(duration // time_step)} point cloud ({num_pts})...")
 
-        # # We create random points inside the bounds of the synthetic Blender scenes
+    # # We create random points inside the bounds of the synthetic Blender scenes
+    # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
+    # shs = np.random.random((num_pts, 3)) / 255.0
+    # pcd = BasicPointCloud(points=xyz, colors=sh2rgb(shs), normals=np.zeros((num_pts, 3)))
+
+    # store_ply(ply_path, xyz, sh2rgb(shs) * 255)
+
+    total_xyz = []
+    total_rgb = []
+    total_time = []
+    img_channel = 1 if grey_image else 3
+
+    for i in range(start_time, start_time + duration, time_step):
+        ## gaussian default random initialized points
         # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
-        # shs = np.random.random((num_pts, 3)) / 255.0
-        # pcd = BasicPointCloud(points=xyz, colors=sh2rgb(shs), normals=np.zeros((num_pts, 3)))
 
-        # store_ply(ply_path, xyz, sh2rgb(shs) * 255)
+        ## hyfluid bbox range initialized points
+        # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
+        # y = np.random.random((num_pts, 1)) * 0.75 - 0.05  # [-0.05, 0.7]
+        # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
+        # xyz = np.concatenate((x, y, z), axis=1)
 
-        total_xyz = []
-        total_rgb = []
-        total_time = []
+        # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
+        x_mid = 0.325
 
-        for i in range(start_time, start_time + duration, time_step):
-            ## gaussian default random initialized points
-            # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
+        y = np.random.random((num_pts, 1)) * 0.75 - 0.05  # [-0.05, 0.7]
+        # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
+        z_mid = -0.25
 
-            ## hyfluid bbox range initialized points
-            # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
-            # y = np.random.random((num_pts, 1)) * 0.75 - 0.05  # [-0.05, 0.7]
-            # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
-            # xyz = np.concatenate((x, y, z), axis=1)
+        radius = np.random.random((num_pts, 1)) * 0.18
+        theta = np.random.random((num_pts, 1)) * 2 * np.pi
+        x = radius * np.cos(theta) + x_mid
+        z = radius * np.sin(theta) + z_mid
 
-            # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
-            x_mid = 0.325
+        # print(f"Points init x: {x.min()}, {x.max()}")
+        # print(f"Points init y: {y.min()}, {y.max()}")
+        # print(f"Points init z: {z.min()}, {z.max()}")
 
-            y = np.random.random((num_pts, 1)) * 0.75 - 0.05  # [-0.05, 0.7]
-            # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
-            z_mid = -0.25
+        xyz = np.concatenate((x, y, z), axis=1)
 
-            radius = np.random.random((num_pts, 1)) * 0.18
-            theta = np.random.random((num_pts, 1)) * 2 * np.pi
-            x = radius * np.cos(theta) + x_mid
-            z = radius * np.sin(theta) + z_mid
+        shs = np.random.random((num_pts, img_channel)) / 255.0
+        # rgb = np.random.random((num_pts, 3)) * 255.0
+        rgb = sh2rgb(shs) * 255
 
-            # print(f"Points init x: {x.min()}, {x.max()}")
-            # print(f"Points init y: {y.min()}, {y.max()}")
-            # print(f"Points init z: {z.min()}, {z.max()}")
+        total_xyz.append(xyz)
+        total_rgb.append(rgb)
+        # print(f"init time {(i - start_time) / duration}")
+        total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration)
 
-            xyz = np.concatenate((x, y, z), axis=1)
+    xyz = np.concatenate(total_xyz, axis=0)
+    rgb = np.concatenate(total_rgb, axis=0)
+    total_time = np.concatenate(total_time, axis=0)
+    assert xyz.shape[0] == rgb.shape[0]
 
-            shs = np.random.random((num_pts, 3)) / 255.0
-            # rgb = np.random.random((num_pts, 3)) * 255.0
-            rgb = sh2rgb(shs) * 255
+    xyzt = np.concatenate((xyz, total_time), axis=1)
+    store_ply(total_ply_path, xyzt, rgb, grey_image)
 
-            total_xyz.append(xyz)
-            total_rgb.append(rgb)
-            print(f"init time {(i - start_time) / duration}")
-            total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration)
-
-        xyz = np.concatenate(total_xyz, axis=0)
-        rgb = np.concatenate(total_rgb, axis=0)
-        total_time = np.concatenate(total_time, axis=0)
-        assert xyz.shape[0] == rgb.shape[0]
-
-        xyzt = np.concatenate((xyz, total_time), axis=1)
-        store_ply(total_ply_path, xyzt, rgb)
     try:
-        pcd = fetch_ply(total_ply_path)
+        pcd = fetch_ply(total_ply_path, grey_image)
     except:
         pcd = None
 

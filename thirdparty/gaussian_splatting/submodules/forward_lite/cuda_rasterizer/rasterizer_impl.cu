@@ -3,7 +3,7 @@
  * GRAPHDECO research group, https://team.inria.fr/graphdeco
  * All rights reserved.
  *
- * This software is free for non-commercial, research and evaluation use 
+ * This software is free for non-commercial, research and evaluation use
  * under the terms of the LICENSE.md file.
  *
  * For inquiries contact  george.drettakis@inria.fr
@@ -65,7 +65,7 @@ __global__ void checkFrustum(int P,
 	present[idx] = in_frustum(idx, orig_points, view_matrix, proj_matrix, false, p_view);
 }
 
-// Generates one key/value pair for all Gaussian / tile overlaps. 
+// Generates one key/value pair for all Gaussian / tile overlaps.
 // Run once per Gaussian (1:N mapping).
 __global__ void duplicateWithKeys(
 	int P,
@@ -90,11 +90,11 @@ __global__ void duplicateWithKeys(
 
 		getRect(points_xy[idx], radii[idx], rect_min, rect_max, grid);
 
-		// For each tile that the bounding rect overlaps, emit a 
+		// For each tile that the bounding rect overlaps, emit a
 		// key/value pair. The key is |  tile ID  |      depth      |,
-		// and the value is the ID of the Gaussian. Sorting the values 
+		// and the value is the ID of the Gaussian. Sorting the values
 		// with this key yields Gaussian IDs in a list, such that they
-		// are first sorted by tile and then by depth. 
+		// are first sorted by tile and then by depth.
 		for (int y = rect_min.y; y < rect_max.y; y++)
 		{
 			for (int x = rect_min.x; x < rect_max.x; x++)
@@ -110,8 +110,8 @@ __global__ void duplicateWithKeys(
 	}
 }
 
-// Check keys to see if it is at the start/end of one tile's range in 
-// the full sorted list. If yes, write start/end of this tile. 
+// Check keys to see if it is at the start/end of one tile's range in
+// the full sorted list. If yes, write start/end of this tile.
 // Run once per instanced (duplicated) Gaussian ID.
 __global__ void identifyTileRanges(int L, uint64_t* point_list_keys, uint2* ranges)
 {
@@ -161,7 +161,7 @@ CudaRasterizer::GeometryState CudaRasterizer::GeometryState::fromChunk(char*& ch
 	obtain(chunk, geom.means2D, P, 128);
 	obtain(chunk, geom.cov3D, P * 6, 128);
 	obtain(chunk, geom.conic_opacity, P, 128);
-	obtain(chunk, geom.rgb, P * NUM_CHANNELS, 128);  // changed 
+	obtain(chunk, geom.rgb, P * NUM_CHANNELS, 128);  // changed
 	obtain(chunk, geom.tiles_touched, P, 128);
 	cub::DeviceScan::InclusiveSum(nullptr, geom.scan_size, geom.tiles_touched, geom.tiles_touched, P);
 	obtain(chunk, geom.scanning_space, geom.scan_size, 128);
@@ -204,18 +204,18 @@ CudaRasterizer::BinningState CudaRasterizer::BinningState::fromChunk(char*& chun
 		// trbf_scale.contiguous().data<float>(),
 		// motion.contiguous().data<float>(),
 		// means3D.contiguous().data<float>(),
-		// opacities.contiguous().data<float>(), 
+		// opacities.contiguous().data<float>(),
 		// background.contiguous().data<float>(),
 		// W, H,
 		// means3Ddummy.contiguous().data<float>(),
 		// sh.contiguous().data_ptr<float>(),
-		// colors.contiguous().data<float>(), 
-		// oppacitydummy.contiguous().data<float>(), 
+		// colors.contiguous().data<float>(),
+		// oppacitydummy.contiguous().data<float>(),
 		// scales.contiguous().data_ptr<float>(),
 		// scale_modifier,
 		// rotations.contiguous().data_ptr<float>(),
-		// cov3D_precomp.contiguous().data<float>(), 
-		// view_matrix.contiguous().data<float>(), 
+		// cov3D_precomp.contiguous().data<float>(),
+		// view_matrix.contiguous().data<float>(),
 		// proj_matrix.contiguous().data<float>(),
 		// campos.contiguous().data<float>(),
 		// tan_fov_x,
@@ -337,7 +337,7 @@ int CudaRasterizer::Rasterizer::forward(
 	char* binning_chunkptr = binningBuffer(binning_chunk_size);
 	BinningState binningState = BinningState::fromChunk(binning_chunkptr, num_rendered);
 
-	// For each instance to be rendered, produce adequate [ tile | depth ] key 
+	// For each instance to be rendered, produce adequate [ tile | depth ] key
 	// and corresponding dublicated Gaussian indices to be sorted
 	duplicateWithKeys << <(P + 255) / 256, 256 >> > (
 		P,

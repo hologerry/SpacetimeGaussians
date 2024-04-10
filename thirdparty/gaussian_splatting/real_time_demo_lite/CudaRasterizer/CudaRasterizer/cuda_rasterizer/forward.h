@@ -51,7 +51,7 @@ namespace FORWARD
 		const glm::vec3* cam_pos,
 		const int W, int H,
 		const float focal_x, float focal_y,
-		const float tan_fovx, float tan_fovy,
+		const float tan_fov_x, float tan_fov_y,
 		int* radii,
 		float2* points_xy_image,
 		float* depths,
