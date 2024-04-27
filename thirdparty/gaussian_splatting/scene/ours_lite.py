@@ -74,7 +74,7 @@ class GaussianModel:
         self.spatial_lr_scale = 0
         self._omega = torch.empty(0)
 
-        self.rgb_decoder = get_color_model(rgb_function)
+        self.rgb_decoder = None  # get_color_model(rgb_function)
 
         self.setup_functions()
         self.delta_t = None

@@ -93,7 +93,14 @@ class Scene:
 
         elif loader == "hyfluid" or loader == "hyfluid_valid":
             scene_info = scene_load_type_callbacks["hyfluid"](
-                args.source_path, args.white_background, args.eval, start_time=start_time, duration=duration, time_step=time_step, grey_image=grey_image,
+                args.source_path,
+                args.white_background,
+                args.eval,
+                start_time=start_time,
+                duration=duration,
+                time_step=time_step,
+                grey_image=grey_image,
+                train_views=args.train_views,
             )
 
         else:

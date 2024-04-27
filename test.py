@@ -44,6 +44,7 @@ import scipy
 import torch
 import torchvision
 
+from imageio import mimsave
 from skimage.metrics import structural_similarity as sk_ssim
 from torchvision.utils import save_image
 from tqdm import tqdm
@@ -75,12 +76,17 @@ def render_set(
     rd_pipe,
     grey_image=False,
 ):
-    render, GRsetting, GRzer = get_render_pipe(rd_pipe)
-    render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
-    gts_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt")
+
+    post_str = "_vel" if "velocity" in rd_pipe else ""
+    print(f"post_str {post_str}")
+    render_path = os.path.join(model_path, name, f"ours_{iteration}{post_str}", "renders")
+    gts_path = os.path.join(model_path, name, f"ours_{iteration}{post_str}", "gt")
+    vel_out_path = os.path.join(model_path, name, f"ours_{iteration}{post_str}", "vel")
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
+    makedirs(vel_out_path, exist_ok=True)
+
     if gaussians.rgb_decoder is not None:
         gaussians.rgb_decoder.cuda()
         gaussians.rgb_decoder.eval()
@@ -127,10 +133,13 @@ def render_set(
 
     if rd_pipe == "train_ours_full":
         render, GRsetting, GRzer = get_render_pipe("test_ours_full")
+
     elif rd_pipe == "train_ours_lite":
         render, GRsetting, GRzer = get_render_pipe("test_ours_lite")
+
     elif rd_pipe == "train_ours_full_ss":
         render, GRsetting, GRzer = get_render_pipe("test_ours_full_ss_fused")
+
     elif rd_pipe == "train_ours_lite_ss":
         render, GRsetting, GRzer = get_render_pipe("test_ours_lite_ss")
 
@@ -138,6 +147,7 @@ def render_set(
         render, GRsetting, GRzer = get_render_pipe(rd_pipe)
 
     img_channel = 1 if grey_image else 3
+
     for idx, view in enumerate(tqdm(views, desc="Rendering and metric progress")):
         rendering_pkg = render(
             view,
@@ -150,6 +160,7 @@ def render_set(
             GRzer=GRzer,
         )
         rendering = rendering_pkg["render"]
+
         rendering = torch.clamp(rendering, 0, 1.0)
         gt = view.original_image[0:img_channel, :, :].cuda().float()
         ssims.append(ssim(rendering.unsqueeze(0), gt.unsqueeze(0)))
@@ -170,14 +181,41 @@ def render_set(
         save_image(gt, os.path.join(gts_path, "{0:05d}".format(idx) + ".png"))
         image_names.append("{0:05d}".format(idx) + ".png")
 
-    images_to_video(render_path, ".png", os.path.join(model_path, name + "_ours_{}.mp4".format(iteration)), fps=25)
-    images_to_video(gts_path, ".png", os.path.join(model_path, name + "_gt_{}.mp4".format(iteration)), fps=25)
+        if "velocity" in rd_pipe:
+            means3D = rendering_pkg["means3D"]
+            means3D = means3D.detach().cpu().numpy()
+            pos_path = os.path.join(vel_out_path, f"pos_{idx:05d}.npy")
+            np.save(pos_path, means3D)
+
+            velocities3D = rendering_pkg["velocities3D"]
+            velocities3D = velocities3D.detach().cpu().numpy()
+            vel_path = os.path.join(vel_out_path, f"vel_{idx:05d}.npy")
+            np.save(vel_path, velocities3D)
+
+            opacity = rendering_pkg["opacity"]
+            opacity = opacity.detach().cpu().numpy()
+            op_path = os.path.join(vel_out_path, f"op_{idx:05d}.npy")
+            np.save(op_path, opacity)
+
+            R_path = os.path.join(vel_out_path, f"R_{idx:05d}.npy")
+            T_path = os.path.join(vel_out_path, f"T_{idx:05d}.npy")
+            np.save(R_path, view.R)
+            np.save(T_path, view.T)
+
+            fov_path = os.path.join(vel_out_path, f"fov_{idx:05d}.npy")
+            fov = np.array([view.FoVx, view.FoVy])
+            np.save(fov_path, fov)
+
+    images_to_video(
+        render_path, "", ".png", os.path.join(model_path, name + f"_ours_{iteration}{post_str}.mp4"), fps=25
+    )
+    images_to_video(gts_path, "", ".png", os.path.join(model_path, name + f"_gt_{iteration}{post_str}.mp4"), fps=25)
 
     # for idx, view in enumerate(tqdm(views, desc="release gt images cuda memory for timing")):
     #     view.original_image = None  # .detach()
     #     torch.cuda.empty_cache()
 
-    # # start timing
+    ## start timing
 
     # for idx, view in enumerate(tqdm(views, desc="timing ")):
     #     for _ in range(20):

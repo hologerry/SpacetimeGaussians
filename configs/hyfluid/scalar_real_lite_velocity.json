@@ -7,14 +7,11 @@
   "start_time": 0,
   "duration": 120,
   "time_step": 1,
-  "rd_pipe": "train_ours_lite_single",
+  "rd_pipe": "test_ours_lite_velocity",
   "rgb_function": "sandwich",
   "batch": 1,
   "densify": 0,
   "densify_from_iter": 0,
   "save_iterations": [7000, 15000, 30000],
-  "test_iterations": [7000, 15000, 30000],
-  "train_views": "4",
-  "grey_image": true,
-  "opacity_reset_interval": 30000
+  "test_iterations": [7000, 15000, 30000]
 }

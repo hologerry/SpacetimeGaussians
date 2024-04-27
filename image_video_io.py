@@ -14,7 +14,7 @@ def cmd_wrapper(program):
     os.system(program)
 
 
-def images_to_video(img_folder, img_post_fix, output_vid_file, fps=25):
+def images_to_video(img_folder, img_pre_fix, img_post_fix, output_vid_file, fps=25):
     os.makedirs(img_folder, exist_ok=True)
 
     command = [
@@ -27,7 +27,7 @@ def images_to_video(img_folder, img_post_fix, output_vid_file, fps=25):
         "-pattern_type",
         "glob",
         "-i",
-        f"{img_folder}/*{img_post_fix}",
+        f"{img_folder}/{img_pre_fix}*{img_post_fix}",
         "-c:v",
         "libx264",
         "-pix_fmt",

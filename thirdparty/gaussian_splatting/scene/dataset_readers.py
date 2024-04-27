@@ -1308,7 +1308,7 @@ def read_cameras_from_transforms_hyfluid(
 
             for time_idx in range(start_time, start_time + duration, time_step):
 
-                cam_name = os.path.join(path, f"colmap_{time_idx}", frame["file_path"] + extension)
+                cam_name = os.path.join(path, "colmap_frames", f"colmap_{time_idx}", frame["file_path"] + extension)
 
                 timestamp = (time_idx - start_time) / duration
 
@@ -1369,11 +1369,15 @@ def read_nerf_synthetic_info_hyfluid(
     duration=50,
     time_step=1,
     grey_image=False,
+    train_views="0134",
 ):
     print("Reading Training Transforms")
+    train_json = "transforms_train_hyfluid.json"
+    if train_views != "0134":
+        train_json = f"transforms_train_{train_views}_hyfluid.json"
     train_cam_infos, bbox_model = read_cameras_from_transforms_hyfluid(
         path,
-        "transforms_train_hyfluid.json",
+        train_json,
         white_background,
         extension,
         start_time,

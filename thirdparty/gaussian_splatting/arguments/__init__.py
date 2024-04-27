@@ -78,6 +78,7 @@ class ModelParams(ParamGroup):
         self.loader = "colmap"
 
         self.grey_image = False
+        self.train_views = "0134"  # four training cameras, 00, 01, 03, 04
 
         super().__init__(parser, "Loading Parameters", sentinel)
 

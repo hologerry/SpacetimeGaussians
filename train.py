@@ -47,6 +47,7 @@ from helper_train import (
     reload_helper,
     trb_function,
 )
+from image_video_io import images_to_video
 from thirdparty.gaussian_splatting.helper3dg import get_parser, get_render_parts
 from thirdparty.gaussian_splatting.scene import Scene
 from thirdparty.gaussian_splatting.utils.graphics_utils import get_world_2_view2
@@ -279,10 +280,10 @@ def train(
                         scene.model_path, f"gt_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png"
                     ),
                 )
-                # current_xyz = gaussians.get_xyz
+                current_xyz = gaussians.get_xyz
                 # xyz_min = torch.min(current_xyz, dim=0).values
                 # xyz_max = torch.max(current_xyz, dim=0).values
-                # print(f"Iter {iteration} min: {xyz_min}, max: {xyz_max}")
+                print(f"Iter {iteration} xyz shape: {current_xyz.shape}")
 
             if optim_args.gt_mask:
                 # for training with undistorted immersive image, masking black pixels in undistorted image.
@@ -609,6 +610,7 @@ def training_report(
         tb_writer.add_scalar("train_loss_patches/total_loss", loss.item(), iteration)
         tb_writer.add_scalar("iter_time", elapsed, iteration)
 
+    os.makedirs(os.path.join(scene.model_path, "training_render"), exist_ok=True)
     # Report test and samples of training set
     if iteration in testing_iterations:
         torch.cuda.empty_cache()
@@ -642,13 +644,17 @@ def training_report(
                     save_image(
                         image,
                         os.path.join(
-                            scene.model_path, f"test_render_{viewpoint.image_name}_{viewpoint.uid}_{iteration:05d}.png"
+                            scene.model_path,
+                            "training_render",
+                            f"test_render_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
                         ),
                     )
                     save_image(
                         gt_image,
                         os.path.join(
-                            scene.model_path, f"test_gt_{viewpoint.image_name}_{viewpoint.uid}_{iteration:05d}.png"
+                            scene.model_path,
+                            "training_render",
+                            f"test_gt_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
                         ),
                     )
                     if tb_writer and (idx < 5):
@@ -665,6 +671,22 @@ def training_report(
                             )
                     l1_test += l1_loss(image, gt_image).mean().double()
                     psnr_test += psnr(image, gt_image).mean().double()
+
+                images_to_video(
+                    scene.model_path,
+                    f"test_render_{viewpoint.image_name}",
+                    f"{iteration:05d}.png",
+                    os.path.join(scene.model_path, f"training_test_render_{viewpoint.image_name}_{iteration:05d}.mp4"),
+                    fps=25,
+                )
+                images_to_video(
+                    scene.model_path,
+                    f"test_gt_{viewpoint.image_name}",
+                    f"{iteration:05d}.png",
+                    os.path.join(scene.model_path, f"training_test_gt_{viewpoint.image_name}_{iteration:05d}.mp4"),
+                    fps=25,
+                )
+
                 psnr_test /= len(config["cameras"])
                 l1_test /= len(config["cameras"])
                 print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, config["name"], l1_test, psnr_test))
