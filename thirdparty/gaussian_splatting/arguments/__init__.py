@@ -77,8 +77,13 @@ class ModelParams(ParamGroup):
         self.model = "g_model"
         self.loader = "colmap"
 
+        # GaussianFluid parameters
         self.grey_image = False
-        self.train_views = "0134"  # four training cameras, 00, 01, 03, 04
+        # four training cameras, 00, 01, 03, 04
+        self.train_views = "0134"
+         # same format as train views # the views that produced from zero123 finetuned model
+        self.train_views_fake = None
+        self.use_best_fake = False
 
         super().__init__(parser, "Loading Parameters", sentinel)
 

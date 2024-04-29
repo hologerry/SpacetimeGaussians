@@ -31,6 +31,7 @@ from argparse import Namespace
 from random import randint
 
 import cv2
+import lpips
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -113,8 +114,8 @@ def train(
     )
 
     current_xyz = gaussians._xyz
-    os.makedirs("cam_vis", exist_ok=True)
-    np.save(os.path.join("cam_vis", "input_xyz.npy"), current_xyz.detach().cpu().numpy())
+    # os.makedirs("cam_vis", exist_ok=True)
+    # np.save(os.path.join("cam_vis", "input_xyz.npy"), current_xyz.detach().cpu().numpy())
     # z wrong... # ???
     max_x, max_y, max_z = torch.amax(current_xyz[:, 0]), torch.amax(current_xyz[:, 1]), torch.amax(current_xyz[:, 2])
     min_x, min_y, min_z = torch.amin(current_xyz[:, 0]), torch.amin(current_xyz[:, 1]), torch.amin(current_xyz[:, 2])
@@ -186,8 +187,8 @@ def train(
             w2c = get_world_2_view2(viewpoint_cam.R, viewpoint_cam.T)
             c2w = np.linalg.inv(w2c)
             c2w[:3, 1:3] *= -1
-            os.makedirs("cam_vis", exist_ok=True)
-            np.save(f"cam_vis/cam_{viewpoint_cam.image_name}_pose.npy", c2w)
+            # os.makedirs("cam_vis", exist_ok=True)
+            # np.save(f"cam_vis/cam_{viewpoint_cam.image_name}_pose.npy", c2w)
 
             _, depthH, depthW = render_pkg["depth"].shape
             border_H = int(depthH / 2)
@@ -202,7 +203,7 @@ def train(
             select_mask_sum = torch.sum(select_mask)
             assert select_mask_sum > 0, f"no valid depth for {viewpoint_cam.image_name}"
 
-            initial_image = render_pkg["render"]
+            # initial_image = render_pkg["render"]
 
             valid_depth_dict[viewpoint_cam.image_name] = torch.median(depth[select_mask]).item()
             depth_dict[viewpoint_cam.image_name] = torch.amax(depth[select_mask]).item()
@@ -215,6 +216,7 @@ def train(
 
     selected_length = 2
     laster_ems = 0
+    lpips_criteria = lpips.LPIPS(net="alex").cuda()
 
     for iteration in range(first_iter, optim_args.iterations + 1):
         if args.loader != "hyfluid" and iteration == optim_args.ems_start:
@@ -257,13 +259,17 @@ def train(
             # print(f"radii: {radii.shape} {radii.min()} {radii.max()}")
             # print(f"depth: {depth.shape} {depth.min()} {depth.max()}")
 
+            # print(f"viewpoint_cam {viewpoint_cam.image_name} {viewpoint_cam.is_fake_view}")
+
             gt_image = viewpoint_cam.original_image.float().cuda()
+            gt_image_real = viewpoint_cam.original_image_real.float().cuda()
 
             if iteration % 500 == 0:
                 save_image(
                     depth,
                     os.path.join(
                         scene.model_path,
+                        "training_render",
                         f"depth_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
                     ),
                 )
@@ -271,13 +277,24 @@ def train(
                     image,
                     os.path.join(
                         scene.model_path,
+                        "training_render",
                         f"render_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
                     ),
                 )
                 save_image(
                     gt_image,
                     os.path.join(
-                        scene.model_path, f"gt_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png"
+                        scene.model_path,
+                        "training_render",
+                        f"gt_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
+                    ),
+                )
+                save_image(
+                    gt_image_real,
+                    os.path.join(
+                        scene.model_path,
+                        "training_render",
+                        f"gt_real_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
                     ),
                 )
                 current_xyz = gaussians.get_xyz
@@ -298,6 +315,13 @@ def train(
                 Ll1 = relative_loss(image, gt_image)
                 loss = Ll1
             else:
+                # if viewpoint_cam.is_fake_view:
+                #     if model_args.grey_image:
+                #         image = torch.cat((image, image, image), dim=1)
+                #         gt_image = torch.cat((gt_image, gt_image, gt_image), dim=1)
+                #     Ll1 = lpips_criteria(image, gt_image, normalize=True)
+                # else:
+                #     Ll1 = l1_loss(image, gt_image)
                 Ll1 = l1_loss(image, gt_image)
                 loss = get_loss(optim_args, Ll1, ssim, image, gt_image, gaussians, radii)
 
@@ -578,6 +602,7 @@ def prepare_output_and_logger(args):
     # Set up output folder
     print("Output folder: {}".format(args.model_path))
     os.makedirs(args.model_path, exist_ok=True)
+    os.makedirs(os.path.join(args.model_path, "training_render"), exist_ok=True)
     with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
 
@@ -610,7 +635,6 @@ def training_report(
         tb_writer.add_scalar("train_loss_patches/total_loss", loss.item(), iteration)
         tb_writer.add_scalar("iter_time", elapsed, iteration)
 
-    os.makedirs(os.path.join(scene.model_path, "training_render"), exist_ok=True)
     # Report test and samples of training set
     if iteration in testing_iterations:
         torch.cuda.empty_cache()
@@ -641,6 +665,12 @@ def training_report(
                     )
                     image = torch.clamp(rendered["render"], 0.0, 1.0)
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
+                    # testing view it is no difference
+                    # training view real is the real gt, no real is the fake gt
+                    gt_image_real = torch.clamp(viewpoint.original_image_real.to("cuda"), 0.0, 1.0)
+                    # if hasattr(viewpoint, "original_image_real"):
+                    #     # since we using fake view images, we need to compare with real images
+                    #     gt_image = torch.clamp(viewpoint.original_image_real.to("cuda"), 0.0, 1.0)
                     save_image(
                         image,
                         os.path.join(
@@ -657,6 +687,14 @@ def training_report(
                             f"test_gt_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
                         ),
                     )
+                    save_image(
+                        gt_image_real,
+                        os.path.join(
+                            scene.model_path,
+                            "training_render",
+                            f"test_gt_real_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
+                        ),
+                    )
                     if tb_writer and (idx < 5):
                         tb_writer.add_images(
                             config["name"] + "_view_{}/render".format(viewpoint.image_name),
@@ -669,21 +707,35 @@ def training_report(
                                 gt_image[None],
                                 global_step=iteration,
                             )
-                    l1_test += l1_loss(image, gt_image).mean().double()
-                    psnr_test += psnr(image, gt_image).mean().double()
+                            tb_writer.add_images(
+                                config["name"] + "_view_{}/ground_truth_real".format(viewpoint.image_name),
+                                gt_image_real[None],
+                                global_step=iteration,
+                            )
+                    l1_test += l1_loss(image, gt_image_real).mean().double()
+                    psnr_test += psnr(image, gt_image_real).mean().double()
 
                 images_to_video(
-                    scene.model_path,
+                    os.path.join(scene.model_path, "training_render"),
                     f"test_render_{viewpoint.image_name}",
                     f"{iteration:05d}.png",
                     os.path.join(scene.model_path, f"training_test_render_{viewpoint.image_name}_{iteration:05d}.mp4"),
                     fps=25,
                 )
                 images_to_video(
-                    scene.model_path,
+                    os.path.join(scene.model_path, "training_render"),
                     f"test_gt_{viewpoint.image_name}",
                     f"{iteration:05d}.png",
                     os.path.join(scene.model_path, f"training_test_gt_{viewpoint.image_name}_{iteration:05d}.mp4"),
+                    fps=25,
+                )
+                images_to_video(
+                    os.path.join(scene.model_path, "training_render"),
+                    f"test_gt_real_{viewpoint.image_name}",
+                    f"{iteration:05d}.png",
+                    os.path.join(
+                        scene.model_path, f"training_test_gt_real_{viewpoint.image_name}_{iteration:05d}.mp4"
+                    ),
                     fps=25,
                 )
 

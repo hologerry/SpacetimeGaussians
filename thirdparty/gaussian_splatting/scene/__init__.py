@@ -101,6 +101,8 @@ class Scene:
                 time_step=time_step,
                 grey_image=grey_image,
                 train_views=args.train_views,
+                train_views_fake=args.train_views_fake,
+                use_best_fake=args.use_best_fake,
             )
 
         else:

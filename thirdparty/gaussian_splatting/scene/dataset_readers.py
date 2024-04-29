@@ -65,6 +65,8 @@ class CameraInfo(NamedTuple):
     hp_directions: np.array
     cxr: float
     cyr: float
+    is_fake_view: bool = False
+    real_image: np.array = None
 
 
 class SceneInfo(NamedTuple):
@@ -1259,7 +1261,11 @@ def read_cameras_from_transforms_hyfluid(
     duration=50,
     time_step=1,
     grey_image=False,
+    train_views="0134",
+    train_views_fake=None,
+    use_best_fake=False,
 ):
+    print(f"transforms_file {transforms_file} train_views {train_views} train_views_fake {train_views_fake}")
     cam_infos = []
     print(f"start_time {start_time} duration {duration} time_step {time_step}")
 
@@ -1304,19 +1310,41 @@ def read_cameras_from_transforms_hyfluid(
             fov_y = focal2fov(focal_length, h)
             FovY = fov_y
             FovX = fov_x
+            cam_name = frame["file_path"][-1:]  # train0x -> x used to determine with train_views
             # print(f"frame {frame['file_path']} focal_length {focal_length} FovX {FovX} FovY {FovY}")
 
             for time_idx in range(start_time, start_time + duration, time_step):
 
-                cam_name = os.path.join(path, "colmap_frames", f"colmap_{time_idx}", frame["file_path"] + extension)
+                frame_name = os.path.join("colmap_frames", f"colmap_{time_idx}", frame["file_path"] + extension)
+                # used to determine the loss type
+                is_fake_view = False
+                real_frame_name = frame_name
+
+                if cam_name in train_views_fake:
+                    # print(f"FAKE VIEW: time_idx: {time_idx}, cam_name: {cam_name}, train_views_fake: {train_views_fake}")
+                    is_fake_view = True
+                    if use_best_fake:
+                        frame_name = os.path.join(
+                            f"zero123_finetune_15000_best_cam0{cam_name}_1920h_1080w", f"frame_{time_idx:06d}.png"
+                        )
+                    else:
+                        source_cam = train_views[:1]
+                        frame_name = os.path.join(
+                            f"zero123_finetune_15000_cam{source_cam}to{cam_name}_1920h_1080w",
+                            f"frame_{time_idx:06d}.png",
+                        )
 
                 timestamp = (time_idx - start_time) / duration
 
-                image_path = os.path.join(path, cam_name)
-                image_name = os.path.basename(image_path).split(".")[0]
+                image_path = os.path.join(path, frame_name)
+                real_image_path = os.path.join(path, real_frame_name)
+                # the image_name is used to index the camera so we all use the real name
+                image_name = frame["file_path"].split("/")[-1]  # os.path.basename(image_path).split(".")[0]
                 image = Image.open(image_path)
+                real_image = Image.open(real_image_path)
 
                 im_data = np.array(image.convert("RGBA"))
+                real_im_data = np.array(real_image.convert("RGBA"))
 
                 bg = np.array([1, 1, 1]) if white_background else np.array([0, 0, 0])
 
@@ -1324,8 +1352,13 @@ def read_cameras_from_transforms_hyfluid(
                 arr = norm_data[:, :, :3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
                 image = Image.fromarray(np.array(arr * 255.0, dtype=np.byte), "RGB")
 
+                real_norm_data = real_im_data
+                real_arr = real_norm_data[:, :, :3] * real_norm_data[:, :, 3:4] + bg * (1 - real_norm_data[:, :, 3:4])
+                real_image = Image.fromarray(np.array(real_arr * 255.0, dtype=np.byte), "RGB")
+
                 if grey_image:
                     image = image.convert("L")
+                    real_image = real_image.convert("L")
 
                 pose = 1 if time_idx == start_time else None
                 hp_directions = 1 if time_idx == start_time else None
@@ -1333,7 +1366,7 @@ def read_cameras_from_transforms_hyfluid(
                 uid = camera_uid  # idx * duration//time_step + time_idx
                 camera_uid += 1
 
-                # print(f"cam_name {cam_name} timestamp {timestamp} camera uid {uid}")
+                # print(f"frame_name {frame_name} timestamp {timestamp} camera uid {uid}")
 
                 cam_infos.append(
                     CameraInfo(
@@ -1343,6 +1376,7 @@ def read_cameras_from_transforms_hyfluid(
                         FovY=FovY,
                         FovX=FovX,
                         image=image,
+                        real_image=real_image,
                         image_path=image_path,
                         image_name=image_name,
                         width=image.size[0],
@@ -1354,6 +1388,7 @@ def read_cameras_from_transforms_hyfluid(
                         hp_directions=hp_directions,
                         cxr=0.0,
                         cyr=0.0,
+                        is_fake_view=is_fake_view,
                     )
                 )
 
@@ -1370,10 +1405,13 @@ def read_nerf_synthetic_info_hyfluid(
     time_step=1,
     grey_image=False,
     train_views="0134",
+    train_views_fake=None,
+    use_best_fake=False,
 ):
     print("Reading Training Transforms")
     train_json = "transforms_train_hyfluid.json"
-    if train_views != "0134":
+    if train_views != "0134" and train_views_fake is None:
+        # in this mode, just using some real views, no fake views for fitting
         train_json = f"transforms_train_{train_views}_hyfluid.json"
     train_cam_infos, bbox_model = read_cameras_from_transforms_hyfluid(
         path,
@@ -1384,6 +1422,9 @@ def read_nerf_synthetic_info_hyfluid(
         duration,
         time_step,
         grey_image,
+        train_views,
+        train_views_fake,
+        use_best_fake,
     )
     print("Reading Test Transforms")
     test_cam_infos, _ = read_cameras_from_transforms_hyfluid(
@@ -1395,6 +1436,9 @@ def read_nerf_synthetic_info_hyfluid(
         duration,
         time_step,
         grey_image,
+        train_views,
+        train_views_fake,
+        use_best_fake,
     )
 
     if not eval:

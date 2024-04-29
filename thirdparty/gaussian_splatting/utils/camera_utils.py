@@ -114,12 +114,18 @@ def load_cam_v2(args, id, cam_info, resolution_scale):
         resolution = (int(orig_w / scale), int(orig_h / scale))
 
     resized_image_rgb = pil_to_torch(cam_info.image, resolution)
+    resized_image_rgb_real = pil_to_torch(cam_info.real_image, resolution)
 
     gt_image = resized_image_rgb[:3, ...]
+    gt_image_real = resized_image_rgb_real[:3, ...]
     loaded_mask = None
+    loaded_mask_real = None
 
     if resized_image_rgb.shape[1] == 4:
         loaded_mask = resized_image_rgb[3:4, ...]
+
+    if resized_image_rgb_real.shape[1] == 4:
+        loaded_mask_real = resized_image_rgb_real[3:4, ...]
 
     camera_direct = cam_info.hp_directions
     camera_pose = cam_info.pose
@@ -147,6 +153,9 @@ def load_cam_v2(args, id, cam_info, resolution_scale):
         rayd=rays_d,
         cxr=cam_info.cxr,
         cyr=cam_info.cyr,
+        is_fake_view=cam_info.is_fake_view,
+        real_image=gt_image_real,
+        gt_alpha_mask_real=loaded_mask_real,
     )
 
 

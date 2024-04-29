@@ -49,6 +49,9 @@ class Camera(nn.Module):
         rays=None,
         cxr=0.0,
         cyr=0.0,
+        is_fake_view=False,
+        real_image=None,
+        gt_alpha_mask_real=None,
     ):
         super().__init__()
 
@@ -61,6 +64,8 @@ class Camera(nn.Module):
         self.image_name = image_name
         self.timestamp = timestamp
 
+        self.is_fake_view = is_fake_view
+
         try:
             self.data_device = torch.device(data_device)
         except Exception as e:
@@ -72,8 +77,12 @@ class Camera(nn.Module):
         if not isinstance(image, tuple):
             if "camera_" not in image_name:
                 self.original_image = image.clamp(0.0, 1.0).to(self.data_device)
+                if real_image is not None:
+                    self.original_image_real = real_image.clamp(0.0, 1.0).to(self.data_device)
             else:
                 self.original_image = image.clamp(0.0, 1.0).half().to(self.data_device)
+                if real_image is not None:
+                    self.original_image_real = real_image.clamp(0.0, 1.0).half().to(self.data_device)
             self.image_width = self.original_image.shape[2]
             self.image_height = self.original_image.shape[1]
             if gt_alpha_mask is not None:
@@ -81,10 +90,18 @@ class Camera(nn.Module):
             else:
                 self.original_image *= torch.ones((1, self.image_height, self.image_width), device=self.data_device)
 
+            if gt_alpha_mask_real is not None:
+                self.original_image_real *= gt_alpha_mask_real.to(self.data_device)
+            else:
+                self.original_image_real *= torch.ones(
+                    (1, self.image_height, self.image_width), device=self.data_device
+                )
+
         else:
             self.image_width = image[0]
             self.image_height = image[1]
             self.original_image = None
+            self.original_image_real = None
 
         self.z_far = 100.0
         self.z_near = 0.01
