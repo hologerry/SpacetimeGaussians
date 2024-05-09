@@ -60,6 +60,7 @@ class CameraInfo(NamedTuple):
     height: int
     near: float
     far: float
+    time_idx: int
     timestamp: float
     pose: np.array
     hp_directions: np.array
@@ -1320,7 +1321,7 @@ def read_cameras_from_transforms_hyfluid(
                 is_fake_view = False
                 real_frame_name = frame_name
 
-                if cam_name in train_views_fake:
+                if train_views_fake is not None and cam_name in train_views_fake:
                     # print(f"FAKE VIEW: time_idx: {time_idx}, cam_name: {cam_name}, train_views_fake: {train_views_fake}")
                     is_fake_view = True
                     if use_best_fake:
@@ -1381,6 +1382,7 @@ def read_cameras_from_transforms_hyfluid(
                         image_name=image_name,
                         width=image.size[0],
                         height=image.size[1],
+                        time_idx=time_idx,
                         timestamp=timestamp,
                         near=near,
                         far=far,
@@ -1429,7 +1431,7 @@ def read_nerf_synthetic_info_hyfluid(
     print("Reading Test Transforms")
     test_cam_infos, _ = read_cameras_from_transforms_hyfluid(
         path,
-        "transforms_test_hyfluid.json",
+        "transforms_train_test_hyfluid.json",
         white_background,
         extension,
         start_time,

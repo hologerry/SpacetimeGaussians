@@ -43,6 +43,7 @@ class Camera(nn.Module):
         data_device="cuda",
         near=0.01,
         far=100.0,
+        time_idx=0,
         timestamp=0.0,
         rayo=None,
         rayd=None,
@@ -62,6 +63,7 @@ class Camera(nn.Module):
         self.FoVx = FoVx
         self.FoVy = FoVy
         self.image_name = image_name
+        self.time_idx = time_idx
         self.timestamp = timestamp
 
         self.is_fake_view = is_fake_view

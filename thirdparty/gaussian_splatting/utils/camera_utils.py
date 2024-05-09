@@ -148,6 +148,7 @@ def load_cam_v2(args, id, cam_info, resolution_scale):
         data_device=args.data_device,
         near=cam_info.near,
         far=cam_info.far,
+        time_idx=cam_info.time_idx,
         timestamp=cam_info.timestamp,
         rayo=rays_o,
         rayd=rays_d,

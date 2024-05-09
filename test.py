@@ -42,6 +42,7 @@ from os import makedirs
 import numpy as np
 import scipy
 import torch
+import torch.nn.functional as F
 import torchvision
 
 from imageio import mimsave
@@ -50,13 +51,13 @@ from torchvision.utils import save_image
 from tqdm import tqdm
 
 from helper_train import get_model, get_render_pipe, trb_function
-from image_video_io import images_to_video
+from image_video_io import images_to_video, mp4_to_gif
 from thirdparty.gaussian_splatting.arguments import ModelParams, PipelineParams
 from thirdparty.gaussian_splatting.helper3dg import get_test_parser
-from thirdparty.gaussian_splatting.lpipsPyTorch import lpips
+from thirdparty.gaussian_splatting.lpipsPyTorch import lpips as lpips_func
 from thirdparty.gaussian_splatting.scene import Scene
-from thirdparty.gaussian_splatting.utils.image_utils import psnr
-from thirdparty.gaussian_splatting.utils.loss_utils import ssim
+from thirdparty.gaussian_splatting.utils.image_utils import psnr as psnr_func
+from thirdparty.gaussian_splatting.utils.loss_utils import ssim as ssim_func
 
 
 warnings.filterwarnings("ignore")
@@ -77,15 +78,21 @@ def render_set(
     grey_image=False,
 ):
 
-    post_str = "_vel" if "velocity" in rd_pipe else ""
+    if "velocity" in rd_pipe:
+        post_str = "_vel"
+    elif "vis" in rd_pipe:
+        post_str = "_vis"
+    else:
+        post_str = ""
     print(f"post_str {post_str}")
+
     render_path = os.path.join(model_path, name, f"ours_{iteration}{post_str}", "renders")
     gts_path = os.path.join(model_path, name, f"ours_{iteration}{post_str}", "gt")
-    vel_out_path = os.path.join(model_path, name, f"ours_{iteration}{post_str}", "vel")
+    quantities_out_path = os.path.join(model_path, name, f"ours_{iteration}{post_str}", "quantities")
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
-    makedirs(vel_out_path, exist_ok=True)
+    makedirs(quantities_out_path, exist_ok=True)
 
     if gaussians.rgb_decoder is not None:
         gaussians.rgb_decoder.cuda()
@@ -111,26 +118,6 @@ def render_set(
     with open(stats_path, "w") as fp:
         json.dump(stats_dict, fp, indent=True)
 
-    psnrs = []
-    lpipss = []
-    lpipss_vggs = []
-
-    l1s = []
-    ssims = []
-    ssims_v2 = []
-    scene_dir = model_path
-    image_names = []
-    times = []
-
-    full_dict = {}
-    per_view_dict = {}
-
-    full_dict[scene_dir] = {}
-    per_view_dict[scene_dir] = {}
-
-    full_dict[scene_dir][iteration] = {}
-    per_view_dict[scene_dir][iteration] = {}
-
     if rd_pipe == "train_ours_full":
         render, GRsetting, GRzer = get_render_pipe("test_ours_full")
 
@@ -148,6 +135,10 @@ def render_set(
 
     img_channel = 1 if grey_image else 3
 
+    full_metrics_dict = {}
+
+    all_view_names = []
+
     for idx, view in enumerate(tqdm(views, desc="Rendering and metric progress")):
         rendering_pkg = render(
             view,
@@ -160,56 +151,139 @@ def render_set(
             GRzer=GRzer,
         )
         rendering = rendering_pkg["render"]
+        cur_view_name = view.image_name
+        cur_view_time_idx = view.time_idx
+        if cur_view_name not in full_metrics_dict:
+            all_view_names.append(cur_view_name)
+            full_metrics_dict[cur_view_name] = {}
+            full_metrics_dict[cur_view_name]["l1"] = []
+            full_metrics_dict[cur_view_name]["ssim"] = []
+            full_metrics_dict[cur_view_name]["psnr"] = []
+            full_metrics_dict[cur_view_name]["lpips"] = []
+            full_metrics_dict[cur_view_name]["lpips_vgg"] = []
+            full_metrics_dict[cur_view_name]["ssim_v2"] = []
 
         rendering = torch.clamp(rendering, 0, 1.0)
         gt = view.original_image[0:img_channel, :, :].cuda().float()
-        ssims.append(ssim(rendering.unsqueeze(0), gt.unsqueeze(0)))
-        l1s.append(torch.mean(torch.abs(rendering - gt)).item())
 
-        psnrs.append(psnr(rendering.unsqueeze(0), gt.unsqueeze(0)))
-        lpipss.append(lpips(rendering.unsqueeze(0), gt.unsqueeze(0), net_type="alex"))
-        lpipss_vggs.append(lpips(rendering.unsqueeze(0), gt.unsqueeze(0), net_type="vgg"))
+        ssim = ssim_func(rendering.unsqueeze(0), gt.unsqueeze(0)).item()
+        l1 = F.l1_loss(rendering.unsqueeze(0), gt.unsqueeze(0)).item()
+        psnr = psnr_func(rendering.unsqueeze(0), gt.unsqueeze(0)).mean().item()
+        lpips = lpips_func(rendering.unsqueeze(0), gt.unsqueeze(0), net_type="alex").mean().item()
+        lpips_vgg = lpips_func(rendering.unsqueeze(0), gt.unsqueeze(0), net_type="vgg").mean().item()
 
         render_numpy = rendering.permute(1, 2, 0).detach().cpu().numpy()
         gt_numpy = gt.permute(1, 2, 0).detach().cpu().numpy()
         ssim_v2 = sk_ssim(
             render_numpy, gt_numpy, channel_axis=-1, multichannel=True, data_range=gt_numpy.max() - gt_numpy.min()
         )
-        ssims_v2.append(ssim_v2)
 
-        save_image(rendering, os.path.join(render_path, "{0:05d}".format(idx) + ".png"))
-        save_image(gt, os.path.join(gts_path, "{0:05d}".format(idx) + ".png"))
-        image_names.append("{0:05d}".format(idx) + ".png")
+        full_metrics_dict[cur_view_name]["l1"].append(l1)
+        full_metrics_dict[cur_view_name]["ssim"].append(ssim)
+        full_metrics_dict[cur_view_name]["psnr"].append(psnr)
+        full_metrics_dict[cur_view_name]["lpips"].append(lpips)
+        full_metrics_dict[cur_view_name]["lpips_vgg"].append(lpips_vgg)
+        full_metrics_dict[cur_view_name]["ssim_v2"].append(ssim_v2)
 
-        if "velocity" in rd_pipe:
+        os.makedirs(os.path.join(render_path, cur_view_name), exist_ok=True)
+        os.makedirs(os.path.join(gts_path, cur_view_name), exist_ok=True)
+
+        rendering_image_save_path = os.path.join(render_path, cur_view_name, f"{cur_view_time_idx:05d}.png")
+        gt_image_save_path = os.path.join(gts_path, cur_view_name, f"{cur_view_time_idx:05d}.png")
+        save_image(rendering, rendering_image_save_path)
+        save_image(gt, gt_image_save_path)
+
+        if "vis" in rd_pipe and cur_view_name == "train02":
+
             means3D = rendering_pkg["means3D"]
             means3D = means3D.detach().cpu().numpy()
-            pos_path = os.path.join(vel_out_path, f"pos_{idx:05d}.npy")
-            np.save(pos_path, means3D)
+            means3D_path = os.path.join(quantities_out_path, f"means3D_{cur_view_time_idx:05d}.npy")
+            np.save(means3D_path, means3D)
 
             velocities3D = rendering_pkg["velocities3D"]
             velocities3D = velocities3D.detach().cpu().numpy()
-            vel_path = os.path.join(vel_out_path, f"vel_{idx:05d}.npy")
-            np.save(vel_path, velocities3D)
+            velocities3D_path = os.path.join(quantities_out_path, f"velocities3D_{cur_view_time_idx:05d}.npy")
+            np.save(velocities3D_path, velocities3D)
 
             opacity = rendering_pkg["opacity"]
             opacity = opacity.detach().cpu().numpy()
-            op_path = os.path.join(vel_out_path, f"op_{idx:05d}.npy")
-            np.save(op_path, opacity)
+            opacity_path = os.path.join(quantities_out_path, f"opacity_{cur_view_time_idx:05d}.npy")
+            np.save(opacity_path, opacity)
 
-            R_path = os.path.join(vel_out_path, f"R_{idx:05d}.npy")
-            T_path = os.path.join(vel_out_path, f"T_{idx:05d}.npy")
+            visibility_filter = rendering_pkg["visibility_filter"]
+            visibility_filter = visibility_filter.detach().cpu().numpy()
+            visibility_filter_path = os.path.join(
+                quantities_out_path, f"visibility_filter_{cur_view_time_idx:05d}.npy"
+            )
+            np.save(visibility_filter_path, visibility_filter)
+
+            radii = rendering_pkg["radii"]
+            radii = radii.detach().cpu().numpy()
+            radii_path = os.path.join(quantities_out_path, f"radii_{cur_view_time_idx:05d}.npy")
+            np.save(radii_path, radii)
+
+            motion = rendering_pkg["motion"]
+            motion = motion.detach().cpu().numpy()
+            motion_path = os.path.join(quantities_out_path, f"motion_{cur_view_time_idx:05d}.npy")
+            np.save(motion_path, motion)
+
+            rotations = rendering_pkg["rotations"]
+            rotations = rotations.detach().cpu().numpy()
+            rotations_path = os.path.join(quantities_out_path, f"rotations_{cur_view_time_idx:05d}.npy")
+            np.save(rotations_path, rotations)
+
+            colors_precomp = rendering_pkg["colors_precomp"]
+            colors_precomp = colors_precomp.detach().cpu().numpy()
+            colors_precomp_path = os.path.join(quantities_out_path, f"colors_precomp_{cur_view_time_idx:05d}.npy")
+            np.save(colors_precomp_path, colors_precomp)
+
+            scales = rendering_pkg["scales"]
+            scales = scales.detach().cpu().numpy()
+            scales_path = os.path.join(quantities_out_path, f"scales_{cur_view_time_idx:05d}.npy")
+            np.save(scales_path, scales)
+
+            R_path = os.path.join(quantities_out_path, f"R_{cur_view_time_idx:05d}.npy")
+            T_path = os.path.join(quantities_out_path, f"T_{cur_view_time_idx:05d}.npy")
             np.save(R_path, view.R)
             np.save(T_path, view.T)
 
-            fov_path = os.path.join(vel_out_path, f"fov_{idx:05d}.npy")
+            fov_path = os.path.join(quantities_out_path, f"fov_{cur_view_time_idx:05d}.npy")
             fov = np.array([view.FoVx, view.FoVy])
             np.save(fov_path, fov)
 
-    images_to_video(
-        render_path, "", ".png", os.path.join(model_path, name + f"_ours_{iteration}{post_str}.mp4"), fps=25
-    )
-    images_to_video(gts_path, "", ".png", os.path.join(model_path, name + f"_gt_{iteration}{post_str}.mp4"), fps=25)
+    for view_name in all_view_names:
+        render_frame_path = os.path.join(render_path, view_name)
+        gt_frame_path = os.path.join(gts_path, view_name)
+        render_out_mp4_path = os.path.join(model_path, name + f"_render_{view_name}_{iteration}{post_str}.mp4")
+        gt_out_mp4_path = os.path.join(model_path, name + f"_gt_{view_name}_{iteration}{post_str}.mp4")
+        images_to_video(render_frame_path, "", ".png", render_out_mp4_path, fps=25)
+        images_to_video(gt_frame_path, "", ".png", gt_out_mp4_path, fps=25)
+        mp4_to_gif(render_out_mp4_path, render_out_mp4_path.replace(".mp4", ".gif"))
+        mp4_to_gif(gt_out_mp4_path, gt_out_mp4_path.replace(".mp4", ".gif"))
+
+    mean_metrics_per_view_dict = {}
+    for view_name in all_view_names:
+        mean_metrics_per_view_dict[view_name] = {}
+        mean_metrics_per_view_dict[view_name]["l1"] = float(np.mean(full_metrics_dict[view_name]["l1"]))
+        mean_metrics_per_view_dict[view_name]["ssim"] = float(np.mean(full_metrics_dict[view_name]["ssim"]))
+        mean_metrics_per_view_dict[view_name]["psnr"] = float(np.mean(full_metrics_dict[view_name]["psnr"]))
+        mean_metrics_per_view_dict[view_name]["lpips"] = float(np.mean(full_metrics_dict[view_name]["lpips"]))
+        mean_metrics_per_view_dict[view_name]["lpips_vgg"] = float(np.mean(full_metrics_dict[view_name]["lpips_vgg"]))
+        mean_metrics_per_view_dict[view_name]["ssim_v2"] = float(np.mean(full_metrics_dict[view_name]["ssim_v2"]))
+
+    train_view_names = ["train00", "train01", "train03", "train04"]
+    train_mean_metrics = {}
+    for metric in ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]:
+        train_mean_metrics[metric] = float(
+            np.mean([np.mean(full_metrics_dict[view_name][metric]) for view_name in train_view_names])
+        )
+
+    test_view_names = ["train02"]
+    test_mean_metrics = {}
+    for metric in ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]:
+        test_mean_metrics[metric] = float(
+            np.mean([np.mean(full_metrics_dict[view_name][metric]) for view_name in test_view_names])
+        )
 
     # for idx, view in enumerate(tqdm(views, desc="release gt images cuda memory for timing")):
     #     view.original_image = None  # .detach()
@@ -235,39 +309,17 @@ def render_set(
 
     # print("mean time for rendering", np.mean(np.array(times)))
 
-    if len(views) > 0:
-        full_dict[model_path][iteration].update(
-            {
-                "SSIM": torch.tensor(ssims).mean().item(),
-                "PSNR": torch.tensor(psnrs).mean().item(),
-                "LPIPS": torch.tensor(lpipss).mean().item(),
-                "L1": torch.tensor(l1s).mean().item(),
-                "SSIM_v2": torch.tensor(ssims_v2).mean().item(),
-                "LPIPS_VGG": torch.tensor(lpipss_vggs).mean().item(),
-                "times": torch.tensor(times).mean().item(),
-            }
-        )
+    with open(model_path + "/" + str(iteration) + "_train_views.json", "w") as fp:
+        print("saving results")
+        json.dump(train_mean_metrics, fp, indent=True)
 
-        per_view_dict[model_path][iteration].update(
-            {
-                "SSIM": {name: ssim for ssim, name in zip(torch.tensor(ssims).tolist(), image_names)},
-                "PSNR": {name: psnr for psnr, name in zip(torch.tensor(psnrs).tolist(), image_names)},
-                "LPIPS": {name: lpips for lpips, name in zip(torch.tensor(lpipss).tolist(), image_names)},
-                "L1": {name: l1 for l1, name in zip(torch.tensor(l1s).tolist(), image_names)},
-                "SSIM_v2": {name: ssim2 for ssim2, name in zip(torch.tensor(ssims_v2).tolist(), image_names)},
-                "LPIPS_VGG": {
-                    name: lpips_vgg for lpips_vgg, name in zip(torch.tensor(lpipss_vggs).tolist(), image_names)
-                },
-            }
-        )
+    with open(model_path + "/" + str(iteration) + "_test_views.json", "w") as fp:
+        print("saving results")
+        json.dump(train_mean_metrics, fp, indent=True)
 
-        with open(model_path + "/" + str(iteration) + "_runtime_results.json", "w") as fp:
-            print("saving results")
-            json.dump(full_dict, fp, indent=True)
-
-        with open(model_path + "/" + str(iteration) + "_runtime_per_view.json", "w") as fp:
-            print("saving per view results")
-            json.dump(per_view_dict, fp, indent=True)
+    with open(model_path + "/" + str(iteration) + "_per_view.json", "w") as fp:
+        print("saving per view results")
+        json.dump(mean_metrics_per_view_dict, fp, indent=True)
 
 
 # render free view

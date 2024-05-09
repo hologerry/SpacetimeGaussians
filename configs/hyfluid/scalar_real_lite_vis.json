@@ -1,0 +1,17 @@
+{
+  "resolution": 1,
+  "model": "ours_lite",
+  "scaling_lr": 0.0015,
+  "preprocess_points": 0,
+  "test_iteration": 30000,
+  "start_time": 0,
+  "duration": 120,
+  "time_step": 1,
+  "rd_pipe": "test_ours_lite_vis",
+  "rgb_function": "sandwich",
+  "batch": 1,
+  "densify": 0,
+  "densify_from_iter": 0,
+  "save_iterations": [7000, 15000, 30000],
+  "test_iterations": [7000, 15000, 30000]
+}

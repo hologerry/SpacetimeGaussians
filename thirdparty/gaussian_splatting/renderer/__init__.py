@@ -376,6 +376,8 @@ def test_ours_lite(
 
     shs = None
 
+    # in test, the means3D, opacities are moved in to cuda: prepreprocessCUDA
+
     rendered_image, radii = rasterizer(
         timestamp=viewpoint_camera.timestamp,
         trbf_center=gm.get_trbf_center,
@@ -402,7 +404,7 @@ def test_ours_lite(
     }
 
 
-def test_ours_lite_velocity(
+def test_ours_lite_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -448,11 +450,14 @@ def test_ours_lite_velocity(
 
     means3D = gm.get_xyz
 
+    # in test, the means3D, opacities are moved in to cuda: prepreprocessCUDA
+    # here we compute for saving and visualization
+
     means3D = (
         means3D
-        + gm._motion[:, 0:3] * tforpoly
-        + gm._motion[:, 3:6] * tforpoly * tforpoly
-        + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
+        + motion[:, 0:3] * tforpoly
+        + motion[:, 3:6] * tforpoly * tforpoly
+        + motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
     velocities3D = motion[:, 0:3] + 2 * motion[:, 3:6] * tforpoly + 3 * motion[:, 6:9] * tforpoly * tforpoly
 
@@ -465,12 +470,17 @@ def test_ours_lite_velocity(
 
     opacity = point_opacity * trbf_output  # - 0.5
 
+    # computed_opacity is not blend with timestamp
+    computed_opacity = gm.computed_opacity
+    scales = gm.computed_scales
+
     means2D = screen_space_points
 
     cov3D_precomp = None
 
     shs = None
 
+    # cuda prepreprocessCUDA will calculate the means3D, opacities with timestamp
     rendered_image, radii = rasterizer(
         timestamp=viewpoint_camera.timestamp,
         trbf_center=gm.get_trbf_center,
@@ -480,8 +490,8 @@ def test_ours_lite_velocity(
         means2D=means2D,
         shs=shs,
         colors_precomp=colors_precomp,
-        opacities=gm.computed_opacity,
-        scales=gm.computed_scales,
+        opacities=computed_opacity,
+        scales=scales,
         rotations=rotations,
         cov3D_precomp=cov3D_precomp,
     )
@@ -495,8 +505,13 @@ def test_ours_lite_velocity(
         "radii": radii,
         "duration": duration,
         "means3D": means3D,
+        "means2D": means2D,
+        "motion": motion,
         "velocities3D": velocities3D,
         "opacity": opacity,
+        "rotations": rotations,
+        "colors_precomp": colors_precomp,
+        "scales": scales,
     }
 
 
