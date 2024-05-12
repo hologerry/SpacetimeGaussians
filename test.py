@@ -97,6 +97,7 @@ def render_set(
     if gaussians.rgb_decoder is not None:
         gaussians.rgb_decoder.cuda()
         gaussians.rgb_decoder.eval()
+
     stats_dict = {}
 
     scales = gaussians.get_scaling
@@ -118,20 +119,10 @@ def render_set(
     with open(stats_path, "w") as fp:
         json.dump(stats_dict, fp, indent=True)
 
-    if rd_pipe == "train_ours_full":
-        render, GRsetting, GRzer = get_render_pipe("test_ours_full")
-
-    elif rd_pipe == "train_ours_lite":
-        render, GRsetting, GRzer = get_render_pipe("test_ours_lite")
-
-    elif rd_pipe == "train_ours_full_ss":
-        render, GRsetting, GRzer = get_render_pipe("test_ours_full_ss_fused")
-
-    elif rd_pipe == "train_ours_lite_ss":
-        render, GRsetting, GRzer = get_render_pipe("test_ours_lite_ss")
-
-    else:
-        render, GRsetting, GRzer = get_render_pipe(rd_pipe)
+    test_rd_pipe = rd_pipe.replace("train", "test")
+    test_rd_pipe = test_rd_pipe.replace("_full_ss", "_full_ss_fused")
+    test_rd_pipe += "_vis"
+    render, GRsetting, GRzer = get_render_pipe(test_rd_pipe)
 
     img_channel = 1 if grey_image else 3
 
@@ -193,7 +184,12 @@ def render_set(
         save_image(rendering, rendering_image_save_path)
         save_image(gt, gt_image_save_path)
 
-        if "vis" in rd_pipe and cur_view_name == "train02":
+        if cur_view_name == "train02":
+
+            means3D_no_t = rendering_pkg["means3D_no_t"]
+            means3D_no_t = means3D_no_t.detach().cpu().numpy()
+            means3D_no_t_path = os.path.join(quantities_out_path, f"means3D_no_t_{cur_view_time_idx:05d}.npy")
+            np.save(means3D_no_t_path, means3D_no_t)
 
             means3D = rendering_pkg["means3D"]
             means3D = means3D.detach().cpu().numpy()
@@ -271,12 +267,12 @@ def render_set(
         mean_metrics_per_view_dict[view_name]["lpips_vgg"] = float(np.mean(full_metrics_dict[view_name]["lpips_vgg"]))
         mean_metrics_per_view_dict[view_name]["ssim_v2"] = float(np.mean(full_metrics_dict[view_name]["ssim_v2"]))
 
-    train_view_names = ["train00", "train01", "train03", "train04"]
-    train_mean_metrics = {}
-    for metric in ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]:
-        train_mean_metrics[metric] = float(
-            np.mean([np.mean(full_metrics_dict[view_name][metric]) for view_name in train_view_names])
-        )
+    # train_view_names = ["train00", "train01", "train03", "train04"]
+    # train_mean_metrics = {}
+    # for metric in ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]:
+    #     train_mean_metrics[metric] = float(
+    #         np.mean([np.mean(full_metrics_dict[view_name][metric]) for view_name in train_view_names])
+    #     )
 
     test_view_names = ["train02"]
     test_mean_metrics = {}
@@ -309,16 +305,16 @@ def render_set(
 
     # print("mean time for rendering", np.mean(np.array(times)))
 
-    with open(model_path + "/" + str(iteration) + "_train_views.json", "w") as fp:
-        print("saving results")
-        json.dump(train_mean_metrics, fp, indent=True)
+    # with open(model_path + "/" + str(iteration) + "_train_views.json", "w") as fp:
+    #     print("Saving train views results")
+    #     json.dump(train_mean_metrics, fp, indent=True)
 
     with open(model_path + "/" + str(iteration) + "_test_views.json", "w") as fp:
-        print("saving results")
-        json.dump(train_mean_metrics, fp, indent=True)
+        print("Saving test views results")
+        json.dump(test_mean_metrics, fp, indent=True)
 
     with open(model_path + "/" + str(iteration) + "_per_view.json", "w") as fp:
-        print("saving per view results")
+        print("Saving per view results")
         json.dump(mean_metrics_per_view_dict, fp, indent=True)
 
 

@@ -251,6 +251,7 @@ class GaussianModel:
         self._trbf_scale = nn.Parameter(torch.ones((self.get_xyz.shape[0], 1), device="cuda").requires_grad_(True))
 
         print("self._trbf_center inited", self._trbf_center.shape)
+        print("self._trbf_scale inited", self._trbf_scale.shape)
 
         ## store gradients
 

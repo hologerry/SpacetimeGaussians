@@ -91,7 +91,7 @@ def train(
     first_iter = 0
     render_func, GRsetting, GRzer = get_render_pipe(rd_pipe)
 
-    print("use model {}".format(model_args.model))
+    print(f"Model: {model_args.model}")
     GaussianModel = get_model(model_args.model)  # g_model, g_model_rgb_only
 
     # trbf means Temporal Radial Basis Function in the paper
@@ -216,7 +216,7 @@ def train(
 
     selected_length = 2
     laster_ems = 0
-    lpips_criteria = lpips.LPIPS(net="alex").cuda()
+    lpips_criteria = lpips.LPIPS(net="alex", verbose=False).cuda()
 
     for iteration in range(first_iter, optim_args.iterations + 1):
         if args.loader != "hyfluid" and iteration == optim_args.ems_start:
@@ -366,7 +366,8 @@ def train(
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
 
             if iteration % 10 == 0:
-                progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
+                post_fix = {"Loss": f"{ema_loss_for_log:.{7}f}", "Points": gaussians.get_xyz.shape[0]}
+                progress_bar.set_postfix(post_fix)
                 progress_bar.update(10)
 
             if iteration == optim_args.iterations:
@@ -642,10 +643,11 @@ def training_report(
             {"name": "test", "cameras": scene.get_test_cameras()},
             {
                 "name": "train",
-                "cameras": [
-                    scene.get_train_cameras()[idx % len(scene.get_train_cameras())]
-                    for idx in range(5, 30, 5)  # random get some train cameras
-                ],
+                "cameras": scene.get_train_cameras(),
+                # [
+                #     scene.get_train_cameras()[idx % len(scene.get_train_cameras())]
+                #     for idx in range(5, 30, 5)  # random get some train cameras
+                # ],
             },
         )
 
@@ -653,6 +655,7 @@ def training_report(
             if config["cameras"] and len(config["cameras"]) > 0:
                 l1_test = 0.0
                 psnr_test = 0.0
+                all_view_names = set()
                 for idx, viewpoint in enumerate(config["cameras"]):
                     rendered = render_func(
                         viewpoint,
@@ -663,6 +666,7 @@ def training_report(
                         GRsetting=GRsetting,
                         GRzer=GRzer,
                     )
+                    all_view_names.add(viewpoint.image_name)
                     image = torch.clamp(rendered["render"], 0.0, 1.0)
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
                     # testing view it is no difference
@@ -715,29 +719,31 @@ def training_report(
                     l1_test += l1_loss(image, gt_image_real).mean().double()
                     psnr_test += psnr(image, gt_image_real).mean().double()
 
-                images_to_video(
-                    os.path.join(scene.model_path, "training_render"),
-                    f"test_render_{viewpoint.image_name}",
-                    f"{iteration:05d}.png",
-                    os.path.join(scene.model_path, f"training_test_render_{viewpoint.image_name}_{iteration:05d}.mp4"),
-                    fps=25,
-                )
-                images_to_video(
-                    os.path.join(scene.model_path, "training_render"),
-                    f"test_gt_{viewpoint.image_name}",
-                    f"{iteration:05d}.png",
-                    os.path.join(scene.model_path, f"training_test_gt_{viewpoint.image_name}_{iteration:05d}.mp4"),
-                    fps=25,
-                )
-                images_to_video(
-                    os.path.join(scene.model_path, "training_render"),
-                    f"test_gt_real_{viewpoint.image_name}",
-                    f"{iteration:05d}.png",
-                    os.path.join(
-                        scene.model_path, f"training_test_gt_real_{viewpoint.image_name}_{iteration:05d}.mp4"
-                    ),
-                    fps=25,
-                )
+
+                for view_name in list(all_view_names):
+                    images_to_video(
+                        os.path.join(scene.model_path, "training_render"),
+                        f"test_render_{view_name}",
+                        f"{iteration:05d}.png",
+                        os.path.join(scene.model_path, f"training_test_render_{view_name}_{iteration:05d}.mp4"),
+                        fps=25,
+                    )
+                    images_to_video(
+                        os.path.join(scene.model_path, "training_render"),
+                        f"test_gt_{view_name}",
+                        f"{iteration:05d}.png",
+                        os.path.join(scene.model_path, f"training_test_gt_{view_name}_{iteration:05d}.mp4"),
+                        fps=25,
+                    )
+                    images_to_video(
+                        os.path.join(scene.model_path, "training_render"),
+                        f"test_gt_real_{view_name}",
+                        f"{iteration:05d}.png",
+                        os.path.join(
+                            scene.model_path, f"training_test_gt_real_{view_name}_{iteration:05d}.mp4"
+                        ),
+                        fps=25,
+                    )
 
                 psnr_test /= len(config["cameras"])
                 l1_test /= len(config["cameras"])

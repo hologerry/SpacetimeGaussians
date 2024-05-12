@@ -504,6 +504,7 @@ def test_ours_lite_vis(
         "visibility_filter": radii > 0,
         "radii": radii,
         "duration": duration,
+        "means3D_no_t": gm.get_xyz,
         "means3D": means3D,
         "means2D": means2D,
         "motion": motion,

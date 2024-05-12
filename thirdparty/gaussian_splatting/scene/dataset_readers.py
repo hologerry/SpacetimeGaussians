@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+import cv2
 import natsort
 import numpy as np
 import torch
@@ -24,6 +25,7 @@ import torch
 from PIL import Image
 from plyfile import PlyData, PlyElement
 from simple_knn._C import distCUDA2
+from tqdm import tqdm, trange
 
 from thirdparty.gaussian_splatting.scene.colmap_loader import (
     qvec_2_rot_mat,
@@ -1266,9 +1268,9 @@ def read_cameras_from_transforms_hyfluid(
     train_views_fake=None,
     use_best_fake=False,
 ):
-    print(f"transforms_file {transforms_file} train_views {train_views} train_views_fake {train_views_fake}")
+    print(f"transforms_file: {transforms_file}, train_views: {train_views}, train_views_fake: {train_views_fake}")
     cam_infos = []
-    print(f"start_time {start_time} duration {duration} time_step {time_step}")
+    # print(f"start_time {start_time} duration {duration} time_step {time_step}")
 
     with open(os.path.join(path, transforms_file)) as json_file:
         contents = json.load(json_file)
@@ -1292,7 +1294,7 @@ def read_cameras_from_transforms_hyfluid(
 
         frames = contents["frames"]
         camera_uid = 0
-        for idx, frame in enumerate(frames):  # camera idx
+        for idx, frame in tqdm(enumerate(frames), desc="Reading views", total=len(frames), leave=False):  # camera idx
 
             # NeRF 'transform_matrix' is a camera-to-world transform
             c2w = np.array(frame["transform_matrix"])
@@ -1314,7 +1316,7 @@ def read_cameras_from_transforms_hyfluid(
             cam_name = frame["file_path"][-1:]  # train0x -> x used to determine with train_views
             # print(f"frame {frame['file_path']} focal_length {focal_length} FovX {FovX} FovY {FovY}")
 
-            for time_idx in range(start_time, start_time + duration, time_step):
+            for time_idx in trange(start_time, start_time + duration, time_step, desc="frame"):
 
                 frame_name = os.path.join("colmap_frames", f"colmap_{time_idx}", frame["file_path"] + extension)
                 # used to determine the loss type
@@ -1341,21 +1343,30 @@ def read_cameras_from_transforms_hyfluid(
                 real_image_path = os.path.join(path, real_frame_name)
                 # the image_name is used to index the camera so we all use the real name
                 image_name = frame["file_path"].split("/")[-1]  # os.path.basename(image_path).split(".")[0]
-                image = Image.open(image_path)
-                real_image = Image.open(real_image_path)
+                # image = Image.open(image_path)
+                # real_image = Image.open(real_image_path)
 
-                im_data = np.array(image.convert("RGBA"))
-                real_im_data = np.array(real_image.convert("RGBA"))
+                # im_data = np.array(image.convert("RGBA"))
+                # real_im_data = np.array(real_image.convert("RGBA"))
 
-                bg = np.array([1, 1, 1]) if white_background else np.array([0, 0, 0])
+                # bg = np.array([1, 1, 1]) if white_background else np.array([0, 0, 0])
 
-                norm_data = im_data / 255.0
-                arr = norm_data[:, :, :3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
-                image = Image.fromarray(np.array(arr * 255.0, dtype=np.byte), "RGB")
+                # norm_data = im_data / 255.0
+                # arr = norm_data[:, :, :3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
+                # image = Image.fromarray(np.array(arr * 255.0, dtype=np.byte), "RGB")
 
-                real_norm_data = real_im_data
-                real_arr = real_norm_data[:, :, :3] * real_norm_data[:, :, 3:4] + bg * (1 - real_norm_data[:, :, 3:4])
-                real_image = Image.fromarray(np.array(real_arr * 255.0, dtype=np.byte), "RGB")
+                # real_norm_data = real_im_data
+                # real_arr = real_norm_data[:, :, :3] * real_norm_data[:, :, 3:4] + bg * (1 - real_norm_data[:, :, 3:4])
+                # real_image = Image.fromarray(np.array(real_arr * 255.0, dtype=np.byte), "RGB")
+
+                image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+                real_image = cv2.imread(real_image_path, cv2.IMREAD_COLOR)
+                real_image = cv2.cvtColor(real_image, cv2.COLOR_BGR2RGB)
+
+                image = Image.fromarray(image)
+                real_image = Image.fromarray(real_image)
 
                 if grey_image:
                     image = image.convert("L")
@@ -1409,8 +1420,9 @@ def read_nerf_synthetic_info_hyfluid(
     train_views="0134",
     train_views_fake=None,
     use_best_fake=False,
+    test_all_views=False,
 ):
-    print("Reading Training Transforms")
+    print("Reading Training Transforms...")
     train_json = "transforms_train_hyfluid.json"
     if train_views != "0134" and train_views_fake is None:
         # in this mode, just using some real views, no fake views for fitting
@@ -1428,10 +1440,15 @@ def read_nerf_synthetic_info_hyfluid(
         train_views_fake,
         use_best_fake,
     )
-    print("Reading Test Transforms")
+
+    print("Reading Test Transforms...")
+    test_json = "transforms_test_hyfluid.json"
+    if test_all_views:
+        print("Using all views for testing")
+        test_json = f"transforms_train_test_hyfluid.json"
     test_cam_infos, _ = read_cameras_from_transforms_hyfluid(
         path,
-        "transforms_train_test_hyfluid.json",
+        test_json,
         white_background,
         extension,
         start_time,
@@ -1443,10 +1460,6 @@ def read_nerf_synthetic_info_hyfluid(
         use_best_fake,
     )
 
-    if not eval:
-        train_cam_infos.extend(test_cam_infos)
-        test_cam_infos = []
-
     nerf_normalization = get_nerf_pp_norm(train_cam_infos)
 
     total_ply_path = os.path.join(path, "points3d_total.ply")
@@ -1455,7 +1468,7 @@ def read_nerf_synthetic_info_hyfluid(
 
     # Since this data set has no colmap data, we start with random points
     num_pts = 100_000 // (duration // time_step)
-    print(f"Generating random {(duration // time_step)} point cloud ({num_pts})...")
+    print(f"Generating random point cloud ({num_pts}) per time step...")
 
     # # We create random points inside the bounds of the synthetic Blender scenes
     # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
@@ -1481,12 +1494,12 @@ def read_nerf_synthetic_info_hyfluid(
 
         # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
         x_mid = 0.325
+        y = np.random.uniform(-0.05, 0.15, (num_pts, 1))# [-0.05, 0.7]
 
-        y = np.random.random((num_pts, 1)) * 0.75 - 0.05  # [-0.05, 0.7]
         # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
         z_mid = -0.25
 
-        radius = np.random.random((num_pts, 1)) * 0.18
+        radius = np.random.random((num_pts, 1)) * 0.03
         theta = np.random.random((num_pts, 1)) * 2 * np.pi
         x = radius * np.cos(theta) + x_mid
         z = radius * np.sin(theta) + z_mid
@@ -1524,6 +1537,58 @@ def read_nerf_synthetic_info_hyfluid(
     scene_info = SceneInfo(
         point_cloud=pcd,
         train_cameras=train_cam_infos,
+        test_cameras=test_cam_infos,
+        nerf_normalization=nerf_normalization,
+        ply_path=total_ply_path,
+        bbox_model=bbox_model,
+    )
+    return scene_info
+
+
+def read_nerf_synthetic_info_hyfluid_valid(
+    path,
+    white_background,
+    eval,
+    extension=".png",
+    start_time=50,
+    duration=50,
+    time_step=1,
+    grey_image=False,
+    train_views="0134",
+    train_views_fake=None,
+    use_best_fake=False,
+    test_all_views=False,
+):
+
+    print("Reading Test Transforms...")
+    test_json = "transforms_test_hyfluid.json"
+    if test_all_views:
+        print("Using all views for testing")
+        test_json = f"transforms_train_test_hyfluid.json"
+    test_cam_infos, bbox_model = read_cameras_from_transforms_hyfluid(
+        path,
+        test_json,
+        white_background,
+        extension,
+        start_time,
+        duration,
+        time_step,
+        grey_image,
+        train_views,
+        train_views_fake,
+        use_best_fake,
+    )
+
+    nerf_normalization = get_nerf_pp_norm(test_cam_infos)
+
+    total_ply_path = os.path.join(path, "points3d_total.ply")
+    pcd = fetch_ply(total_ply_path, grey_image)
+
+    assert pcd is not None, "Point cloud could not be loaded!"
+
+    scene_info = SceneInfo(
+        point_cloud=pcd,
+        train_cameras=test_cam_infos,
         test_cameras=test_cam_infos,
         nerf_normalization=nerf_normalization,
         ply_path=total_ply_path,
@@ -1790,4 +1855,5 @@ scene_load_type_callbacks = {
     "blender": read_nerf_synthetic_info,
     "technicolor": read_colmap_scene_info_technicolor,
     "hyfluid": read_nerf_synthetic_info_hyfluid,
+    "hyfluid_valid": read_nerf_synthetic_info_hyfluid_valid,
 }

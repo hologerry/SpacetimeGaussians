@@ -49,7 +49,7 @@ from script.pre_immersive_distorted import SCALE_DICT
 
 
 def get_render_pipe(option="train_ours_full"):
-    print("render option", option)
+    print("Render option:", option)
     if option == "train_ours_full":
         from diff_gaussian_rasterization_ch9 import (
             GaussianRasterizationSettings,
@@ -115,12 +115,14 @@ def get_render_pipe(option="train_ours_full"):
         return test_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
 
     elif option == "test_ours_lite_single_vis":
-        from forward_lite_single import GaussianRasterizationSettings, GaussianRasterizer
+        from forward_lite_single import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
 
         from thirdparty.gaussian_splatting.renderer import test_ours_lite_vis
 
         return test_ours_lite_vis, GaussianRasterizationSettings, GaussianRasterizer
-
 
     elif option == "train_ours_full_ss":
         from diff_gaussian_rasterization_ch9 import (
