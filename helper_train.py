@@ -114,6 +114,46 @@ def get_render_pipe(option="train_ours_full"):
 
         return test_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
 
+    elif option == "train_ours_lite_single_xyz_quadric":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_xyz_quadric
+
+        return train_ours_lite_xyz_quadric, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_xyz_quadric_vis":
+        from forward_lite_single_xyz_quadric import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_lite_xyz_quadric_vis
+
+        return test_ours_lite_xyz_quadric_vis, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "train_ours_lite_single_xyz_linear":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_xyz_linear
+
+        return train_ours_lite_xyz_linear, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_xyz_linear_vis":
+        from forward_lite_single_xyz_linear import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_lite_xyz_linear_vis
+
+        return test_ours_lite_xyz_linear_vis, GaussianRasterizationSettings, GaussianRasterizer
+
     elif option == "train_ours_lite_single_opacity_no_t":
         from diff_gaussian_rasterization_ch1 import (
             GaussianRasterizationSettings,
@@ -250,6 +290,10 @@ def get_model(model="ours_full"):
         from thirdparty.gaussian_splatting.scene.ours_simple_opacity_linear import GaussianModel
     elif model == "ours_simple_opacity_w_t":
         from thirdparty.gaussian_splatting.scene.ours_simple_opacity_w_t import GaussianModel
+    elif model == "ours_simple_xyz_quadric":
+        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_quadric import GaussianModel
+    elif model == "ours_simple_xyz_linear":
+        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear import GaussianModel
     else:
         raise NotImplementedError("model {} not implemented".format(model))
     return GaussianModel
