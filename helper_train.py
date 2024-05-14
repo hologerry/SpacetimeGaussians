@@ -114,6 +114,67 @@ def get_render_pipe(option="train_ours_full"):
 
         return test_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
 
+    elif option == "train_ours_lite_single_opacity_no_t":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_opacity_no_t
+
+        return train_ours_lite_opacity_no_t, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_opacity_no_t_vis":
+        from forward_lite_single_opacity_no_t import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_lite_opacity_no_t_vis
+
+        return test_ours_lite_opacity_no_t_vis, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "train_ours_lite_single_opacity_exp_linear":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_opacity_exp_linear
+
+        return train_ours_lite_opacity_exp_linear, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_opacity_exp_linear_vis":
+        from forward_lite_single_opacity_exp_linear import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_lite_opacity_exp_linear_vis
+
+        return test_ours_lite_opacity_exp_linear_vis, GaussianRasterizationSettings, GaussianRasterizer
+
+
+    elif option == "train_ours_lite_single_opacity_linear":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_opacity_linear
+
+        return train_ours_lite_opacity_linear, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_opacity_linear_vis":
+        from forward_lite_single_opacity_linear import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_lite_opacity_linear_vis
+
+        return test_ours_lite_opacity_linear_vis, GaussianRasterizationSettings, GaussianRasterizer
+
     elif option == "test_ours_lite_single_vis":
         from forward_lite_single import (
             GaussianRasterizationSettings,
@@ -177,6 +238,18 @@ def get_model(model="ours_full"):
         from thirdparty.gaussian_splatting.scene.ours_full import GaussianModel
     elif model == "ours_lite":
         from thirdparty.gaussian_splatting.scene.ours_lite import GaussianModel
+    elif model == "ours_simple_scale":
+        from thirdparty.gaussian_splatting.scene.ours_simple_scale import GaussianModel
+    elif model == "ours_simple_rotation":
+        from thirdparty.gaussian_splatting.scene.ours_simple_rotation import GaussianModel
+    elif model == "ours_simple_color":
+        from thirdparty.gaussian_splatting.scene.ours_simple_color import GaussianModel
+    elif model == "ours_simple_opacity_no_t":
+        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_no_t import GaussianModel
+    elif model == "ours_simple_opacity_linear":
+        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_linear import GaussianModel
+    elif model == "ours_simple_opacity_w_t":
+        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_w_t import GaussianModel
     else:
         raise NotImplementedError("model {} not implemented".format(model))
     return GaussianModel
@@ -497,3 +570,7 @@ def undistort_image(image_name, dataset_path, data):
 def trb_function(x):
     # Temporal Radial Basis Function
     return torch.exp(-1 * x.pow(2))
+
+def trb_exp_linear_function(x):
+    # Temporal Radial Basis Function
+    return torch.exp(-1 * x)

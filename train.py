@@ -31,6 +31,7 @@ from argparse import Namespace
 from random import randint
 
 import cv2
+import lovely_tensors as lt
 import lpips
 import numpy as np
 import torch
@@ -47,6 +48,7 @@ from helper_train import (
     get_render_pipe,
     reload_helper,
     trb_function,
+    trb_exp_linear_function,
 )
 from image_video_io import images_to_video
 from thirdparty.gaussian_splatting.helper3dg import get_parser, get_render_parts
@@ -102,7 +104,12 @@ def train(
     gaussians.add_sph_points_scale = optim_args.add_sph_points_scale
     gaussians.ray_start = optim_args.ray_start
 
-    trbf_base_function = trb_function
+    if "opacity_exp_linear" in rd_pipe:
+        print("Using opacity_exp_linear TRBF for opacity")
+        trbf_base_function = trb_exp_linear_function
+    else:
+        trbf_base_function = trb_function
+
     scene = Scene(
         model_args,
         gaussians,
@@ -190,18 +197,18 @@ def train(
             # os.makedirs("cam_vis", exist_ok=True)
             # np.save(f"cam_vis/cam_{viewpoint_cam.image_name}_pose.npy", c2w)
 
-            _, depthH, depthW = render_pkg["depth"].shape
-            border_H = int(depthH / 2)
-            border_W = int(depthW / 2)
+            # _, depthH, depthW = render_pkg["depth"].shape
+            # border_H = int(depthH / 2)
+            # border_W = int(depthW / 2)
 
-            mid_h = int(viewpoint_cam.image_height / 2)
-            mid_w = int(viewpoint_cam.image_width / 2)
+            # mid_h = int(viewpoint_cam.image_height / 2)
+            # mid_w = int(viewpoint_cam.image_width / 2)
 
             depth = render_pkg["depth"]
-            print(f"cam {viewpoint_cam.image_name} depth: {depth.shape} {depth.min()} {depth.max()}")
+            print(f"Cam {viewpoint_cam.image_name} initial depth: {depth}")
             select_mask = depth != 15.0
             select_mask_sum = torch.sum(select_mask)
-            assert select_mask_sum > 0, f"no valid depth for {viewpoint_cam.image_name}"
+            assert select_mask_sum > 0, f"No valid depth for {viewpoint_cam.image_name}"
 
             # initial_image = render_pkg["render"]
 
@@ -300,7 +307,7 @@ def train(
                 current_xyz = gaussians.get_xyz
                 # xyz_min = torch.min(current_xyz, dim=0).values
                 # xyz_max = torch.max(current_xyz, dim=0).values
-                print(f"Iter {iteration} xyz shape: {current_xyz.shape}")
+                # print(f"Iter {iteration} xyz shape: {current_xyz.shape}")
 
             if optim_args.gt_mask:
                 # for training with undistorted immersive image, masking black pixels in undistorted image.
@@ -374,7 +381,7 @@ def train(
                 progress_bar.close()
 
             if iteration in saving_iterations:
-                print(f"\n[ITER {iteration}] Saving Gaussians")
+                print(f"[ITER {iteration}] Saving Gaussians")
                 scene.save(iteration)
 
             # Log and save
@@ -392,6 +399,7 @@ def train(
                 trbf_base_function,
                 GRsetting,
                 GRzer,
+                rd_pipe,
             )
 
             # Densification and pruning here
@@ -630,6 +638,8 @@ def training_report(
     trbf_base_function,
     GRsetting,
     GRzer,
+    rd_pipe,
+    test_all_train_views=False,
 ):
     if tb_writer:
         tb_writer.add_scalar("train_loss_patches/l1_loss", Ll1.item(), iteration)
@@ -639,15 +649,15 @@ def training_report(
     # Report test and samples of training set
     if iteration in testing_iterations:
         torch.cuda.empty_cache()
+        train_cams = scene.get_train_cameras()
+        if not test_all_train_views:
+            ids = [idx for idx in range(0, len(train_cams), 100)]
+            train_cams = [train_cams[idx] for idx in ids]
         validation_configs = (
             {"name": "test", "cameras": scene.get_test_cameras()},
             {
                 "name": "train",
-                "cameras": scene.get_train_cameras(),
-                # [
-                #     scene.get_train_cameras()[idx % len(scene.get_train_cameras())]
-                #     for idx in range(5, 30, 5)  # random get some train cameras
-                # ],
+                "cameras": train_cams,
             },
         )
 
@@ -719,7 +729,6 @@ def training_report(
                     l1_test += l1_loss(image, gt_image_real).mean().double()
                     psnr_test += psnr(image, gt_image_real).mean().double()
 
-
                 for view_name in list(all_view_names):
                     images_to_video(
                         os.path.join(scene.model_path, "training_render"),
@@ -739,29 +748,30 @@ def training_report(
                         os.path.join(scene.model_path, "training_render"),
                         f"test_gt_real_{view_name}",
                         f"{iteration:05d}.png",
-                        os.path.join(
-                            scene.model_path, f"training_test_gt_real_{view_name}_{iteration:05d}.mp4"
-                        ),
+                        os.path.join(scene.model_path, f"training_test_gt_real_{view_name}_{iteration:05d}.mp4"),
                         fps=25,
                     )
 
                 psnr_test /= len(config["cameras"])
                 l1_test /= len(config["cameras"])
-                print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, config["name"], l1_test, psnr_test))
+                print(f"[ITER {iteration}] Evaluating {config['name']}: L1 {l1_test} PSNR {psnr_test}")
 
                 if tb_writer:
                     tb_writer.add_scalar(config["name"] + "/loss_viewpoint - l1_loss", l1_test, iteration)
                     tb_writer.add_scalar(config["name"] + "/loss_viewpoint - psnr", psnr_test, iteration)
 
         if tb_writer:
-            tb_writer.add_histogram("scene/opacity_histogram", scene.gaussians.get_opacity, iteration)
+            if "opacity_linear" in rd_pipe:
+                tb_writer.add_histogram("scene/opacity_histogram", scene.gaussians._opacity, iteration)
+            else:
+                tb_writer.add_histogram("scene/opacity_histogram", scene.gaussians.get_opacity, iteration)
             tb_writer.add_scalar("total_points", scene.gaussians.get_xyz.shape[0], iteration)
 
         torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
-
+    lt.monkey_patch()
     args, mp_extract, op_extract, pp_extract = get_parser()
     train(
         mp_extract,

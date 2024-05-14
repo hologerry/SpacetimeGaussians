@@ -120,6 +120,7 @@ class OptimizationParams(ParamGroup):
         self.move_lr = 3.5
 
         self.omega_lr = 0.0001
+        self.beta_lr = 0.0001
         self.rotation_lr = 0.001
         self.percent_dense = 0.01
         self.lambda_dssim = 0.2

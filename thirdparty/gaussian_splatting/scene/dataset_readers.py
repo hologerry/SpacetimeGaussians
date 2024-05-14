@@ -1315,8 +1315,7 @@ def read_cameras_from_transforms_hyfluid(
             FovX = fov_x
             cam_name = frame["file_path"][-1:]  # train0x -> x used to determine with train_views
             # print(f"frame {frame['file_path']} focal_length {focal_length} FovX {FovX} FovY {FovY}")
-
-            for time_idx in trange(start_time, start_time + duration, time_step, desc="frame"):
+            for time_idx in trange(start_time, start_time + duration, time_step, desc=f"cam0{cam_name}"):
 
                 frame_name = os.path.join("colmap_frames", f"colmap_{time_idx}", frame["file_path"] + extension)
                 # used to determine the loss type
@@ -1494,12 +1493,12 @@ def read_nerf_synthetic_info_hyfluid(
 
         # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
         x_mid = 0.325
-        y = np.random.uniform(-0.05, 0.15, (num_pts, 1))# [-0.05, 0.7]
+        y = np.random.uniform(-0.05, 0.7, (num_pts, 1)) # [-0.05, 0.15] [-0.05, 0.7]
 
         # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
         z_mid = -0.25
 
-        radius = np.random.random((num_pts, 1)) * 0.03
+        radius = np.random.random((num_pts, 1)) * 0.18 # * 0.03 # 0.18
         theta = np.random.random((num_pts, 1)) * 2 * np.pi
         x = radius * np.cos(theta) + x_mid
         z = radius * np.sin(theta) + z_mid

@@ -1,0 +1,21 @@
+{
+  "resolution": 1,
+  "model": "ours_simple_rotation",
+  "scaling_lr": 0.0015,
+  "omega_lr": 0.0,
+  "preprocess_points": 0,
+  "test_iteration": 30000,
+  "start_time": 0,
+  "duration": 120,
+  "time_step": 1,
+  "rd_pipe": "train_ours_lite_single",
+  "rgb_function": "sandwich",
+  "batch": 1,
+  "densify": 0,
+  "densify_from_iter": 0,
+  "save_iterations": [1, 3000, 7000, 15000, 30000],
+  "test_iterations": [1, 3000, 7000, 15000, 30000],
+  "train_views": "0134",
+  "grey_image": true,
+  "opacity_reset_interval": 30000
+}

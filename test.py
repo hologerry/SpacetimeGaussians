@@ -39,6 +39,7 @@ import warnings
 
 from os import makedirs
 
+import lovely_tensors as lt
 import numpy as np
 import scipy
 import torch
@@ -50,7 +51,7 @@ from skimage.metrics import structural_similarity as sk_ssim
 from torchvision.utils import save_image
 from tqdm import tqdm
 
-from helper_train import get_model, get_render_pipe, trb_function
+from helper_train import get_model, get_render_pipe, trb_function, trb_exp_linear_function
 from image_video_io import images_to_video, mp4_to_gif
 from thirdparty.gaussian_splatting.arguments import ModelParams, PipelineParams
 from thirdparty.gaussian_splatting.helper3dg import get_test_parser
@@ -103,17 +104,17 @@ def render_set(
     scales = gaussians.get_scaling
 
     scales_max = torch.amax(scales).item()
-    scales_mean = torch.amin(scales).item()
-
-    op = gaussians.get_opacity
-    op_max = torch.amax(op).item()
-    op_mean = torch.mean(op).item()
+    scales_mean = torch.mean(scales).item()
 
     stats_dict["scales_max"] = scales_max
     stats_dict["scales_mean"] = scales_mean
 
-    stats_dict["op_max"] = op_max
-    stats_dict["op_mean"] = op_mean
+    if "opacity_linear" not in rd_pipe:
+        op = gaussians.get_opacity
+        op_max = torch.amax(op).item()
+        op_mean = torch.mean(op).item()
+        stats_dict["op_max"] = op_max
+        stats_dict["op_mean"] = op_mean
 
     stats_path = os.path.join(model_path, "stat_" + str(iteration) + ".json")
     with open(stats_path, "w") as fp:
@@ -247,6 +248,7 @@ def render_set(
             fov = np.array([view.FoVx, view.FoVy])
             np.save(fov_path, fov)
 
+    print(f"all_view_names: {all_view_names}")
     for view_name in all_view_names:
         render_frame_path = os.path.join(render_path, view_name)
         gt_frame_path = os.path.join(gts_path, view_name)
@@ -267,12 +269,12 @@ def render_set(
         mean_metrics_per_view_dict[view_name]["lpips_vgg"] = float(np.mean(full_metrics_dict[view_name]["lpips_vgg"]))
         mean_metrics_per_view_dict[view_name]["ssim_v2"] = float(np.mean(full_metrics_dict[view_name]["ssim_v2"]))
 
-    # train_view_names = ["train00", "train01", "train03", "train04"]
-    # train_mean_metrics = {}
-    # for metric in ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]:
-    #     train_mean_metrics[metric] = float(
-    #         np.mean([np.mean(full_metrics_dict[view_name][metric]) for view_name in train_view_names])
-    #     )
+    train_view_names = ["train00", "train01", "train03", "train04"]
+    train_mean_metrics = {}
+    for metric in ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]:
+        train_mean_metrics[metric] = float(
+            np.mean([np.mean(full_metrics_dict[view_name][metric]) for view_name in train_view_names])
+        )
 
     test_view_names = ["train02"]
     test_mean_metrics = {}
@@ -305,9 +307,9 @@ def render_set(
 
     # print("mean time for rendering", np.mean(np.array(times)))
 
-    # with open(model_path + "/" + str(iteration) + "_train_views.json", "w") as fp:
-    #     print("Saving train views results")
-    #     json.dump(train_mean_metrics, fp, indent=True)
+    with open(model_path + "/" + str(iteration) + "_train_views.json", "w") as fp:
+        print("Saving train views results")
+        json.dump(train_mean_metrics, fp, indent=True)
 
     with open(model_path + "/" + str(iteration) + "_test_views.json", "w") as fp:
         print("Saving test views results")
@@ -389,8 +391,14 @@ def run_test(
         duration=duration,
         time_step=time_step,
         grey_image=model_args.grey_image,
+        test_all_views=True,
     )
-    trbf_base_function = trb_function
+    if "opacity_exp_linear" in rd_pipe:
+        print("Using opacity_exp_linear TRBF for opacity")
+        trbf_base_function = trb_exp_linear_function
+    else:
+        trbf_base_function = trb_function
+
     num_channels = 9
     bg_color = [0 for _ in range(num_channels)]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -414,23 +422,24 @@ def run_test(
             rd_pipe,
             grey_image=model_args.grey_image,
         )
-    if multi_view:
-        print("rendering multi-view set no gt")
-        render_set_no_gt(
-            model_args.model_path,
-            "mv",
-            scene.loaded_iter,
-            scene.get_test_cameras(),
-            gaussians,
-            pipe_args,
-            background,
-            trbf_base_function,
-            rd_pipe,
-            grey_image=model_args.grey_image,
-        )
+    # if multi_view:
+    #     print("rendering multi-view set no gt")
+    #     render_set_no_gt(
+    #         model_args.model_path,
+    #         "mv",
+    #         scene.loaded_iter,
+    #         scene.get_test_cameras(),
+    #         gaussians,
+    #         pipe_args,
+    #         background,
+    #         trbf_base_function,
+    #         rd_pipe,
+    #         grey_image=model_args.grey_image,
+    #     )
 
 
 if __name__ == "__main__":
+    lt.monkey_patch()
 
     args, model_args, pipe_args, multi_view = get_test_parser()
     run_test(
