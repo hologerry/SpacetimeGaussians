@@ -114,6 +114,26 @@ def get_render_pipe(option="train_ours_full"):
 
         return test_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
 
+    elif option == "train_ours_lite_single_all":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_all
+
+        return train_ours_lite_all, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_all_vis":
+        from forward_lite_single_all import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_lite_all_vis
+
+        return test_ours_lite_all_vis, GaussianRasterizationSettings, GaussianRasterizer
+
     elif option == "train_ours_lite_single_xyz_quadric":
         from diff_gaussian_rasterization_ch1 import (
             GaussianRasterizationSettings,
@@ -153,6 +173,26 @@ def get_render_pipe(option="train_ours_full"):
         from thirdparty.gaussian_splatting.renderer import test_ours_lite_xyz_linear_vis
 
         return test_ours_lite_xyz_linear_vis, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "train_ours_lite_single_xyz_linear_color":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_xyz_linear_color
+
+        return train_ours_lite_xyz_linear_color, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_xyz_linear_color_vis":
+        from forward_lite_single_xyz_linear_color import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_lite_xyz_linear_color_vis
+
+        return test_ours_lite_xyz_linear_color_vis, GaussianRasterizationSettings, GaussianRasterizer
 
     elif option == "train_ours_lite_single_opacity_no_t":
         from diff_gaussian_rasterization_ch1 import (
@@ -294,6 +334,10 @@ def get_model(model="ours_full"):
         from thirdparty.gaussian_splatting.scene.ours_simple_xyz_quadric import GaussianModel
     elif model == "ours_simple_xyz_linear":
         from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear import GaussianModel
+    elif model == "ours_simple_xyz_linear_color":
+        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color import GaussianModel
+    elif model == "ours_simple_all":
+        from thirdparty.gaussian_splatting.scene.ours_simple_all import GaussianModel
     else:
         raise NotImplementedError("model {} not implemented".format(model))
     return GaussianModel
