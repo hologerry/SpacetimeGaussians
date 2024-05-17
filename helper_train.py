@@ -38,14 +38,47 @@
 
 import json
 import os
+import uuid
+
+from argparse import Namespace
 
 import cv2
 import numpy as np
 import torch
 
-from simple_knn._C import distCUDA2
-
 from script.pre_immersive_distorted import SCALE_DICT
+
+
+try:
+    from torch.utils.tensorboard import SummaryWriter
+
+    TENSORBOARD_FOUND = True
+except ImportError:
+    TENSORBOARD_FOUND = False
+
+
+def prepare_output_and_logger(args):
+    if not args.model_path:
+        if os.getenv("OAR_JOB_ID"):
+            unique_str = os.getenv("OAR_JOB_ID")
+        else:
+            unique_str = str(uuid.uuid4())
+        args.model_path = os.path.join("./output/", unique_str[0:10])
+
+    # Set up output folder
+    print("Output folder: {}".format(args.model_path))
+    os.makedirs(args.model_path, exist_ok=True)
+    os.makedirs(os.path.join(args.model_path, "training_render"), exist_ok=True)
+    with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
+        cfg_log_f.write(str(Namespace(**vars(args))))
+
+    # Create Tensorboard writer
+    tb_writer = None
+    if TENSORBOARD_FOUND:
+        tb_writer = SummaryWriter(args.model_path)
+    else:
+        print("Tensorboard not available: not logging progress")
+    return tb_writer
 
 
 def get_render_pipe(option="train_ours_full"):
@@ -150,7 +183,9 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_xyz_quadric_vis
+        from thirdparty.gaussian_splatting.renderer import (
+            test_ours_lite_xyz_quadric_vis,
+        )
 
         return test_ours_lite_xyz_quadric_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -180,7 +215,9 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite_xyz_linear_color
+        from thirdparty.gaussian_splatting.renderer import (
+            train_ours_lite_xyz_linear_color,
+        )
 
         return train_ours_lite_xyz_linear_color, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -190,9 +227,35 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_xyz_linear_color_vis
+        from thirdparty.gaussian_splatting.renderer import (
+            test_ours_lite_xyz_linear_color_vis,
+        )
 
         return test_ours_lite_xyz_linear_color_vis, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "train_ours_lite_single_xyz_linear_color_source":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import (
+            train_ours_lite_xyz_linear_color_source,
+        )
+
+        return train_ours_lite_xyz_linear_color_source, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_xyz_linear_color_source_vis":
+        from forward_lite_single_xyz_linear_color_source import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import (
+            test_ours_lite_xyz_linear_color_source_vis,
+        )
+
+        return test_ours_lite_xyz_linear_color_source_vis, GaussianRasterizationSettings, GaussianRasterizer
 
     elif option == "train_ours_lite_single_opacity_no_t":
         from diff_gaussian_rasterization_ch1 import (
@@ -210,7 +273,9 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_opacity_no_t_vis
+        from thirdparty.gaussian_splatting.renderer import (
+            test_ours_lite_opacity_no_t_vis,
+        )
 
         return test_ours_lite_opacity_no_t_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -220,7 +285,9 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite_opacity_exp_linear
+        from thirdparty.gaussian_splatting.renderer import (
+            train_ours_lite_opacity_exp_linear,
+        )
 
         return train_ours_lite_opacity_exp_linear, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -230,10 +297,11 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_opacity_exp_linear_vis
+        from thirdparty.gaussian_splatting.renderer import (
+            test_ours_lite_opacity_exp_linear_vis,
+        )
 
         return test_ours_lite_opacity_exp_linear_vis, GaussianRasterizationSettings, GaussianRasterizer
-
 
     elif option == "train_ours_lite_single_opacity_linear":
         from diff_gaussian_rasterization_ch1 import (
@@ -241,7 +309,9 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite_opacity_linear
+        from thirdparty.gaussian_splatting.renderer import (
+            train_ours_lite_opacity_linear,
+        )
 
         return train_ours_lite_opacity_linear, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -251,7 +321,9 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_opacity_linear_vis
+        from thirdparty.gaussian_splatting.renderer import (
+            test_ours_lite_opacity_linear_vis,
+        )
 
         return test_ours_lite_opacity_linear_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -321,21 +393,39 @@ def get_model(model="ours_full"):
     elif model == "ours_simple_scale":
         from thirdparty.gaussian_splatting.scene.ours_simple_scale import GaussianModel
     elif model == "ours_simple_rotation":
-        from thirdparty.gaussian_splatting.scene.ours_simple_rotation import GaussianModel
+        from thirdparty.gaussian_splatting.scene.ours_simple_rotation import (
+            GaussianModel,
+        )
     elif model == "ours_simple_color":
         from thirdparty.gaussian_splatting.scene.ours_simple_color import GaussianModel
     elif model == "ours_simple_opacity_no_t":
-        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_no_t import GaussianModel
+        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_no_t import (
+            GaussianModel,
+        )
     elif model == "ours_simple_opacity_linear":
-        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_linear import GaussianModel
+        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_linear import (
+            GaussianModel,
+        )
     elif model == "ours_simple_opacity_w_t":
-        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_w_t import GaussianModel
+        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_w_t import (
+            GaussianModel,
+        )
     elif model == "ours_simple_xyz_quadric":
-        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_quadric import GaussianModel
+        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_quadric import (
+            GaussianModel,
+        )
     elif model == "ours_simple_xyz_linear":
-        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear import GaussianModel
+        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear import (
+            GaussianModel,
+        )
     elif model == "ours_simple_xyz_linear_color":
-        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color import GaussianModel
+        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color import (
+            GaussianModel,
+        )
+    elif model == "ours_simple_xyz_linear_color_source":
+        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color_source import (
+            GaussianModel,
+        )
     elif model == "ours_simple_all":
         from thirdparty.gaussian_splatting.scene.ours_simple_all import GaussianModel
     else:
@@ -344,14 +434,14 @@ def get_model(model="ours_full"):
 
 
 def get_loss(opt, Ll1, ssim, image, gt_image, gaussians, radii):
-    if opt.reg == 1:  # add optical flow loss
+    if opt.reg == 0:
+        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
+    elif opt.reg == 1:  # add optical flow loss
         loss = (
             (1.0 - opt.lambda_dssim) * Ll1
             + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
             + opt.lambda_reg * torch.sum(gaussians._motion) / gaussians._motion.shape[0]
         )
-    elif opt.reg == 0:
-        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
     elif opt.reg == 9:  # regularizer on the rotation
         loss = (
             (1.0 - opt.lambda_dssim) * Ll1
@@ -658,6 +748,7 @@ def undistort_image(image_name, dataset_path, data):
 def trb_function(x):
     # Temporal Radial Basis Function
     return torch.exp(-1 * x.pow(2))
+
 
 def trb_exp_linear_function(x):
     # Temporal Radial Basis Function

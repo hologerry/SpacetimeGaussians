@@ -1255,6 +1255,30 @@ def read_nerf_synthetic_info(path, white_background, eval, extension=".png", mul
     return scene_info
 
 
+def shift_image(image, offset_h, offset_w):
+    shifted_image = np.zeros_like(image)
+
+    # Perform the shift
+    if offset_h > 0 and offset_w > 0:
+        shifted_image[offset_h:, offset_w:, :] = image[:-offset_h, :-offset_w, :]
+    elif offset_h > 0 and offset_w < 0:
+        shifted_image[offset_h:, :offset_w, :] = image[:-offset_h, -offset_w:, :]
+    elif offset_h < 0 and offset_w > 0:
+        shifted_image[:offset_h, offset_w:, :] = image[-offset_h:, :-offset_w, :]
+    elif offset_h < 0 and offset_w < 0:
+        shifted_image[:offset_h, :offset_w, :] = image[-offset_h:, -offset_w:, :]
+    elif offset_h > 0 and offset_w == 0:
+        shifted_image[offset_h:, :, :] = image[:-offset_h, :, :]
+    elif offset_h < 0 and offset_w == 0:
+        shifted_image[:offset_h, :, :] = image[-offset_h:, :, :]
+    elif offset_h == 0 and offset_w > 0:
+        shifted_image[:, offset_w:, :] = image[:, :-offset_w, :]
+    elif offset_h == 0 and offset_w < 0:
+        shifted_image[:, :offset_w, :] = image[:, -offset_w:, :]
+
+    return shifted_image
+
+
 def read_cameras_from_transforms_hyfluid(
     path,
     transforms_file,
@@ -1364,6 +1388,19 @@ def read_cameras_from_transforms_hyfluid(
                 real_image = cv2.imread(real_image_path, cv2.IMREAD_COLOR)
                 real_image = cv2.cvtColor(real_image, cv2.COLOR_BGR2RGB)
 
+                if cam_name == "0":
+                    image = shift_image(image, -14, 18)
+                    real_image = shift_image(real_image, -14, 18)
+                if cam_name == "1":
+                    image = shift_image(image, 33, 34)
+                    real_image = shift_image(real_image, 33, 34)
+                if cam_name == "3":
+                    image = shift_image(image, 0, -18)
+                    real_image = shift_image(real_image, 0, -18)
+                if cam_name == "4":
+                    image = shift_image(image, 10, -18)
+                    real_image = shift_image(real_image, 10, -18)
+
                 image = Image.fromarray(image)
                 real_image = Image.fromarray(real_image)
 
@@ -1422,7 +1459,7 @@ def read_nerf_synthetic_info_hyfluid(
     test_all_views=False,
 ):
     print("Reading Training Transforms...")
-    train_json = "transforms_train_hyfluid.json"
+    train_json = "transforms_train_scalar_flow.json"
     if train_views != "0134" and train_views_fake is None:
         # in this mode, just using some real views, no fake views for fitting
         train_json = f"transforms_train_{train_views}_hyfluid.json"
@@ -1441,10 +1478,10 @@ def read_nerf_synthetic_info_hyfluid(
     )
 
     print("Reading Test Transforms...")
-    test_json = "transforms_test_hyfluid.json"
+    test_json = "transforms_test_scalar_flow.json"
     if test_all_views:
         print("Using all views for testing")
-        test_json = f"transforms_train_test_hyfluid.json"
+        test_json = f"transforms_train_test_scalar_flow.json"
     test_cam_infos, _ = read_cameras_from_transforms_hyfluid(
         path,
         test_json,
@@ -1481,6 +1518,12 @@ def read_nerf_synthetic_info_hyfluid(
     total_time = []
     img_channel = 1 if grey_image else 3
 
+    radius = 0.026  # default value 0.18  source region 0.026
+    x_mid = 0.34  # default value 0.34 source region 0.34
+    y_min = -0.01  # default value -0.01  source region -0.01
+    y_max = 0.05  # default value 0.7  source region 0.02
+    z_mid = -0.225  # default value -0.225  source region -0.225
+
     for i in range(start_time, start_time + duration, time_step):
         ## gaussian default random initialized points
         # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
@@ -1492,13 +1535,11 @@ def read_nerf_synthetic_info_hyfluid(
         # xyz = np.concatenate((x, y, z), axis=1)
 
         # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
-        x_mid = 0.325
-        y = np.random.uniform(-0.05, 0.7, (num_pts, 1)) # [-0.05, 0.15] [-0.05, 0.7]
+        y = np.random.uniform(y_min, y_max, (num_pts, 1))  # [-0.05, 0.15] [-0.05, 0.7]
 
         # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
-        z_mid = -0.25
 
-        radius = np.random.random((num_pts, 1)) * 0.18 # * 0.03 # 0.18
+        radius = np.random.random((num_pts, 1)) * radius  # * 0.03 # 0.18
         theta = np.random.random((num_pts, 1)) * 2 * np.pi
         x = radius * np.cos(theta) + x_mid
         z = radius * np.sin(theta) + z_mid
@@ -1596,263 +1637,263 @@ def read_nerf_synthetic_info_hyfluid_valid(
     return scene_info
 
 
-def read_colmap_cameras_immersive_v2_test_only(
-    cam_extrinsics,
-    cam_intrinsics,
-    images_folder,
-    near,
-    far,
-    start_time=0,
-    duration=50,
-):
-    cam_infos = []
+# def read_colmap_cameras_immersive_v2_test_only(
+#     cam_extrinsics,
+#     cam_intrinsics,
+#     images_folder,
+#     near,
+#     far,
+#     start_time=0,
+#     duration=50,
+# ):
+#     cam_infos = []
 
-    total_cam_name = []
-    for idx, key in enumerate(cam_extrinsics):  # first is cam20_ so we strictly sort by camera name
-        extr = cam_extrinsics[key]
-        intr = cam_intrinsics[extr.camera_id]
-        total_cam_name.append(extr.name)
+#     total_cam_name = []
+#     for idx, key in enumerate(cam_extrinsics):  # first is cam20_ so we strictly sort by camera name
+#         extr = cam_extrinsics[key]
+#         intr = cam_intrinsics[extr.camera_id]
+#         total_cam_name.append(extr.name)
 
-    sorted_total_cam_name_list = natsort.natsorted(total_cam_name)
-    sorted_name_dict = {}
-    for i in range(len(sorted_total_cam_name_list)):
-        sorted_name_dict[sorted_total_cam_name_list[i]] = i  # map each cam with a number
+#     sorted_total_cam_name_list = natsort.natsorted(total_cam_name)
+#     sorted_name_dict = {}
+#     for i in range(len(sorted_total_cam_name_list)):
+#         sorted_name_dict[sorted_total_cam_name_list[i]] = i  # map each cam with a number
 
-    for idx, key in enumerate(cam_extrinsics):  # first is cam20_ so we strictly sort by camera name
-        sys.stdout.write("\r")
-        # the exact output you're looking for:
-        sys.stdout.write("Reading camera {}/{}".format(idx + 1, len(cam_extrinsics)))
-        sys.stdout.flush()
+#     for idx, key in enumerate(cam_extrinsics):  # first is cam20_ so we strictly sort by camera name
+#         sys.stdout.write("\r")
+#         # the exact output you're looking for:
+#         sys.stdout.write("Reading camera {}/{}".format(idx + 1, len(cam_extrinsics)))
+#         sys.stdout.flush()
 
-        extr = cam_extrinsics[key]
-        intr = cam_intrinsics[extr.camera_id]
-        height = intr.height
-        width = intr.width
+#         extr = cam_extrinsics[key]
+#         intr = cam_intrinsics[extr.camera_id]
+#         height = intr.height
+#         width = intr.width
 
-        uid = intr.id
-        R = np.transpose(qvec_2_rot_mat(extr.qvec))
-        T = np.array(extr.tvec)
+#         uid = intr.id
+#         R = np.transpose(qvec_2_rot_mat(extr.qvec))
+#         T = np.array(extr.tvec)
 
-        if intr.model == "SIMPLE_PINHOLE":
-            focal_length_x = intr.params[0]
-            FovY = focal2fov(focal_length_x, height)
-            FovX = focal2fov(focal_length_x, width)
-        elif intr.model == "PINHOLE":
-            focal_length_x = intr.params[0]
-            focal_length_y = intr.params[1]
-            FovY = focal2fov(focal_length_y, height)
-            FovX = focal2fov(focal_length_x, width)
-        else:
-            assert (
-                False
-            ), "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
+#         if intr.model == "SIMPLE_PINHOLE":
+#             focal_length_x = intr.params[0]
+#             FovY = focal2fov(focal_length_x, height)
+#             FovX = focal2fov(focal_length_x, width)
+#         elif intr.model == "PINHOLE":
+#             focal_length_x = intr.params[0]
+#             focal_length_y = intr.params[1]
+#             FovY = focal2fov(focal_length_y, height)
+#             FovX = focal2fov(focal_length_x, width)
+#         else:
+#             assert (
+#                 False
+#             ), "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
 
-        for j in range(start_time, start_time + int(duration)):
-            image_path = os.path.join(images_folder, os.path.basename(extr.name))
-            image_name = os.path.basename(image_path).split(".")[0]
-            image_path = image_path.replace("colmap_" + str(start_time), "colmap_{}".format(j), 1)
+#         for j in range(start_time, start_time + int(duration)):
+#             image_path = os.path.join(images_folder, os.path.basename(extr.name))
+#             image_name = os.path.basename(image_path).split(".")[0]
+#             image_path = image_path.replace("colmap_" + str(start_time), "colmap_{}".format(j), 1)
 
-            # parent_folder = os.path.dirname(images_folder)
-            # parent_folder = os.path.dirname(parent_folder)
-            # image_name = extr.name.split(".")[0]
+#             # parent_folder = os.path.dirname(images_folder)
+#             # parent_folder = os.path.dirname(parent_folder)
+#             # image_name = extr.name.split(".")[0]
 
-            # raw_video_folder = os.path.join(parent_folder,os.path.basename(image_name))
+#             # raw_video_folder = os.path.join(parent_folder,os.path.basename(image_name))
 
-            # image_path = os.path.join(raw_video_folder, str(j) + ".png")
+#             # image_path = os.path.join(raw_video_folder, str(j) + ".png")
 
-            cxr = (intr.params[2]) / width - 0.5
-            cyr = (intr.params[3]) / height - 0.5
+#             cxr = (intr.params[2]) / width - 0.5
+#             cyr = (intr.params[3]) / height - 0.5
 
-            K = np.eye(3)
-            K[0, 0] = focal_length_x  # * 0.5
-            K[0, 2] = intr.params[2]  # * 0.5
-            K[1, 1] = focal_length_y  # * 0.5
-            K[1, 2] = intr.params[3]  # * 0.5
+#             K = np.eye(3)
+#             K[0, 0] = focal_length_x  # * 0.5
+#             K[0, 2] = intr.params[2]  # * 0.5
+#             K[1, 1] = focal_length_y  # * 0.5
+#             K[1, 2] = intr.params[3]  # * 0.5
 
-            # halfH = round(height / 2.0 )
-            # halfW = round(width / 2.0 )
+#             # halfH = round(height / 2.0 )
+#             # halfW = round(width / 2.0 )
 
-            assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
+#             assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
 
-            if image_name == "camera_0001":
-                image = Image.open(image_path)
-            else:
-                image = None
-            if j == start_time:
-                cam_info = CameraInfo(
-                    uid=uid,
-                    R=R,
-                    T=T,
-                    FovY=FovY,
-                    FovX=FovX,
-                    image=image,
-                    image_path=image_path,
-                    image_name=image_name,
-                    width=width,
-                    height=height,
-                    near=near,
-                    far=far,
-                    timestamp=(j - start_time) / duration,
-                    pose=1,
-                    hp_directions=1,
-                    cxr=cxr,
-                    cyr=cyr,
-                )
-            else:
-                cam_info = CameraInfo(
-                    uid=uid,
-                    R=R,
-                    T=T,
-                    FovY=FovY,
-                    FovX=FovX,
-                    image=image,
-                    image_path=image_path,
-                    image_name=image_name,
-                    width=width,
-                    height=height,
-                    near=near,
-                    far=far,
-                    timestamp=(j - start_time) / duration,
-                    pose=None,
-                    hp_directions=None,
-                    cxr=cxr,
-                    cyr=cyr,
-                )
-            cam_infos.append(cam_info)
-    sys.stdout.write("\n")
-    return cam_infos
+#             if image_name == "camera_0001":
+#                 image = Image.open(image_path)
+#             else:
+#                 image = None
+#             if j == start_time:
+#                 cam_info = CameraInfo(
+#                     uid=uid,
+#                     R=R,
+#                     T=T,
+#                     FovY=FovY,
+#                     FovX=FovX,
+#                     image=image,
+#                     image_path=image_path,
+#                     image_name=image_name,
+#                     width=width,
+#                     height=height,
+#                     near=near,
+#                     far=far,
+#                     timestamp=(j - start_time) / duration,
+#                     pose=1,
+#                     hp_directions=1,
+#                     cxr=cxr,
+#                     cyr=cyr,
+#                 )
+#             else:
+#                 cam_info = CameraInfo(
+#                     uid=uid,
+#                     R=R,
+#                     T=T,
+#                     FovY=FovY,
+#                     FovX=FovX,
+#                     image=image,
+#                     image_path=image_path,
+#                     image_name=image_name,
+#                     width=width,
+#                     height=height,
+#                     near=near,
+#                     far=far,
+#                     timestamp=(j - start_time) / duration,
+#                     pose=None,
+#                     hp_directions=None,
+#                     cxr=cxr,
+#                     cyr=cyr,
+#                 )
+#             cam_infos.append(cam_info)
+#     sys.stdout.write("\n")
+#     return cam_infos
 
 
-def read_colmap_cameras_immersive_v2(
-    cam_extrinsics,
-    cam_intrinsics,
-    images_folder,
-    near,
-    far,
-    start_time=0,
-    duration=50,
-):
-    cam_infos = []
+# def read_colmap_cameras_immersive_v2(
+#     cam_extrinsics,
+#     cam_intrinsics,
+#     images_folder,
+#     near,
+#     far,
+#     start_time=0,
+#     duration=50,
+# ):
+#     cam_infos = []
 
-    total_cam_name = []
-    for idx, key in enumerate(cam_extrinsics):  # first is cam20_ so we strictly sort by camera name
-        extr = cam_extrinsics[key]
-        intr = cam_intrinsics[extr.camera_id]
-        total_cam_name.append(extr.name)
+#     total_cam_name = []
+#     for idx, key in enumerate(cam_extrinsics):  # first is cam20_ so we strictly sort by camera name
+#         extr = cam_extrinsics[key]
+#         intr = cam_intrinsics[extr.camera_id]
+#         total_cam_name.append(extr.name)
 
-    sorted_total_cam_name_list = natsort.natsorted(total_cam_name)
-    sorted_name_dict = {}
-    for i in range(len(sorted_total_cam_name_list)):
-        sorted_name_dict[sorted_total_cam_name_list[i]] = i  # map each cam with a number
+#     sorted_total_cam_name_list = natsort.natsorted(total_cam_name)
+#     sorted_name_dict = {}
+#     for i in range(len(sorted_total_cam_name_list)):
+#         sorted_name_dict[sorted_total_cam_name_list[i]] = i  # map each cam with a number
 
-    for idx, key in enumerate(cam_extrinsics):  # first is cam20_ so we strictly sort by camera name
-        sys.stdout.write("\r")
-        # the exact output you're looking for:
-        sys.stdout.write("Reading camera {}/{}".format(idx + 1, len(cam_extrinsics)))
-        sys.stdout.flush()
+#     for idx, key in enumerate(cam_extrinsics):  # first is cam20_ so we strictly sort by camera name
+#         sys.stdout.write("\r")
+#         # the exact output you're looking for:
+#         sys.stdout.write("Reading camera {}/{}".format(idx + 1, len(cam_extrinsics)))
+#         sys.stdout.flush()
 
-        extr = cam_extrinsics[key]
-        intr = cam_intrinsics[extr.camera_id]
-        height = intr.height
-        width = intr.width
+#         extr = cam_extrinsics[key]
+#         intr = cam_intrinsics[extr.camera_id]
+#         height = intr.height
+#         width = intr.width
 
-        uid = intr.id
-        R = np.transpose(qvec_2_rot_mat(extr.qvec))
-        T = np.array(extr.tvec)
+#         uid = intr.id
+#         R = np.transpose(qvec_2_rot_mat(extr.qvec))
+#         T = np.array(extr.tvec)
 
-        if intr.model == "SIMPLE_PINHOLE":
-            focal_length_x = intr.params[0]
-            FovY = focal2fov(focal_length_x, height)
-            FovX = focal2fov(focal_length_x, width)
-        elif intr.model == "PINHOLE":
-            focal_length_x = intr.params[0]
-            focal_length_y = intr.params[1]
-            FovY = focal2fov(focal_length_y, height)
-            FovX = focal2fov(focal_length_x, width)
-        else:
-            assert (
-                False
-            ), "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
+#         if intr.model == "SIMPLE_PINHOLE":
+#             focal_length_x = intr.params[0]
+#             FovY = focal2fov(focal_length_x, height)
+#             FovX = focal2fov(focal_length_x, width)
+#         elif intr.model == "PINHOLE":
+#             focal_length_x = intr.params[0]
+#             focal_length_y = intr.params[1]
+#             FovY = focal2fov(focal_length_y, height)
+#             FovX = focal2fov(focal_length_x, width)
+#         else:
+#             assert (
+#                 False
+#             ), "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
 
-        for j in range(start_time, start_time + int(duration)):
-            # image_path = os.path.join(images_folder, os.path.basename(extr.name))
-            # image_name = os.path.basename(image_path).split(".")[0]
-            # image_path = image_path.replace("colmap_"+str(start_time), "colmap_{}".format(j), 1)
+#         for j in range(start_time, start_time + int(duration)):
+#             # image_path = os.path.join(images_folder, os.path.basename(extr.name))
+#             # image_name = os.path.basename(image_path).split(".")[0]
+#             # image_path = image_path.replace("colmap_"+str(start_time), "colmap_{}".format(j), 1)
 
-            parent_folder = os.path.dirname(images_folder)
-            parent_folder = os.path.dirname(parent_folder)
-            image_name = extr.name.split(".")[0]
+#             parent_folder = os.path.dirname(images_folder)
+#             parent_folder = os.path.dirname(parent_folder)
+#             image_name = extr.name.split(".")[0]
 
-            raw_video_folder = os.path.join(parent_folder, os.path.basename(image_name))
+#             raw_video_folder = os.path.join(parent_folder, os.path.basename(image_name))
 
-            image_path = os.path.join(raw_video_folder, str(j) + ".png")
+#             image_path = os.path.join(raw_video_folder, str(j) + ".png")
 
-            # image_path.replace("colmap_"+str(start_time), "colmap_{}".format(j), 1)
+#             # image_path.replace("colmap_"+str(start_time), "colmap_{}".format(j), 1)
 
-            # K = np.eye(3)
-            # K[0, 0] = focal_length_x * 0.5
-            # K[0, 2] = intr.params[2] * 0.5
-            # K[1, 1] = focal_length_y * 0.5
-            # K[1, 2] = intr.params[3] * 0.5
+#             # K = np.eye(3)
+#             # K[0, 0] = focal_length_x * 0.5
+#             # K[0, 2] = intr.params[2] * 0.5
+#             # K[1, 1] = focal_length_y * 0.5
+#             # K[1, 2] = intr.params[3] * 0.5
 
-            cxr = (intr.params[2]) / width - 0.5
-            cyr = (intr.params[3]) / height - 0.5
+#             cxr = (intr.params[2]) / width - 0.5
+#             cyr = (intr.params[3]) / height - 0.5
 
-            hp_directions = 1.0
+#             hp_directions = 1.0
 
-            assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
-            image = Image.open(image_path)
-            if j == start_time:
-                cam_info = CameraInfo(
-                    uid=uid,
-                    R=R,
-                    T=T,
-                    FovY=FovY,
-                    FovX=FovX,
-                    image=image,
-                    image_path=image_path,
-                    image_name=image_name,
-                    width=width,
-                    height=height,
-                    near=near,
-                    far=far,
-                    timestamp=(j - start_time) / duration,
-                    pose=1,
-                    hp_directions=hp_directions,
-                    cxr=cxr,
-                    cyr=cyr,
-                )
-            else:
-                cam_info = CameraInfo(
-                    uid=uid,
-                    R=R,
-                    T=T,
-                    FovY=FovY,
-                    FovX=FovX,
-                    image=image,
-                    image_path=image_path,
-                    image_name=image_name,
-                    width=width,
-                    height=height,
-                    near=near,
-                    far=far,
-                    timestamp=(j - start_time) / duration,
-                    pose=None,
-                    hp_directions=None,
-                    cxr=cxr,
-                    cyr=cyr,
-                )
-            cam_infos.append(cam_info)
-    sys.stdout.write("\n")
-    return cam_infos
+#             assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
+#             image = Image.open(image_path)
+#             if j == start_time:
+#                 cam_info = CameraInfo(
+#                     uid=uid,
+#                     R=R,
+#                     T=T,
+#                     FovY=FovY,
+#                     FovX=FovX,
+#                     image=image,
+#                     image_path=image_path,
+#                     image_name=image_name,
+#                     width=width,
+#                     height=height,
+#                     near=near,
+#                     far=far,
+#                     timestamp=(j - start_time) / duration,
+#                     pose=1,
+#                     hp_directions=hp_directions,
+#                     cxr=cxr,
+#                     cyr=cyr,
+#                 )
+#             else:
+#                 cam_info = CameraInfo(
+#                     uid=uid,
+#                     R=R,
+#                     T=T,
+#                     FovY=FovY,
+#                     FovX=FovX,
+#                     image=image,
+#                     image_path=image_path,
+#                     image_name=image_name,
+#                     width=width,
+#                     height=height,
+#                     near=near,
+#                     far=far,
+#                     timestamp=(j - start_time) / duration,
+#                     pose=None,
+#                     hp_directions=None,
+#                     cxr=cxr,
+#                     cyr=cyr,
+#                 )
+#             cam_infos.append(cam_info)
+#     sys.stdout.write("\n")
+#     return cam_infos
 
 
 scene_load_type_callbacks = {
-    "colmap": read_colmap_scene_info,
-    "immersive": read_colmap_scene_info_immersive,
-    "colmapmv": read_colmap_scene_info_mv,
-    "blender": read_nerf_synthetic_info,
-    "technicolor": read_colmap_scene_info_technicolor,
+    # "colmap": read_colmap_scene_info,
+    # "immersive": read_colmap_scene_info_immersive,
+    # "colmapmv": read_colmap_scene_info_mv,
+    # "blender": read_nerf_synthetic_info,
+    # "technicolor": read_colmap_scene_info_technicolor,
     "hyfluid": read_nerf_synthetic_info_hyfluid,
     "hyfluid_valid": read_nerf_synthetic_info_hyfluid_valid,
 }

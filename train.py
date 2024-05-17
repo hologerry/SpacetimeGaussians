@@ -46,9 +46,10 @@ from helper_train import (
     get_loss,
     get_model,
     get_render_pipe,
+    prepare_output_and_logger,
     reload_helper,
-    trb_function,
     trb_exp_linear_function,
+    trb_function,
 )
 from image_video_io import images_to_video
 from thirdparty.gaussian_splatting.helper3dg import get_parser, get_render_parts
@@ -61,14 +62,6 @@ from thirdparty.gaussian_splatting.utils.loss_utils import (
     relative_loss,
     ssim,
 )
-
-
-try:
-    from torch.utils.tensorboard import SummaryWriter
-
-    TENSORBOARD_FOUND = True
-except ImportError:
-    TENSORBOARD_FOUND = False
 
 
 def train(
@@ -223,7 +216,7 @@ def train(
 
     selected_length = 2
     laster_ems = 0
-    lpips_criteria = lpips.LPIPS(net="alex", verbose=False).cuda()
+    # lpips_criteria = lpips.LPIPS(net="alex", verbose=False).cuda()
 
     for iteration in range(first_iter, optim_args.iterations + 1):
         if args.loader != "hyfluid" and iteration == optim_args.ems_start:
@@ -243,6 +236,7 @@ def train(
         viewpoint_set = train_cam_dict[time_index]
         cam_index = random.sample(viewpoint_set, optim_args.batch)
 
+        # loss = 0.0
         for i in range(optim_args.batch):
             viewpoint_cam = cam_index[i]
             render_pkg = render_func(
@@ -315,22 +309,39 @@ def train(
                 mask = mask.float()
                 image = image * (1 - mask) + gt_image * (mask)
 
-            if optim_args.reg == 2:
-                Ll1 = l2_loss(image, gt_image)
-                loss = Ll1
-            elif optim_args.reg == 3:
-                Ll1 = relative_loss(image, gt_image)
-                loss = Ll1
-            else:
-                # if viewpoint_cam.is_fake_view:
-                #     if model_args.grey_image:
-                #         image = torch.cat((image, image, image), dim=1)
-                #         gt_image = torch.cat((gt_image, gt_image, gt_image), dim=1)
-                #     Ll1 = lpips_criteria(image, gt_image, normalize=True)
-                # else:
-                #     Ll1 = l1_loss(image, gt_image)
-                Ll1 = l1_loss(image, gt_image)
-                loss = get_loss(optim_args, Ll1, ssim, image, gt_image, gaussians, radii)
+            # if optim_args.reg == 2:
+            #     Ll1 = l2_loss(image, gt_image)
+            #     loss = Ll1
+            # elif optim_args.reg == 3:
+            #     Ll1 = relative_loss(image, gt_image)
+            #     loss = Ll1
+            # else:
+            #     # if viewpoint_cam.is_fake_view:
+            #     #     if model_args.grey_image:
+            #     #         image = torch.cat((image, image, image), dim=1)
+            #     #         gt_image = torch.cat((gt_image, gt_image, gt_image), dim=1)
+            #     #     Ll1 = lpips_criteria(image, gt_image, normalize=True)
+            #     # else:
+            #     #     Ll1 = l1_loss(image, gt_image)
+            #     Ll1 = l1_loss(image, gt_image)
+            #     loss = get_loss(optim_args, Ll1, ssim, image, gt_image, gaussians, radii)
+
+            view_name = viewpoint_cam.image_name
+
+            l1_loss_value = l1_loss(image, gt_image)
+            ssim_loss_value = 1.0 - ssim(image, gt_image)
+
+            weight_loss = (1.0 - optim_args.lambda_dssim) * l1_loss_value + optim_args.lambda_dssim * ssim_loss_value
+            loss = weight_loss
+            # if view_name == "train00":
+            #     loss *= 5.0
+            # if view_name == "train01":
+            #     loss *= 10.0
+
+            tb_writer.add_scalar(f"train_loss_all/l1_loss_{view_name}", l1_loss_value.item(), iteration)
+            tb_writer.add_scalar(f"train_loss_all/ssim_loss_{view_name}", ssim_loss_value.item(), iteration)
+            tb_writer.add_scalar(f"train_loss_all/w_loss_{view_name}", weight_loss.item(), iteration)
+            tb_writer.add_scalar(f"train_loss_all/total_loss_{view_name}", loss.item(), iteration)
 
             if flag_ems == 1:
                 if viewpoint_cam.image_name not in loss_dict:
@@ -388,9 +399,6 @@ def train(
             training_report(
                 tb_writer,
                 iteration,
-                Ll1,
-                loss,
-                l1_loss,
                 iter_start.elapsed_time(iter_end),
                 testing_iterations,
                 scene,
@@ -400,6 +408,7 @@ def train(
                 GRsetting,
                 GRzer,
                 rd_pipe,
+                # test_all_train_views=True,
             )
 
             # Densification and pruning here
@@ -600,39 +609,12 @@ def train(
                 torch.save((gaussians.capture(), iteration), scene.model_path + "/ckp" + str(iteration) + ".pth")
 
 
-def prepare_output_and_logger(args):
-    if not args.model_path:
-        if os.getenv("OAR_JOB_ID"):
-            unique_str = os.getenv("OAR_JOB_ID")
-        else:
-            unique_str = str(uuid.uuid4())
-        args.model_path = os.path.join("./output/", unique_str[0:10])
-
-    # Set up output folder
-    print("Output folder: {}".format(args.model_path))
-    os.makedirs(args.model_path, exist_ok=True)
-    os.makedirs(os.path.join(args.model_path, "training_render"), exist_ok=True)
-    with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
-        cfg_log_f.write(str(Namespace(**vars(args))))
-
-    # Create Tensorboard writer
-    tb_writer = None
-    if TENSORBOARD_FOUND:
-        tb_writer = SummaryWriter(args.model_path)
-    else:
-        print("Tensorboard not available: not logging progress")
-    return tb_writer
-
-
 def training_report(
-    tb_writer: SummaryWriter,
+    tb_writer,
     iteration,
-    Ll1,
-    loss,
-    l1_loss,
     elapsed,
     testing_iterations,
-    scene: Scene,
+    scene,
     render_func,
     render_args,
     trbf_base_function,
@@ -642,8 +624,6 @@ def training_report(
     test_all_train_views=False,
 ):
     if tb_writer:
-        tb_writer.add_scalar("train_loss_patches/l1_loss", Ll1.item(), iteration)
-        tb_writer.add_scalar("train_loss_patches/total_loss", loss.item(), iteration)
         tb_writer.add_scalar("iter_time", elapsed, iteration)
 
     # Report test and samples of training set

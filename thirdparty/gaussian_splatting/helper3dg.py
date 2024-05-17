@@ -94,10 +94,6 @@ def get_parser():
     return args, mp.extract(args), op.extract(args), pp.extract(args)
 
 
-def get_render_parts(render_pkg):
-    return render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-
-
 def get_test_parser():
     parser = ArgumentParser(description="Testing script parameters")
     model = ModelParams(parser, sentinel=True)
@@ -139,6 +135,10 @@ def get_test_parser():
         print("args: " + str(args))
 
         return args, model.extract(args), pipeline.extract(args), multi_view
+
+
+def get_render_parts(render_pkg):
+    return render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
 
 def get_colmap_single_n3d(folder, offset):
