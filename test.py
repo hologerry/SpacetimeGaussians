@@ -197,6 +197,11 @@ def render_set(
             means3D_path = os.path.join(quantities_out_path, f"means3D_{cur_view_time_idx:05d}.npy")
             np.save(means3D_path, means3D)
 
+            trbf_center = rendering_pkg["trbf_center"]
+            trbf_center = trbf_center.detach().cpu().numpy()
+            trbf_center_path = os.path.join(quantities_out_path, f"trbf_center_{cur_view_time_idx:05d}.npy")
+            np.save(trbf_center_path, trbf_center)
+
             velocities3D = rendering_pkg["velocities3D"]
             velocities3D = velocities3D.detach().cpu().numpy()
             velocities3D_path = os.path.join(quantities_out_path, f"velocities3D_{cur_view_time_idx:05d}.npy")

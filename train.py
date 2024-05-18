@@ -333,10 +333,6 @@ def train(
 
             weight_loss = (1.0 - optim_args.lambda_dssim) * l1_loss_value + optim_args.lambda_dssim * ssim_loss_value
             loss = weight_loss
-            # if view_name == "train00":
-            #     loss *= 5.0
-            # if view_name == "train01":
-            #     loss *= 10.0
 
             tb_writer.add_scalar(f"train_loss_all/l1_loss_{view_name}", l1_loss_value.item(), iteration)
             tb_writer.add_scalar(f"train_loss_all/ssim_loss_{view_name}", ssim_loss_value.item(), iteration)
@@ -384,7 +380,7 @@ def train(
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
 
             if iteration % 10 == 0:
-                post_fix = {"Loss": f"{ema_loss_for_log:.{7}f}", "Points": gaussians.get_xyz.shape[0]}
+                post_fix = {"Loss": f"{ema_loss_for_log:.{7}f}", "Points": gaussians.get_xyz.shape[0], "TRBFC": torch.sum(gaussians.get_trbf_center).item()}
                 progress_bar.set_postfix(post_fix)
                 progress_bar.update(10)
 

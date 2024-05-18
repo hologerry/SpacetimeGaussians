@@ -167,6 +167,26 @@ def get_render_pipe(option="train_ours_full"):
 
         return test_ours_lite_all_vis, GaussianRasterizationSettings, GaussianRasterizer
 
+    elif option == "train_ours_lite_single_trbf_center":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_trbf_center
+
+        return train_ours_lite_trbf_center, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_trbf_center_vis":
+        from forward_lite_single_trbf_center import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_lite_trbf_center_vis
+
+        return test_ours_lite_trbf_center_vis, GaussianRasterizationSettings, GaussianRasterizer
+
     elif option == "train_ours_lite_single_xyz_quadric":
         from diff_gaussian_rasterization_ch1 import (
             GaussianRasterizationSettings,
@@ -188,6 +208,29 @@ def get_render_pipe(option="train_ours_full"):
         )
 
         return test_ours_lite_xyz_quadric_vis, GaussianRasterizationSettings, GaussianRasterizer
+
+
+    elif option == "train_ours_lite_single_xyz_quadric_trbf_center":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_xyz_quadric_trbf_center
+
+        return train_ours_lite_xyz_quadric_trbf_center, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_xyz_quadric_trbf_center_vis":
+        from forward_lite_single_xyz_quadric_trbf_center import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import (
+            test_ours_lite_xyz_quadric_trbf_center_vis,
+        )
+
+        return test_ours_lite_xyz_quadric_trbf_center_vis, GaussianRasterizationSettings, GaussianRasterizer
 
     elif option == "train_ours_lite_single_xyz_linear":
         from diff_gaussian_rasterization_ch1 import (
@@ -232,6 +275,30 @@ def get_render_pipe(option="train_ours_full"):
         )
 
         return test_ours_lite_xyz_linear_color_vis, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "train_ours_lite_single_xyz_linear_color_trbf_center":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import (
+            train_ours_lite_xyz_linear_color_trbf_center,
+        )
+
+        return train_ours_lite_xyz_linear_color_trbf_center, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_xyz_linear_color_trbf_center_vis":
+        from forward_lite_single_xyz_linear_color_trbf_center import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import (
+            test_ours_lite_xyz_linear_color_trbf_center_vis,
+        )
+
+        return test_ours_lite_xyz_linear_color_trbf_center_vis, GaussianRasterizationSettings, GaussianRasterizer
 
     elif option == "train_ours_lite_single_xyz_linear_color_source":
         from diff_gaussian_rasterization_ch1 import (
@@ -337,49 +404,49 @@ def get_render_pipe(option="train_ours_full"):
 
         return test_ours_lite_vis, GaussianRasterizationSettings, GaussianRasterizer
 
-    elif option == "train_ours_full_ss":
-        from diff_gaussian_rasterization_ch9 import (
-            GaussianRasterizationSettings,
-            GaussianRasterizer,
-        )
+    # elif option == "train_ours_full_ss":
+    #     from diff_gaussian_rasterization_ch9 import (
+    #         GaussianRasterizationSettings,
+    #         GaussianRasterizer,
+    #     )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_full_ss
+    #     from thirdparty.gaussian_splatting.renderer import train_ours_full_ss
 
-        return train_ours_full_ss, GaussianRasterizationSettings, GaussianRasterizer
+    #     return train_ours_full_ss, GaussianRasterizationSettings, GaussianRasterizer
 
-    elif option == "test_ours_full_ss":
-        from diff_gaussian_rasterization_ch9 import (
-            GaussianRasterizationSettings,
-            GaussianRasterizer,
-        )
+    # elif option == "test_ours_full_ss":
+    #     from diff_gaussian_rasterization_ch9 import (
+    #         GaussianRasterizationSettings,
+    #         GaussianRasterizer,
+    #     )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_full_ss
+    #     from thirdparty.gaussian_splatting.renderer import test_ours_full_ss
 
-        return test_ours_full_ss, GaussianRasterizationSettings, GaussianRasterizer
+    #     return test_ours_full_ss, GaussianRasterizationSettings, GaussianRasterizer
 
-    elif option == "test_ours_full_ss_fused":  # fused mlp in rendering
-        from forward_full import GaussianRasterizationSettings, GaussianRasterizer
+    # elif option == "test_ours_full_ss_fused":  # fused mlp in rendering
+    #     from forward_full import GaussianRasterizationSettings, GaussianRasterizer
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_full_ss_fused
+    #     from thirdparty.gaussian_splatting.renderer import test_ours_full_ss_fused
 
-        return test_ours_full_ss_fused, GaussianRasterizationSettings, GaussianRasterizer
+    #     return test_ours_full_ss_fused, GaussianRasterizationSettings, GaussianRasterizer
 
-    elif option == "train_ours_lite_ss":
-        from diff_gaussian_rasterization_ch3 import (
-            GaussianRasterizationSettings,
-            GaussianRasterizer,
-        )
+    # elif option == "train_ours_lite_ss":
+    #     from diff_gaussian_rasterization_ch3 import (
+    #         GaussianRasterizationSettings,
+    #         GaussianRasterizer,
+    #     )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite_ss
+    #     from thirdparty.gaussian_splatting.renderer import train_ours_lite_ss
 
-        return train_ours_lite_ss, GaussianRasterizationSettings, GaussianRasterizer
+    #     return train_ours_lite_ss, GaussianRasterizationSettings, GaussianRasterizer
 
-    elif option == "test_ours_lite_ss":
-        from forward_lite import GaussianRasterizationSettings, GaussianRasterizer
+    # elif option == "test_ours_lite_ss":
+    #     from forward_lite import GaussianRasterizationSettings, GaussianRasterizer
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_ss
+    #     from thirdparty.gaussian_splatting.renderer import test_ours_lite_ss
 
-        return test_ours_lite_ss, GaussianRasterizationSettings, GaussianRasterizer
+    #     return test_ours_lite_ss, GaussianRasterizationSettings, GaussianRasterizer
 
     else:
         raise NotImplementedError("Render {} not implemented".format(option))
@@ -424,6 +491,18 @@ def get_model(model="ours_full"):
         )
     elif model == "ours_simple_xyz_linear_color_source":
         from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color_source import (
+            GaussianModel,
+        )
+    elif model == "ours_simple_xyz_linear_color_trbf_center":
+        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color_trbf_center import (
+            GaussianModel,
+        )
+    elif model == "ours_simple_trbf_center":
+        from thirdparty.gaussian_splatting.scene.ours_simple_trbf_center import (
+            GaussianModel,
+        )
+    elif model == "ours_simple_xyz_quadric_trbf_center":
+        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_quadric_trbf_center import (
             GaussianModel,
         )
     elif model == "ours_simple_all":
