@@ -150,10 +150,10 @@ def train(
 
     train_camera_list = scene.get_train_cameras().copy()
     train_cam_dict = {}
-    unique_time_stamps = sorted(list(set([cam.timestamp for cam in train_camera_list])))
+    unique_timestamps = sorted(list(set([cam.timestamp for cam in train_camera_list])))
 
-    for i, time_stamp in enumerate(unique_time_stamps):
-        train_cam_dict[i] = [cam for cam in train_camera_list if cam.timestamp == time_stamp]
+    for i, timestamp in enumerate(unique_timestamps):
+        train_cam_dict[i] = [cam for cam in train_camera_list if cam.timestamp == timestamp]
 
     if gaussians.ts is None:
         H, W = train_camera_list[0].image_height, train_camera_list[0].image_width
@@ -232,7 +232,7 @@ def train(
             gaussians.rgb_decoder.train()
 
         gaussians.zero_gradient_cache()
-        time_index = randint(0, (len(unique_time_stamps) - 1))
+        time_index = randint(0, (len(unique_timestamps) - 1))
         viewpoint_set = train_cam_dict[time_index]
         cam_index = random.sample(viewpoint_set, optim_args.batch)
 
@@ -380,7 +380,7 @@ def train(
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
 
             if iteration % 10 == 0:
-                post_fix = {"Loss": f"{ema_loss_for_log:.{7}f}", "Points": gaussians.get_xyz.shape[0], "TRBFC": torch.sum(gaussians.get_trbf_center).item()}
+                post_fix = {"Loss": f"{ema_loss_for_log:.{7}f}", "Points": gaussians.get_xyz.shape[0]}
                 progress_bar.set_postfix(post_fix)
                 progress_bar.update(10)
 
@@ -601,8 +601,8 @@ def train(
                 gaussians.optimizer.zero_grad(set_to_none=True)
 
             if iteration in checkpoint_iterations:
-                print("\n[ITER {}] Saving Checkpoint".format(iteration))
-                torch.save((gaussians.capture(), iteration), scene.model_path + "/ckp" + str(iteration) + ".pth")
+                print(f"\n[ITER {iteration}] Saving Checkpoint")
+                torch.save((gaussians.capture(), iteration), scene.model_path + f"/ckp" + str(iteration) + ".pth")
 
 
 def training_report(

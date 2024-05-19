@@ -1388,18 +1388,18 @@ def read_cameras_from_transforms_hyfluid(
                 real_image = cv2.imread(real_image_path, cv2.IMREAD_COLOR)
                 real_image = cv2.cvtColor(real_image, cv2.COLOR_BGR2RGB)
 
-                # if cam_name == "0":
-                #     image = shift_image(image, -14, 18)
-                #     real_image = shift_image(real_image, -14, 18)
-                # if cam_name == "1":
-                #     image = shift_image(image, 33, 34)
-                #     real_image = shift_image(real_image, 33, 34)
-                # if cam_name == "3":
-                #     image = shift_image(image, 0, -18)
-                #     real_image = shift_image(real_image, 0, -18)
-                # if cam_name == "4":
-                #     image = shift_image(image, 10, -18)
-                #     real_image = shift_image(real_image, 10, -18)
+                if cam_name == "0":
+                    image = shift_image(image, -14, 18)
+                    real_image = shift_image(real_image, -14, 18)
+                if cam_name == "1":
+                    image = shift_image(image, 33, 34)
+                    real_image = shift_image(real_image, 33, 34)
+                if cam_name == "3":
+                    image = shift_image(image, 0, -18)
+                    real_image = shift_image(real_image, 0, -18)
+                if cam_name == "4":
+                    image = shift_image(image, 10, -18)
+                    real_image = shift_image(real_image, 10, -18)
 
                 image = Image.fromarray(image)
                 real_image = Image.fromarray(real_image)
@@ -1503,8 +1503,9 @@ def read_nerf_synthetic_info_hyfluid(
         os.remove(total_ply_path)
 
     # Since this data set has no colmap data, we start with random points
-    num_pts = 100_000 // (duration // time_step)
-    print(f"Generating random point cloud ({num_pts}) per time step...")
+    total_pts = 100_000
+    num_pts = total_pts // (duration // time_step)
+    print(f"Generating random point cloud ({num_pts}/{num_pts*(duration // time_step)})...")
 
     # # We create random points inside the bounds of the synthetic Blender scenes
     # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
@@ -1518,17 +1519,17 @@ def read_nerf_synthetic_info_hyfluid(
     total_time = []
     img_channel = 1 if grey_image else 3
 
-    radius = 0.18  # default value 0.18  source region 0.026
-    x_mid = 0.34  # default value 0.34 source region 0.34
-    y_min = -0.01  # default value -0.01  source region -0.01
-    y_max = 0.7  # default value 0.7  source region 0.05
-    z_mid = -0.225  # default value -0.225  source region -0.225
-
-    # radius = 0.026  # default value 0.18  source region 0.026
+    # radius = 0.18  # default value 0.18  source region 0.026
     # x_mid = 0.34  # default value 0.34 source region 0.34
     # y_min = -0.01  # default value -0.01  source region -0.01
-    # y_max = 0.05  # default value 0.7  source region 0.05
+    # y_max = 0.7  # default value 0.7  source region 0.05
     # z_mid = -0.225  # default value -0.225  source region -0.225
+
+    radius = 0.026  # default value 0.18  source region 0.026
+    x_mid = 0.34  # default value 0.34 source region 0.34
+    y_min = -0.01  # default value -0.01  source region -0.01
+    y_max = 0.05  # default value 0.7  source region 0.05
+    z_mid = -0.225  # default value -0.225  source region -0.225
 
     for i in range(start_time, start_time + duration, time_step):
         ## gaussian default random initialized points
@@ -1561,8 +1562,10 @@ def read_nerf_synthetic_info_hyfluid(
         rgb = sh2rgb(shs) * 255
 
         total_xyz.append(xyz)
+        # rgb is not used for fixed color
         total_rgb.append(rgb)
         # print(f"init time {(i - start_time) / duration}")
+        # when using our adding source, the time is not directly used
         total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration)
 
     xyz = np.concatenate(total_xyz, axis=0)

@@ -157,6 +157,10 @@ class OptimizationParams(ParamGroup):
         self.load_all = 0
         self.remove_scale = 5
         self.gt_mask = 0  # 0 means not train with mask for undistorted gt image; 1 means
+
+        # hyfluid
+        self.cur_time_only_iterations = 10000
+
         super().__init__(parser, "Optimization Parameters")
 
 

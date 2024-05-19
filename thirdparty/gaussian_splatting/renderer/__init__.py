@@ -1837,33 +1837,37 @@ def train_ours_lite_xyz_linear_color_source(
 
     rasterizer = GRzer(raster_settings=raster_settings)
 
+    cur_timestamp = viewpoint_camera.timestamp * point_times
+
     means3D = gm.get_xyz
     means2D = screen_space_points
+
+    time_coefficient = gm.get_time_coefficient(cur_timestamp)
 
     point_opacity = gm.get_opacity
 
     trbf_center = gm.get_trbf_center
     trbf_scale = gm.get_trbf_scale
 
-    trbf_distance_offset = viewpoint_camera.timestamp * point_times - trbf_center
+    trbf_distance_offset = cur_timestamp - trbf_center
     trbf_distance = trbf_distance_offset / torch.exp(trbf_scale)
     trbf_output = basic_function(trbf_distance)
 
-    opacity = point_opacity * trbf_output  # - 0.5
+    opacity = point_opacity * trbf_output * time_coefficient # - 0.5
     gm.trbf_output = trbf_output
 
-    scales = gm.get_scaling
+    scales = gm.get_scaling * time_coefficient
 
     tforpoly = trbf_distance_offset.detach()
     means3D = (
         means3D
-        + gm._motion[:, 0:3] * tforpoly
+        + gm._motion[:, 0:3] * tforpoly * time_coefficient
         # + gm._motion[:, 3:6] * tforpoly * tforpoly
         # + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
 
-    rotations = gm.get_rotation(tforpoly)  # to try use
-    colors_precomp = gm.get_features(tforpoly)
+    rotations = gm.get_rotation(tforpoly) * time_coefficient # to try use
+    colors_precomp = gm.get_features(tforpoly) * time_coefficient
 
     cov3D_precomp = None
 
@@ -1927,10 +1931,13 @@ def test_ours_lite_xyz_linear_color_source_vis(
 
     rasterizer = GRzer(raster_settings=raster_settings)
 
-    tforpoly = viewpoint_camera.timestamp - gm.get_trbf_center
+    cur_timestamp = viewpoint_camera.timestamp
+    time_coefficient = gm.get_time_coefficient(cur_timestamp)
 
-    rotations = gm.get_rotation(tforpoly)  # to try use
-    colors_precomp = gm.get_features(tforpoly)
+    tforpoly = cur_timestamp - gm.get_trbf_center
+
+    rotations = gm.get_rotation(tforpoly) * time_coefficient  # to try use
+    colors_precomp = gm.get_features(tforpoly) * time_coefficient
 
     motion = gm._motion
 
@@ -1941,7 +1948,7 @@ def test_ours_lite_xyz_linear_color_source_vis(
 
     means3D = (
         means3D
-        + motion[:, 0:3] * tforpoly
+        + motion[:, 0:3] * tforpoly * time_coefficient
         # + motion[:, 3:6] * tforpoly * tforpoly
         # + motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
@@ -1954,11 +1961,11 @@ def test_ours_lite_xyz_linear_color_source_vis(
     trbf_distance = tforpoly / torch.exp(trbf_scale)
     trbf_output = basic_function(trbf_distance)
 
-    opacity = point_opacity * trbf_output  # - 0.5
+    opacity = point_opacity * trbf_output * time_coefficient # - 0.5
 
     # computed_opacity is not blend with timestamp
-    computed_opacity = gm.computed_opacity
-    scales = gm.computed_scales
+    computed_opacity = gm.computed_opacity * time_coefficient
+    scales = gm.computed_scales  * time_coefficient
 
     means2D = screen_space_points
 
@@ -1966,10 +1973,12 @@ def test_ours_lite_xyz_linear_color_source_vis(
 
     shs = None
 
+    timed_trbf_center = gm.get_trbf_center * time_coefficient
+
     # cuda prepreprocessCUDA will calculate the means3D, opacities with timestamp
     rendered_image, radii = rasterizer(
         timestamp=viewpoint_camera.timestamp,
-        trbf_center=gm.get_trbf_center,
+        trbf_center=timed_trbf_center,
         trbf_scale=gm.computed_trbf_scale,
         motion=gm._motion,
         means3D=gm.get_xyz,

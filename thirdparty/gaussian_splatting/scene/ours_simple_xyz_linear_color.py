@@ -497,8 +497,7 @@ class GaussianModel:
             axis=1,
         )
         opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
-        #         {'params': [self._trbf_center], 'lr': training_args.trbf_c_lr, "name": "trbf_center"},
-        # {'params': [self._trbf_scale], 'lr': training_args.trbf_s_lr, "name": "trbf_scale"},
+
         trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
         trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
 
@@ -598,8 +597,7 @@ class GaussianModel:
             axis=1,
         )
         opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
-        #         {'params': [self._trbf_center], 'lr': training_args.trbf_c_lr, "name": "trbf_center"},
-        # {'params': [self._trbf_scale], 'lr': training_args.trbf_s_lr, "name": "trbf_scale"},
+
         trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
         trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
 
@@ -699,8 +697,7 @@ class GaussianModel:
             axis=1,
         )
         opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
-        #         {'params': [self._trbf_center], 'lr': training_args.trbf_c_lr, "name": "trbf_center"},
-        # {'params': [self._trbf_scale], 'lr': training_args.trbf_s_lr, "name": "trbf_scale"},
+
         trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
         trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
 
@@ -811,8 +808,7 @@ class GaussianModel:
             axis=1,
         )
         opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
-        #         {'params': [self._trbf_center], 'lr': training_args.trbf_c_lr, "name": "trbf_center"},
-        # {'params': [self._trbf_scale], 'lr': training_args.trbf_s_lr, "name": "trbf_scale"},
+
         trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
         trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
 
