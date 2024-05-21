@@ -211,14 +211,21 @@ def train(
     print("Start training")
     print(f"Num of unique training timestamps: {len(unique_timestamps)}")
 
+    total_iteration = 0
     for cur_max_time_index in range(0, len(unique_timestamps)):
         first_iter = 0
-        progress_bar = tqdm(range(first_iter, optim_args.iterations), desc=f"Training progress {cur_max_time_index}")
-        first_iter += 1
-        current_time_stamp = unique_timestamps[cur_max_time_index]
-        for iteration in range(first_iter, optim_args.iterations + 1):
 
-            total_iteration = cur_max_time_index * optim_args.iterations + iteration
+        current_time_stamp = unique_timestamps[cur_max_time_index]
+        current_time_iterations = optim_args.iterations_per_time + int(optim_args.iterations_per_time_post * cur_max_time_index)
+        saving_iterations = [1, current_time_iterations//2, current_time_iterations]
+        testing_iterations = [1, current_time_iterations//2, current_time_iterations]
+
+        progress_bar = tqdm(range(first_iter, current_time_iterations), desc=f"Training progress {cur_max_time_index}")
+        first_iter += 1
+
+        for iteration in range(first_iter, current_time_iterations + 1):
+
+            total_iteration += 1
 
             iter_start.record()
             gaussians.update_learning_rate(iteration)
@@ -231,10 +238,10 @@ def train(
 
             if cur_max_time_index > 0 and iteration == 1:
                 # we add new points to the gaussians
-                gaussians.add_gaussians(current_time_stamp)
+                gaussians.add_gaussians(current_time_stamp, args.new_pts)
 
             gaussians.zero_gradient_cache()
-            if iteration <= optim_args.cur_time_only_iterations:
+            if iteration <= optim_args.iterations_per_time:
                 # fitting current time first
                 time_index = cur_max_time_index
             else:
@@ -270,7 +277,7 @@ def train(
                 # print(f"viewpoint_cam {viewpoint_cam.image_name} {viewpoint_cam.is_fake_view}")
 
                 gt_image = viewpoint_cam.original_image.float().cuda()
-                gt_image_real = viewpoint_cam.original_image_real.float().cuda()
+                # gt_image_real = viewpoint_cam.original_image_real.float().cuda()
 
                 # if iteration % 500 == 0:
                 #     save_image(
@@ -509,14 +516,14 @@ def training_report(
                             f"gt_t{cur_time_idx:03d}_v{viewpoint.image_name}_u{viewpoint.uid:03d}_{iteration:05d}.png",
                         ),
                     )
-                    save_image(
-                        gt_image_real,
-                        os.path.join(
-                            scene.model_path,
-                            "training_render",
-                            f"gt_real_t{cur_time_idx:03d}_v{viewpoint.image_name}_u{viewpoint.uid:03d}_{iteration:05d}.png",
-                        ),
-                    )
+                    # save_image(
+                    #     gt_image_real,
+                    #     os.path.join(
+                    #         scene.model_path,
+                    #         "training_render",
+                    #         f"gt_real_t{cur_time_idx:03d}_v{viewpoint.image_name}_u{viewpoint.uid:03d}_{iteration:05d}.png",
+                    #     ),
+                    # )
                     if tb_writer and (idx < 5):
                         tb_writer.add_images(
                             config["name"] + f"_time_{cur_time_idx}_view_{viewpoint.image_name}/render",
@@ -529,11 +536,11 @@ def training_report(
                                 gt_image[None],
                                 global_step=iteration,
                             )
-                            tb_writer.add_images(
-                                config["name"] + f"_time_{cur_time_idx}_view_{viewpoint.image_name}/ground_truth_real",
-                                gt_image_real[None],
-                                global_step=iteration,
-                            )
+                            # tb_writer.add_images(
+                            #     config["name"] + f"_time_{cur_time_idx}_view_{viewpoint.image_name}/ground_truth_real",
+                            #     gt_image_real[None],
+                            #     global_step=iteration,
+                            # )
                     l1_test += l1_loss(image, gt_image_real).mean().double()
                     psnr_test += psnr(image, gt_image_real).mean().double()
 
@@ -556,15 +563,15 @@ def training_report(
                         ),
                         fps=25,
                     )
-                    images_to_video(
-                        os.path.join(scene.model_path, "training_render"),
-                        f"gt_real_t{cur_time_idx:03d}_v{view_name}_",
-                        f"{iteration:05d}.png",
-                        os.path.join(
-                            scene.model_path, f"training_gt_real_t{cur_time_idx:03d}_v{view_name}_{iteration:05d}.mp4"
-                        ),
-                        fps=25,
-                    )
+                    # images_to_video(
+                    #     os.path.join(scene.model_path, "training_render"),
+                    #     f"gt_real_t{cur_time_idx:03d}_v{view_name}_",
+                    #     f"{iteration:05d}.png",
+                    #     os.path.join(
+                    #         scene.model_path, f"training_gt_real_t{cur_time_idx:03d}_v{view_name}_{iteration:05d}.mp4"
+                    #     ),
+                    #     fps=25,
+                    # )
 
                 psnr_test /= len(config["cameras"])
                 l1_test /= len(config["cameras"])

@@ -84,6 +84,9 @@ class ModelParams(ParamGroup):
          # same format as train views # the views that produced from zero123 finetuned model
         self.train_views_fake = None
         self.use_best_fake = False
+        self.source_init = False
+        self.new_pts = 10_000
+        self.img_offset = False
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -160,6 +163,8 @@ class OptimizationParams(ParamGroup):
 
         # hyfluid
         self.cur_time_only_iterations = 10000
+        self.iterations_per_time = 250
+        self.iterations_per_time_post = 12
 
         super().__init__(parser, "Optimization Parameters")
 

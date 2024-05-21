@@ -712,7 +712,7 @@ class GaussianModel:
         self.denom[visibility_filter] += 1
 
     def add_gaussians(self, current_time_stamp, new_pts=10_000):
-        print(f"Adding new points with timestamp {current_time_stamp}")
+        print(f"Adding {new_pts} new points with timestamp {current_time_stamp}")
         radius = 0.026  # default value 0.18  source region 0.026
         x_mid = 0.34  # default value 0.34 source region 0.34
         y_min = -0.01  # default value -0.01  source region -0.01
@@ -761,7 +761,7 @@ class GaussianModel:
             new_point_timestamp,
         )
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size):
+    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True):
         ## raw method from 3dgs debugging hyfluid
         # max_grad: 0.0002
         # min_opacity: 0.005
@@ -773,10 +773,12 @@ class GaussianModel:
         grads = self.xyz_gradient_accum / self.denom
         grads[grads.isnan()] = 0.0
 
-        # print(f"before densify_and_clone {self._xyz.shape[0]}")
-        self.densify_and_clone(grads, max_grad, extent)
-        # print(f"after densify_and_clone {self._xyz.shape[0]}")
-        self.densify_and_split(grads, max_grad, extent)
+        if clone:
+            # print(f"before densify_and_clone {self._xyz.shape[0]}")
+            self.densify_and_clone(grads, max_grad, extent)
+        if split:
+            # print(f"after densify_and_clone {self._xyz.shape[0]}")
+            self.densify_and_split(grads, max_grad, extent)
         # print(f"after densify_and_split {self._xyz.shape[0]}")
 
         prune_mask = (self.get_opacity < min_opacity).squeeze()

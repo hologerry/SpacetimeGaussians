@@ -404,7 +404,7 @@ def train(
                 GRsetting,
                 GRzer,
                 rd_pipe,
-                # test_all_train_views=True,
+                test_all_train_views=True,
             )
 
             # Densification and pruning here

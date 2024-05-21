@@ -1443,7 +1443,7 @@ class GaussianModel:
         optimizable_tensors = self.replace_tensor_to_optimizer(opacity_old, "opacity")
         self._opacity = optimizable_tensors["opacity"]
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size):
+    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, **kwargs):
         ## raw method from 3dgs debugging hyfluid
         grads = self.xyz_gradient_accum / self.denom
         grads[grads.isnan()] = 0.0
@@ -1460,9 +1460,9 @@ class GaussianModel:
 
         torch.cuda.empty_cache()
 
-    def prune_points_bbox(self, bbox_model):
-        print("before prune bbox", self._xyz.shape[0])
-        bbox_mask = bbox_model.is_inside(self.get_xyz)
-        prune_mask = ~bbox_mask
-        self.prune_points(prune_mask)
-        print("after prune bbox", self._xyz.shape[0])
+    # def prune_points_bbox(self, bbox_model):
+    #     print("before prune bbox", self._xyz.shape[0])
+    #     bbox_mask = bbox_model.is_inside(self.get_xyz)
+    #     prune_mask = ~bbox_mask
+    #     self.prune_points(prune_mask)
+    #     print("after prune bbox", self._xyz.shape[0])

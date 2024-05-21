@@ -1165,94 +1165,94 @@ def store_ply(path, xyzt, rgb, grey_image=False):
 #     return scene_info
 
 
-def read_cameras_from_transforms(path, transforms_file, white_background, extension=".png"):
-    cam_infos = []
+# def read_cameras_from_transforms(path, transforms_file, white_background, extension=".png"):
+#     cam_infos = []
 
-    with open(os.path.join(path, transforms_file)) as json_file:
-        contents = json.load(json_file)
-        fov_x = contents["camera_angle_x"]
+#     with open(os.path.join(path, transforms_file)) as json_file:
+#         contents = json.load(json_file)
+#         fov_x = contents["camera_angle_x"]
 
-        frames = contents["frames"]
-        for idx, frame in enumerate(frames):
-            cam_name = os.path.join(path, frame["file_path"] + extension)
+#         frames = contents["frames"]
+#         for idx, frame in enumerate(frames):
+#             cam_name = os.path.join(path, frame["file_path"] + extension)
 
-            matrix = np.linalg.inv(np.array(frame["transform_matrix"]))
-            R = -np.transpose(matrix[:3, :3])
-            R[:, 0] = -R[:, 0]
-            T = -matrix[:3, 3]
+#             matrix = np.linalg.inv(np.array(frame["transform_matrix"]))
+#             R = -np.transpose(matrix[:3, :3])
+#             R[:, 0] = -R[:, 0]
+#             T = -matrix[:3, 3]
 
-            image_path = os.path.join(path, cam_name)
-            image_name = Path(cam_name).stem
-            image = Image.open(image_path)
+#             image_path = os.path.join(path, cam_name)
+#             image_name = Path(cam_name).stem
+#             image = Image.open(image_path)
 
-            im_data = np.array(image.convert("RGBA"))
+#             im_data = np.array(image.convert("RGBA"))
 
-            bg = np.array([1, 1, 1]) if white_background else np.array([0, 0, 0])
+#             bg = np.array([1, 1, 1]) if white_background else np.array([0, 0, 0])
 
-            norm_data = im_data / 255.0
-            arr = norm_data[:, :, :3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
-            image = Image.fromarray(np.array(arr * 255.0, dtype=np.byte), "RGB")
+#             norm_data = im_data / 255.0
+#             arr = norm_data[:, :, :3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
+#             image = Image.fromarray(np.array(arr * 255.0, dtype=np.byte), "RGB")
 
-            fov_y = focal2fov(fov2focal(fov_x, image.size[0]), image.size[1])
-            FovY = fov_y
-            FovX = fov_x
+#             fov_y = focal2fov(fov2focal(fov_x, image.size[0]), image.size[1])
+#             FovY = fov_y
+#             FovX = fov_x
 
-            for j in range(20):
-                cam_infos.append(
-                    CameraInfo(
-                        uid=idx * 20 + j,
-                        R=R,
-                        T=T,
-                        FovY=FovY,
-                        FovX=FovX,
-                        image=image,
-                        image_path=image_path,
-                        image_name=image_name,
-                        width=image.size[0],
-                        height=image.size[1],
-                    )
-                )
+#             for j in range(20):
+#                 cam_infos.append(
+#                     CameraInfo(
+#                         uid=idx * 20 + j,
+#                         R=R,
+#                         T=T,
+#                         FovY=FovY,
+#                         FovX=FovX,
+#                         image=image,
+#                         image_path=image_path,
+#                         image_name=image_name,
+#                         width=image.size[0],
+#                         height=image.size[1],
+#                     )
+#                 )
 
-    return cam_infos
+#     return cam_infos
 
 
-def read_nerf_synthetic_info(path, white_background, eval, extension=".png", multi_view=False):
-    print("Reading Training Transforms")
-    train_cam_infos = read_cameras_from_transforms(path, "transforms_train.json", white_background, extension)
-    print("Reading Test Transforms")
-    test_cam_infos = read_cameras_from_transforms(path, "transforms_test.json", white_background, extension)
+# def read_nerf_synthetic_info(path, white_background, eval, extension=".png", multi_view=False):
+#     print("Reading Training Transforms")
+#     train_cam_infos = read_cameras_from_transforms(path, "transforms_train.json", white_background, extension)
+#     print("Reading Test Transforms")
+#     test_cam_infos = read_cameras_from_transforms(path, "transforms_test.json", white_background, extension)
 
-    if not eval:
-        train_cam_infos.extend(test_cam_infos)
-        test_cam_infos = []
+#     if not eval:
+#         train_cam_infos.extend(test_cam_infos)
+#         test_cam_infos = []
 
-    nerf_normalization = get_nerf_pp_norm(train_cam_infos)
+#     nerf_normalization = get_nerf_pp_norm(train_cam_infos)
 
-    ply_path = os.path.join(path, "points3d.ply")
-    if not os.path.exists(ply_path):
-        # Since this data set has no colmap data, we start with random points
-        num_pts = 100_000
-        print(f"Generating random point cloud ({num_pts})...")
+#     ply_path = os.path.join(path, "points3d.ply")
+#     if not os.path.exists(ply_path):
+#         # Since this data set has no colmap data, we start with random points
+#         num_pts = 100_000
+#         print(f"Generating random point cloud ({num_pts})...")
 
-        # We create random points inside the bounds of the synthetic Blender scenes
-        xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
-        shs = np.random.random((num_pts, 3)) / 255.0
-        pcd = BasicPointCloud(points=xyz, colors=sh2rgb(shs), normals=np.zeros((num_pts, 3)))
+#         # We create random points inside the bounds of the synthetic Blender scenes
+#         xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
+#         shs = np.random.random((num_pts, 3)) / 255.0
+#         pcd = BasicPointCloud(points=xyz, colors=sh2rgb(shs), normals=np.zeros((num_pts, 3)))
 
-        store_ply(ply_path, xyz, sh2rgb(shs) * 255)
-    try:
-        pcd = fetch_ply(ply_path)
-    except:
-        pcd = None
+#         store_ply(ply_path, xyz, sh2rgb(shs) * 255)
+#     try:
+#         pcd = fetch_ply(ply_path)
+#     except:
+#         pcd = None
 
-    scene_info = SceneInfo(
-        point_cloud=pcd,
-        train_cameras=train_cam_infos,
-        test_cameras=test_cam_infos,
-        nerf_normalization=nerf_normalization,
-        ply_path=ply_path,
-    )
-    return scene_info
+#     scene_info = SceneInfo(
+#         point_cloud=pcd,
+#         train_cameras=train_cam_infos,
+#         test_cameras=test_cam_infos,
+#         nerf_normalization=nerf_normalization,
+#         ply_path=ply_path,
+#     )
+#     return scene_info
 
 
 def shift_image(image, offset_h, offset_w):
@@ -1291,8 +1291,11 @@ def read_cameras_from_transforms_hyfluid(
     train_views="0134",
     train_views_fake=None,
     use_best_fake=False,
+    img_offset=False,
 ):
     print(f"transforms_file: {transforms_file}, train_views: {train_views}, train_views_fake: {train_views_fake}")
+    if img_offset:
+        print("adding offset to image")
     cam_infos = []
     # print(f"start_time {start_time} duration {duration} time_step {time_step}")
 
@@ -1388,18 +1391,19 @@ def read_cameras_from_transforms_hyfluid(
                 real_image = cv2.imread(real_image_path, cv2.IMREAD_COLOR)
                 real_image = cv2.cvtColor(real_image, cv2.COLOR_BGR2RGB)
 
-                if cam_name == "0":
-                    image = shift_image(image, -14, 18)
-                    real_image = shift_image(real_image, -14, 18)
-                if cam_name == "1":
-                    image = shift_image(image, 33, 34)
-                    real_image = shift_image(real_image, 33, 34)
-                if cam_name == "3":
-                    image = shift_image(image, 0, -18)
-                    real_image = shift_image(real_image, 0, -18)
-                if cam_name == "4":
-                    image = shift_image(image, 10, -18)
-                    real_image = shift_image(real_image, 10, -18)
+                if img_offset:
+                    if cam_name == "0":
+                        image = shift_image(image, -12, 18)
+                        real_image = shift_image(real_image, -12, 18)
+                    if cam_name == "1":
+                        image = shift_image(image, 52, 18)
+                        real_image = shift_image(real_image, 52, 18)
+                    if cam_name == "3":
+                        image = shift_image(image, 11, -12)
+                        real_image = shift_image(real_image, 11, -12)
+                    if cam_name == "4":
+                        image = shift_image(image, 11, -18)
+                        real_image = shift_image(real_image, 11, -18)
 
                 image = Image.fromarray(image)
                 real_image = Image.fromarray(real_image)
@@ -1457,6 +1461,9 @@ def read_nerf_synthetic_info_hyfluid(
     train_views_fake=None,
     use_best_fake=False,
     test_all_views=False,
+    source_init=False,
+    img_offset=False,
+    **kwargs,
 ):
     print("Reading Training Transforms...")
     train_json = "transforms_train_hyfluid.json"
@@ -1475,6 +1482,7 @@ def read_nerf_synthetic_info_hyfluid(
         train_views,
         train_views_fake,
         use_best_fake,
+        img_offset,
     )
 
     print("Reading Test Transforms...")
@@ -1494,6 +1502,7 @@ def read_nerf_synthetic_info_hyfluid(
         train_views,
         train_views_fake,
         use_best_fake,
+        img_offset,
     )
 
     nerf_normalization = get_nerf_pp_norm(train_cam_infos)
@@ -1505,7 +1514,6 @@ def read_nerf_synthetic_info_hyfluid(
     # Since this data set has no colmap data, we start with random points
     total_pts = 100_000
     num_pts = total_pts // (duration // time_step)
-    print(f"Generating random point cloud ({num_pts}/{num_pts*(duration // time_step)})...")
 
     # # We create random points inside the bounds of the synthetic Blender scenes
     # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
@@ -1528,32 +1536,18 @@ def read_nerf_synthetic_info_hyfluid(
     radius = 0.026  # default value 0.18  source region 0.026
     x_mid = 0.34  # default value 0.34 source region 0.34
     y_min = -0.01  # default value -0.01  source region -0.01
-    y_max = 0.05  # default value 0.7  source region 0.05
+    y_max = 0.03  # default value 0.7  source region 0.05
     z_mid = -0.225  # default value -0.225  source region -0.225
 
-    for i in range(start_time, start_time + duration, time_step):
-        ## gaussian default random initialized points
-        # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
-
-        ## hyfluid bbox range initialized points
-        # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
-        # y = np.random.random((num_pts, 1)) * 0.75 - 0.05  # [-0.05, 0.7]
-        # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
-        # xyz = np.concatenate((x, y, z), axis=1)
-
-        # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
+    if source_init:
+        num_pts = 2000
+        print(f"Generating source_init random point cloud ({num_pts})...")
         y = np.random.uniform(y_min, y_max, (num_pts, 1))  # [-0.05, 0.15] [-0.05, 0.7]
-
-        # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
 
         radius = np.random.random((num_pts, 1)) * radius  # * 0.03 # 0.18
         theta = np.random.random((num_pts, 1)) * 2 * np.pi
         x = radius * np.cos(theta) + x_mid
         z = radius * np.sin(theta) + z_mid
-
-        # print(f"Points init x: {x.min()}, {x.max()}")
-        # print(f"Points init y: {y.min()}, {y.max()}")
-        # print(f"Points init z: {z.min()}, {z.max()}")
 
         xyz = np.concatenate((x, y, z), axis=1)
 
@@ -1561,19 +1555,56 @@ def read_nerf_synthetic_info_hyfluid(
         # rgb = np.random.random((num_pts, 3)) * 255.0
         rgb = sh2rgb(shs) * 255
 
-        total_xyz.append(xyz)
-        # rgb is not used for fixed color
-        total_rgb.append(rgb)
         # print(f"init time {(i - start_time) / duration}")
         # when using our adding source, the time is not directly used
-        total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration)
+        time = np.zeros((xyz.shape[0], 1))
 
-    xyz = np.concatenate(total_xyz, axis=0)
-    rgb = np.concatenate(total_rgb, axis=0)
-    total_time = np.concatenate(total_time, axis=0)
+    else:
+        print(f"Generating random point cloud ({num_pts}/{num_pts*(duration // time_step)})...")
+        for i in range(start_time, start_time + duration, time_step):
+            ## gaussian default random initialized points
+            # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
+
+            ## hyfluid bbox range initialized points
+            # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
+            # y = np.random.random((num_pts, 1)) * 0.75 - 0.05  # [-0.05, 0.7]
+            # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
+            # xyz = np.concatenate((x, y, z), axis=1)
+
+            # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
+            y = np.random.uniform(y_min, y_max, (num_pts, 1))  # [-0.05, 0.15] [-0.05, 0.7]
+
+            # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
+
+            radius = np.random.random((num_pts, 1)) * radius  # * 0.03 # 0.18
+            theta = np.random.random((num_pts, 1)) * 2 * np.pi
+            x = radius * np.cos(theta) + x_mid
+            z = radius * np.sin(theta) + z_mid
+
+            # print(f"Points init x: {x.min()}, {x.max()}")
+            # print(f"Points init y: {y.min()}, {y.max()}")
+            # print(f"Points init z: {z.min()}, {z.max()}")
+
+            xyz = np.concatenate((x, y, z), axis=1)
+
+            shs = np.random.random((num_pts, img_channel)) / 255.0
+            # rgb = np.random.random((num_pts, 3)) * 255.0
+            rgb = sh2rgb(shs) * 255
+
+            total_xyz.append(xyz)
+            # rgb is not used for fixed color
+            total_rgb.append(rgb)
+            # print(f"init time {(i - start_time) / duration}")
+            # when using our adding source, the time is not directly used
+            total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration)
+
+        xyz = np.concatenate(total_xyz, axis=0)
+        rgb = np.concatenate(total_rgb, axis=0)
+        time = np.concatenate(total_time, axis=0)
+
     assert xyz.shape[0] == rgb.shape[0]
 
-    xyzt = np.concatenate((xyz, total_time), axis=1)
+    xyzt = np.concatenate((xyz, time), axis=1)
     store_ply(total_ply_path, xyzt, rgb, grey_image)
 
     try:
@@ -1607,6 +1638,7 @@ def read_nerf_synthetic_info_hyfluid_valid(
     train_views_fake=None,
     use_best_fake=False,
     test_all_views=False,
+    **kwargs,
 ):
 
     print("Reading Test Transforms...")
