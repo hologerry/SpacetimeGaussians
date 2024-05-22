@@ -418,381 +418,381 @@ class GaussianModel:
         optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")
         self._opacity = optimizable_tensors["opacity"]
 
-    def zero_omega(self, threshold=0.15):
-        scales = self.get_scaling
-        omega_mask = torch.sum(torch.abs(self._omega), dim=1) > threshold  # default
-        scale_mask = torch.max(scales, dim=1).values.unsqueeze(1) > 0.2
-        scale_mask_b = torch.max(scales, dim=1).values.unsqueeze(1) < 0.6
-        point_opacity = self.get_opacity
-        opacity_mask = point_opacity > 0.7
-
-        mask = torch.logical_and(
-            torch.logical_and(omega_mask.unsqueeze(1), scale_mask), torch.logical_and(scale_mask_b, opacity_mask)
-        )
-        omega_new = mask.float() * self._omega
-        optimizable_tensors = self.replace_tensor_to_optimizer(omega_new, "omega")
-        self._omega = optimizable_tensors["omega"]
-        return mask
-
-    def zero_omega_by_motion(self, threshold=0.15):
-        scales = self.get_scaling
-        omega_mask = (
-            torch.sum(torch.abs(self._motion[:, 0:3]), dim=1) > 0.3
-        )  #  #torch.sum(torch.abs(self._omega), dim=1) > threshold # default
-        scale_mask = torch.max(scales, dim=1).values.unsqueeze(1) > 0.2
-        scale_mask_b = torch.max(scales, dim=1).values.unsqueeze(1) < 0.6
-        point_opacity = self.get_opacity
-        opacity_mask = point_opacity > 0.7
-
-        mask = torch.logical_and(
-            torch.logical_and(omega_mask.unsqueeze(1), scale_mask), torch.logical_and(scale_mask_b, opacity_mask)
-        )
-
-        omega_new = mask.float() * self._omega
-        optimizable_tensors = self.replace_tensor_to_optimizer(omega_new, "omega")
-        self._omega = optimizable_tensors["omega"]
-        return mask
-
-    def zero_omega_v2(self, threshold=0.15):
-        scales = self.get_scaling
-        omega_mask = torch.sum(torch.abs(self._omega), dim=1) > threshold  # default
-        scale_mask = torch.max(scales, dim=1).values.unsqueeze(1) > 0.2
-        scale_mask_b = torch.max(scales, dim=1).values.unsqueeze(1) < 0.6
-        point_opacity = self.get_opacity
-        opacity_mask = point_opacity > 0.7
-
-        mask = torch.logical_and(
-            torch.logical_and(omega_mask.unsqueeze(1), scale_mask), torch.logical_and(scale_mask_b, opacity_mask)
-        )
-        omega_new = mask.float() * self._omega
-        rotation_new = self.get_rotation(self.delta_t)
-
-        optimizable_tensors = self.replace_tensor_to_optimizer(omega_new, "omega")
-        self._omega = optimizable_tensors["omega"]
-
-        optimizable_tensors = self.replace_tensor_to_optimizer(rotation_new, "rotation")
-        self._rotation = optimizable_tensors["rotation"]
-        return mask
-
-    def load_ply_and_min_max(self, path, max_x, max_y, max_z, min_x, min_y, min_z):
-        def logical_or_list(tensor_list):
-            mask = None
-            for idx, ele in enumerate(tensor_list):
-                if idx == 0:
-                    mask = ele
-                else:
-                    mask = np.logical_or(mask, ele)
-            return mask
-
-        ply_data = PlyData.read(path)
-        # ckpt = torch.load(path.replace(".ply", ".pt"))
-        # self.rgb_decoder.load_state_dict(ckpt)
-
-        xyz = np.stack(
-            (
-                np.asarray(ply_data.elements[0]["x"]),
-                np.asarray(ply_data.elements[0]["y"]),
-                np.asarray(ply_data.elements[0]["z"]),
-            ),
-            axis=1,
-        )
-        opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
-
-        trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
-        trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
-
-        # motion = np.asarray(ply_data.elements[0]["motion"])
-        motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
-        num_motion = 3
-        motion = np.zeros((xyz.shape[0], num_motion))
-        for i in range(num_motion):
-            motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
-
-        dc_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_dc")]
-        num_dc_features = len(dc_f_names)
-
-        features_dc = np.zeros((xyz.shape[0], num_dc_features))
-        for i in range(num_dc_features):
-            features_dc[:, i] = np.asarray(ply_data.elements[0]["f_dc_" + str(i)])
-
-        extra_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_rest_")]
-        # assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
-        features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
-        for idx, attr_name in enumerate(extra_f_names):
-            features_extra[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-        # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
-        features_extra = features_extra.reshape((features_extra.shape[0], -1))
-
-        scale_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("scale_")]
-        scales = np.zeros((xyz.shape[0], len(scale_names)))
-        for idx, attr_name in enumerate(scale_names):
-            scales[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        rot_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("rot")]
-        rots = np.zeros((xyz.shape[0], len(rot_names)))
-        for idx, attr_name in enumerate(rot_names):
-            rots[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        omega_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("omega")]
-        omegas = np.zeros((xyz.shape[0], len(omega_names)))
-        for idx, attr_name in enumerate(omega_names):
-            omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        # ft_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_t")]
-        # ft_omegas = np.zeros((xyz.shape[0], len(ft_names)))
-        # for idx, attr_name in enumerate(ft_names):
-        #     ft_omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        mask0 = xyz[:, 0] > max_x.item()
-        mask1 = xyz[:, 1] > max_y.item()
-        mask2 = xyz[:, 2] > max_z.item()
-
-        mask3 = xyz[:, 0] < min_x.item()
-        mask4 = xyz[:, 1] < min_y.item()
-        mask5 = xyz[:, 2] < min_z.item()
-        mask = logical_or_list([mask0, mask1, mask2, mask3, mask4, mask5])
-        mask = np.logical_not(mask)
-
-        self._xyz = nn.Parameter(torch.tensor(xyz[mask], dtype=torch.float, device="cuda").requires_grad_(True))
-        self._features_dc = nn.Parameter(
-            torch.tensor(features_dc[mask], dtype=torch.float, device="cuda").requires_grad_(True)
-        )
-        # self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").requires_grad_(True))
-        self._opacity = nn.Parameter(
-            torch.tensor(opacities[mask], dtype=torch.float, device="cuda").requires_grad_(True)
-        )
-        self._scaling = nn.Parameter(torch.tensor(scales[mask], dtype=torch.float, device="cuda").requires_grad_(True))
-        self._rotation = nn.Parameter(torch.tensor(rots[mask], dtype=torch.float, device="cuda").requires_grad_(True))
-        self._trbf_center = nn.Parameter(
-            torch.tensor(trbf_center[mask], dtype=torch.float, device="cuda").requires_grad_(True)
-        )
-        self._trbf_scale = nn.Parameter(
-            torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda").requires_grad_(True)
-        )
-        self._motion = nn.Parameter(torch.tensor(motion[mask], dtype=torch.float, device="cuda").requires_grad_(True))
-        self._omega = nn.Parameter(torch.tensor(omegas[mask], dtype=torch.float, device="cuda").requires_grad_(True))
-
-        self.active_sh_degree = self.max_sh_degree
-
-    def load_ply_and_min_max_Y(self, path, max_x, max_y, max_z, min_x, min_y, min_z):
-        def logical_or_list(tensor_list):
-            mask = None
-            for idx, ele in enumerate(tensor_list):
-                if idx == 0:
-                    mask = ele
-                else:
-                    mask = np.logical_or(mask, ele)
-            return mask
-
-        ply_data = PlyData.read(path)
-        # ckpt = torch.load(path.replace(".ply", ".pt"))
-        # self.rgb_decoder.load_state_dict(ckpt)
-
-        xyz = np.stack(
-            (
-                np.asarray(ply_data.elements[0]["x"]),
-                np.asarray(ply_data.elements[0]["y"]),
-                np.asarray(ply_data.elements[0]["z"]),
-            ),
-            axis=1,
-        )
-        opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
-
-        trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
-        trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
-
-        # motion = np.asarray(ply_data.elements[0]["motion"])
-        motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
-        num_motion = 3
-        motion = np.zeros((xyz.shape[0], num_motion))
-        for i in range(num_motion):
-            motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
-
-        dc_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_dc")]
-        num_dc_features = len(dc_f_names)
-
-        features_dc = np.zeros((xyz.shape[0], num_dc_features))
-        for i in range(num_dc_features):
-            features_dc[:, i] = np.asarray(ply_data.elements[0]["f_dc_" + str(i)])
-
-        extra_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_rest_")]
-        # assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
-        features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
-        for idx, attr_name in enumerate(extra_f_names):
-            features_extra[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-        # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
-        features_extra = features_extra.reshape((features_extra.shape[0], -1))
-
-        scale_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("scale_")]
-        scales = np.zeros((xyz.shape[0], len(scale_names)))
-        for idx, attr_name in enumerate(scale_names):
-            scales[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        rot_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("rot")]
-        rots = np.zeros((xyz.shape[0], len(rot_names)))
-        for idx, attr_name in enumerate(rot_names):
-            rots[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        omega_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("omega")]
-        omegas = np.zeros((xyz.shape[0], len(omega_names)))
-        for idx, attr_name in enumerate(omega_names):
-            omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        # ft_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_t")]
-        # ft_omegas = np.zeros((xyz.shape[0], len(ft_names)))
-        # for idx, attr_name in enumerate(ft_names):
-        #     ft_omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        # mask0 = xyz[:,0] > max_x.item()
-        mask1 = xyz[:, 1] > max_y.item()
-        # mask2 = xyz[:,2] > max_z.item()
-
-        # mask3 = xyz[:,0] < min_x.item()
-        mask4 = xyz[:, 1] < min_y.item()
-        # mask5 = xyz[:,2] < min_z.item()
-        mask = logical_or_list([mask1, mask4])
-        mask = np.logical_not(mask)
-
-        self._xyz = nn.Parameter(torch.tensor(xyz[mask], dtype=torch.float, device="cuda").requires_grad_(True))
-        self._features_dc = nn.Parameter(
-            torch.tensor(features_dc[mask], dtype=torch.float, device="cuda").requires_grad_(True)
-        )
-        # self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").requires_grad_(True))
-        self._opacity = nn.Parameter(
-            torch.tensor(opacities[mask], dtype=torch.float, device="cuda").requires_grad_(True)
-        )
-        self._scaling = nn.Parameter(torch.tensor(scales[mask], dtype=torch.float, device="cuda").requires_grad_(True))
-        self._rotation = nn.Parameter(torch.tensor(rots[mask], dtype=torch.float, device="cuda").requires_grad_(True))
-        self._trbf_center = nn.Parameter(
-            torch.tensor(trbf_center[mask], dtype=torch.float, device="cuda").requires_grad_(True)
-        )
-        self._trbf_scale = nn.Parameter(
-            torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda").requires_grad_(True)
-        )
-        self._motion = nn.Parameter(torch.tensor(motion[mask], dtype=torch.float, device="cuda").requires_grad_(True))
-        self._omega = nn.Parameter(torch.tensor(omegas[mask], dtype=torch.float, device="cuda").requires_grad_(True))
-
-        self.active_sh_degree = self.max_sh_degree
-
-    def load_ply_and_min_max_all(self, path, max_x, max_y, max_z, min_x, min_y, min_z):
-        def logical_or_list(tensor_list):
-            mask = None
-            for idx, ele in enumerate(tensor_list):
-                if idx == 0:
-                    mask = ele
-                else:
-                    mask = np.logical_or(mask, ele)
-            return mask
-
-        ply_data = PlyData.read(path)
-        # ckpt = torch.load(path.replace(".ply", ".pt"))
-        # self.rgb_decoder.load_state_dict(ckpt)
-
-        xyz = np.stack(
-            (
-                np.asarray(ply_data.elements[0]["x"]),
-                np.asarray(ply_data.elements[0]["y"]),
-                np.asarray(ply_data.elements[0]["z"]),
-            ),
-            axis=1,
-        )
-        opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
-
-        trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
-        trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
-
-        # motion = np.asarray(ply_data.elements[0]["motion"])
-        motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
-        num_motion = 3
-        motion = np.zeros((xyz.shape[0], num_motion))
-        for i in range(num_motion):
-            motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
-
-        dc_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_dc")]
-        num_dc_features = len(dc_f_names)
-
-        features_dc = np.zeros((xyz.shape[0], num_dc_features))
-        for i in range(num_dc_features):
-            features_dc[:, i] = np.asarray(ply_data.elements[0]["f_dc_" + str(i)])
-
-        extra_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_rest_")]
-        # assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
-        features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
-        for idx, attr_name in enumerate(extra_f_names):
-            features_extra[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-        # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
-        features_extra = features_extra.reshape((features_extra.shape[0], -1))
-
-        scale_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("scale_")]
-        scales = np.zeros((xyz.shape[0], len(scale_names)))
-        for idx, attr_name in enumerate(scale_names):
-            scales[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        rot_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("rot")]
-        rots = np.zeros((xyz.shape[0], len(rot_names)))
-        for idx, attr_name in enumerate(rot_names):
-            rots[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        omega_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("omega")]
-        omegas = np.zeros((xyz.shape[0], len(omega_names)))
-        for idx, attr_name in enumerate(omega_names):
-            omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        # ft_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_t")]
-        # ft_omegas = np.zeros((xyz.shape[0], len(ft_names)))
-        # for idx, attr_name in enumerate(ft_names):
-        #     ft_omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
-
-        mask0 = xyz[:, 0] > max_x.item()
-        mask1 = xyz[:, 1] > max_y.item()
-        mask2 = xyz[:, 2] > max_z.item()
-
-        mask3 = xyz[:, 0] < min_x.item()
-        mask4 = xyz[:, 1] < min_y.item()
-        mask5 = xyz[:, 2] < min_z.item()
-        mask = logical_or_list([mask0, mask1, mask2, mask3, mask4, mask5])
-        # mask = np.logical_not(mask)# now the reset point is within the boundray
-
-        unstable_points = np.sum(np.abs(motion[:, 0:3]), axis=1)
-        moving_points = unstable_points > 0.03
-        trbf_mask = trbf_scale < 3  # temporal unstable points
-
-        mask_st = np.logical_or(trbf_mask.squeeze(1), moving_points)
-
-        mask = np.logical_or(mask, mask_st)  # only use large t_scale points.
-        # replace points with input ?
-
-        mask = np.logical_not(mask)  # remaining good points. todo remove good mask's NN
-
-        xyz = torch.cat((self._xyz, torch.tensor(xyz[mask], dtype=torch.float, device="cuda")))
-
-        self._xyz = nn.Parameter(xyz.requires_grad_(True))
-
-        features_dc = torch.cat((self._features_dc, torch.tensor(features_dc[mask], dtype=torch.float, device="cuda")))
-        self._features_dc = nn.Parameter(features_dc.requires_grad_(True))
-
-        opacities = torch.cat((self._opacity, torch.tensor(opacities[mask], dtype=torch.float, device="cuda")))
-        self._opacity = nn.Parameter(opacities).requires_grad_(True)
-
-        scales = torch.cat((self._scaling, torch.tensor(scales[mask], dtype=torch.float, device="cuda")))
-
-        self._scaling = nn.Parameter(scales).requires_grad_(True)
-        rots = torch.cat((self._rotation, torch.tensor(rots[mask], dtype=torch.float, device="cuda")))
-
-        self._rotation = nn.Parameter(rots).requires_grad_(True)
-        trbf_center = torch.cat((self._trbf_center, torch.tensor(trbf_center[mask], dtype=torch.float, device="cuda")))
-        self._trbf_center = nn.Parameter(trbf_center).requires_grad_(True)
-        trbf_scale = torch.cat((self._trbf_scale, torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda")))
-
-        self._trbf_scale = nn.Parameter(trbf_scale.requires_grad_(True))
-
-        motion = torch.cat((self._motion, torch.tensor(motion[mask], dtype=torch.float, device="cuda")))
-
-        self._motion = nn.Parameter(motion.requires_grad_(True))
-        omegas = torch.cat((self._omega, torch.tensor(omegas[mask], dtype=torch.float, device="cuda")))
-        self._omega = nn.Parameter(omegas.requires_grad_(True))
-
-        self.active_sh_degree = self.max_sh_degree
+    # def zero_omega(self, threshold=0.15):
+    #     scales = self.get_scaling
+    #     omega_mask = torch.sum(torch.abs(self._omega), dim=1) > threshold  # default
+    #     scale_mask = torch.max(scales, dim=1).values.unsqueeze(1) > 0.2
+    #     scale_mask_b = torch.max(scales, dim=1).values.unsqueeze(1) < 0.6
+    #     point_opacity = self.get_opacity
+    #     opacity_mask = point_opacity > 0.7
+
+    #     mask = torch.logical_and(
+    #         torch.logical_and(omega_mask.unsqueeze(1), scale_mask), torch.logical_and(scale_mask_b, opacity_mask)
+    #     )
+    #     omega_new = mask.float() * self._omega
+    #     optimizable_tensors = self.replace_tensor_to_optimizer(omega_new, "omega")
+    #     self._omega = optimizable_tensors["omega"]
+    #     return mask
+
+    # def zero_omega_by_motion(self, threshold=0.15):
+    #     scales = self.get_scaling
+    #     omega_mask = (
+    #         torch.sum(torch.abs(self._motion[:, 0:3]), dim=1) > 0.3
+    #     )  #  #torch.sum(torch.abs(self._omega), dim=1) > threshold # default
+    #     scale_mask = torch.max(scales, dim=1).values.unsqueeze(1) > 0.2
+    #     scale_mask_b = torch.max(scales, dim=1).values.unsqueeze(1) < 0.6
+    #     point_opacity = self.get_opacity
+    #     opacity_mask = point_opacity > 0.7
+
+    #     mask = torch.logical_and(
+    #         torch.logical_and(omega_mask.unsqueeze(1), scale_mask), torch.logical_and(scale_mask_b, opacity_mask)
+    #     )
+
+    #     omega_new = mask.float() * self._omega
+    #     optimizable_tensors = self.replace_tensor_to_optimizer(omega_new, "omega")
+    #     self._omega = optimizable_tensors["omega"]
+    #     return mask
+
+    # def zero_omega_v2(self, threshold=0.15):
+    #     scales = self.get_scaling
+    #     omega_mask = torch.sum(torch.abs(self._omega), dim=1) > threshold  # default
+    #     scale_mask = torch.max(scales, dim=1).values.unsqueeze(1) > 0.2
+    #     scale_mask_b = torch.max(scales, dim=1).values.unsqueeze(1) < 0.6
+    #     point_opacity = self.get_opacity
+    #     opacity_mask = point_opacity > 0.7
+
+    #     mask = torch.logical_and(
+    #         torch.logical_and(omega_mask.unsqueeze(1), scale_mask), torch.logical_and(scale_mask_b, opacity_mask)
+    #     )
+    #     omega_new = mask.float() * self._omega
+    #     rotation_new = self.get_rotation(self.delta_t)
+
+    #     optimizable_tensors = self.replace_tensor_to_optimizer(omega_new, "omega")
+    #     self._omega = optimizable_tensors["omega"]
+
+    #     optimizable_tensors = self.replace_tensor_to_optimizer(rotation_new, "rotation")
+    #     self._rotation = optimizable_tensors["rotation"]
+    #     return mask
+
+    # def load_ply_and_min_max(self, path, max_x, max_y, max_z, min_x, min_y, min_z):
+    #     def logical_or_list(tensor_list):
+    #         mask = None
+    #         for idx, ele in enumerate(tensor_list):
+    #             if idx == 0:
+    #                 mask = ele
+    #             else:
+    #                 mask = np.logical_or(mask, ele)
+    #         return mask
+
+    #     ply_data = PlyData.read(path)
+    #     # ckpt = torch.load(path.replace(".ply", ".pt"))
+    #     # self.rgb_decoder.load_state_dict(ckpt)
+
+    #     xyz = np.stack(
+    #         (
+    #             np.asarray(ply_data.elements[0]["x"]),
+    #             np.asarray(ply_data.elements[0]["y"]),
+    #             np.asarray(ply_data.elements[0]["z"]),
+    #         ),
+    #         axis=1,
+    #     )
+    #     opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
+
+    #     trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
+    #     trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
+
+    #     # motion = np.asarray(ply_data.elements[0]["motion"])
+    #     motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
+    #     num_motion = 3
+    #     motion = np.zeros((xyz.shape[0], num_motion))
+    #     for i in range(num_motion):
+    #         motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
+
+    #     dc_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_dc")]
+    #     num_dc_features = len(dc_f_names)
+
+    #     features_dc = np.zeros((xyz.shape[0], num_dc_features))
+    #     for i in range(num_dc_features):
+    #         features_dc[:, i] = np.asarray(ply_data.elements[0]["f_dc_" + str(i)])
+
+    #     extra_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_rest_")]
+    #     # assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
+    #     features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
+    #     for idx, attr_name in enumerate(extra_f_names):
+    #         features_extra[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+    #     # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
+    #     features_extra = features_extra.reshape((features_extra.shape[0], -1))
+
+    #     scale_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("scale_")]
+    #     scales = np.zeros((xyz.shape[0], len(scale_names)))
+    #     for idx, attr_name in enumerate(scale_names):
+    #         scales[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     rot_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("rot")]
+    #     rots = np.zeros((xyz.shape[0], len(rot_names)))
+    #     for idx, attr_name in enumerate(rot_names):
+    #         rots[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     omega_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("omega")]
+    #     omegas = np.zeros((xyz.shape[0], len(omega_names)))
+    #     for idx, attr_name in enumerate(omega_names):
+    #         omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     # ft_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_t")]
+    #     # ft_omegas = np.zeros((xyz.shape[0], len(ft_names)))
+    #     # for idx, attr_name in enumerate(ft_names):
+    #     #     ft_omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     mask0 = xyz[:, 0] > max_x.item()
+    #     mask1 = xyz[:, 1] > max_y.item()
+    #     mask2 = xyz[:, 2] > max_z.item()
+
+    #     mask3 = xyz[:, 0] < min_x.item()
+    #     mask4 = xyz[:, 1] < min_y.item()
+    #     mask5 = xyz[:, 2] < min_z.item()
+    #     mask = logical_or_list([mask0, mask1, mask2, mask3, mask4, mask5])
+    #     mask = np.logical_not(mask)
+
+    #     self._xyz = nn.Parameter(torch.tensor(xyz[mask], dtype=torch.float, device="cuda").requires_grad_(True))
+    #     self._features_dc = nn.Parameter(
+    #         torch.tensor(features_dc[mask], dtype=torch.float, device="cuda").requires_grad_(True)
+    #     )
+    #     # self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").requires_grad_(True))
+    #     self._opacity = nn.Parameter(
+    #         torch.tensor(opacities[mask], dtype=torch.float, device="cuda").requires_grad_(True)
+    #     )
+    #     self._scaling = nn.Parameter(torch.tensor(scales[mask], dtype=torch.float, device="cuda").requires_grad_(True))
+    #     self._rotation = nn.Parameter(torch.tensor(rots[mask], dtype=torch.float, device="cuda").requires_grad_(True))
+    #     self._trbf_center = nn.Parameter(
+    #         torch.tensor(trbf_center[mask], dtype=torch.float, device="cuda").requires_grad_(True)
+    #     )
+    #     self._trbf_scale = nn.Parameter(
+    #         torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda").requires_grad_(True)
+    #     )
+    #     self._motion = nn.Parameter(torch.tensor(motion[mask], dtype=torch.float, device="cuda").requires_grad_(True))
+    #     self._omega = nn.Parameter(torch.tensor(omegas[mask], dtype=torch.float, device="cuda").requires_grad_(True))
+
+    #     self.active_sh_degree = self.max_sh_degree
+
+    # def load_ply_and_min_max_Y(self, path, max_x, max_y, max_z, min_x, min_y, min_z):
+    #     def logical_or_list(tensor_list):
+    #         mask = None
+    #         for idx, ele in enumerate(tensor_list):
+    #             if idx == 0:
+    #                 mask = ele
+    #             else:
+    #                 mask = np.logical_or(mask, ele)
+    #         return mask
+
+    #     ply_data = PlyData.read(path)
+    #     # ckpt = torch.load(path.replace(".ply", ".pt"))
+    #     # self.rgb_decoder.load_state_dict(ckpt)
+
+    #     xyz = np.stack(
+    #         (
+    #             np.asarray(ply_data.elements[0]["x"]),
+    #             np.asarray(ply_data.elements[0]["y"]),
+    #             np.asarray(ply_data.elements[0]["z"]),
+    #         ),
+    #         axis=1,
+    #     )
+    #     opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
+
+    #     trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
+    #     trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
+
+    #     # motion = np.asarray(ply_data.elements[0]["motion"])
+    #     motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
+    #     num_motion = 3
+    #     motion = np.zeros((xyz.shape[0], num_motion))
+    #     for i in range(num_motion):
+    #         motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
+
+    #     dc_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_dc")]
+    #     num_dc_features = len(dc_f_names)
+
+    #     features_dc = np.zeros((xyz.shape[0], num_dc_features))
+    #     for i in range(num_dc_features):
+    #         features_dc[:, i] = np.asarray(ply_data.elements[0]["f_dc_" + str(i)])
+
+    #     extra_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_rest_")]
+    #     # assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
+    #     features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
+    #     for idx, attr_name in enumerate(extra_f_names):
+    #         features_extra[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+    #     # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
+    #     features_extra = features_extra.reshape((features_extra.shape[0], -1))
+
+    #     scale_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("scale_")]
+    #     scales = np.zeros((xyz.shape[0], len(scale_names)))
+    #     for idx, attr_name in enumerate(scale_names):
+    #         scales[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     rot_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("rot")]
+    #     rots = np.zeros((xyz.shape[0], len(rot_names)))
+    #     for idx, attr_name in enumerate(rot_names):
+    #         rots[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     omega_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("omega")]
+    #     omegas = np.zeros((xyz.shape[0], len(omega_names)))
+    #     for idx, attr_name in enumerate(omega_names):
+    #         omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     # ft_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_t")]
+    #     # ft_omegas = np.zeros((xyz.shape[0], len(ft_names)))
+    #     # for idx, attr_name in enumerate(ft_names):
+    #     #     ft_omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     # mask0 = xyz[:,0] > max_x.item()
+    #     mask1 = xyz[:, 1] > max_y.item()
+    #     # mask2 = xyz[:,2] > max_z.item()
+
+    #     # mask3 = xyz[:,0] < min_x.item()
+    #     mask4 = xyz[:, 1] < min_y.item()
+    #     # mask5 = xyz[:,2] < min_z.item()
+    #     mask = logical_or_list([mask1, mask4])
+    #     mask = np.logical_not(mask)
+
+    #     self._xyz = nn.Parameter(torch.tensor(xyz[mask], dtype=torch.float, device="cuda").requires_grad_(True))
+    #     self._features_dc = nn.Parameter(
+    #         torch.tensor(features_dc[mask], dtype=torch.float, device="cuda").requires_grad_(True)
+    #     )
+    #     # self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").requires_grad_(True))
+    #     self._opacity = nn.Parameter(
+    #         torch.tensor(opacities[mask], dtype=torch.float, device="cuda").requires_grad_(True)
+    #     )
+    #     self._scaling = nn.Parameter(torch.tensor(scales[mask], dtype=torch.float, device="cuda").requires_grad_(True))
+    #     self._rotation = nn.Parameter(torch.tensor(rots[mask], dtype=torch.float, device="cuda").requires_grad_(True))
+    #     self._trbf_center = nn.Parameter(
+    #         torch.tensor(trbf_center[mask], dtype=torch.float, device="cuda").requires_grad_(True)
+    #     )
+    #     self._trbf_scale = nn.Parameter(
+    #         torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda").requires_grad_(True)
+    #     )
+    #     self._motion = nn.Parameter(torch.tensor(motion[mask], dtype=torch.float, device="cuda").requires_grad_(True))
+    #     self._omega = nn.Parameter(torch.tensor(omegas[mask], dtype=torch.float, device="cuda").requires_grad_(True))
+
+    #     self.active_sh_degree = self.max_sh_degree
+
+    # def load_ply_and_min_max_all(self, path, max_x, max_y, max_z, min_x, min_y, min_z):
+    #     def logical_or_list(tensor_list):
+    #         mask = None
+    #         for idx, ele in enumerate(tensor_list):
+    #             if idx == 0:
+    #                 mask = ele
+    #             else:
+    #                 mask = np.logical_or(mask, ele)
+    #         return mask
+
+    #     ply_data = PlyData.read(path)
+    #     # ckpt = torch.load(path.replace(".ply", ".pt"))
+    #     # self.rgb_decoder.load_state_dict(ckpt)
+
+    #     xyz = np.stack(
+    #         (
+    #             np.asarray(ply_data.elements[0]["x"]),
+    #             np.asarray(ply_data.elements[0]["y"]),
+    #             np.asarray(ply_data.elements[0]["z"]),
+    #         ),
+    #         axis=1,
+    #     )
+    #     opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
+
+    #     trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
+    #     trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
+
+    #     # motion = np.asarray(ply_data.elements[0]["motion"])
+    #     motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
+    #     num_motion = 3
+    #     motion = np.zeros((xyz.shape[0], num_motion))
+    #     for i in range(num_motion):
+    #         motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
+
+    #     dc_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_dc")]
+    #     num_dc_features = len(dc_f_names)
+
+    #     features_dc = np.zeros((xyz.shape[0], num_dc_features))
+    #     for i in range(num_dc_features):
+    #         features_dc[:, i] = np.asarray(ply_data.elements[0]["f_dc_" + str(i)])
+
+    #     extra_f_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_rest_")]
+    #     # assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
+    #     features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
+    #     for idx, attr_name in enumerate(extra_f_names):
+    #         features_extra[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+    #     # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
+    #     features_extra = features_extra.reshape((features_extra.shape[0], -1))
+
+    #     scale_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("scale_")]
+    #     scales = np.zeros((xyz.shape[0], len(scale_names)))
+    #     for idx, attr_name in enumerate(scale_names):
+    #         scales[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     rot_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("rot")]
+    #     rots = np.zeros((xyz.shape[0], len(rot_names)))
+    #     for idx, attr_name in enumerate(rot_names):
+    #         rots[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     omega_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("omega")]
+    #     omegas = np.zeros((xyz.shape[0], len(omega_names)))
+    #     for idx, attr_name in enumerate(omega_names):
+    #         omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     # ft_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_t")]
+    #     # ft_omegas = np.zeros((xyz.shape[0], len(ft_names)))
+    #     # for idx, attr_name in enumerate(ft_names):
+    #     #     ft_omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+    #     mask0 = xyz[:, 0] > max_x.item()
+    #     mask1 = xyz[:, 1] > max_y.item()
+    #     mask2 = xyz[:, 2] > max_z.item()
+
+    #     mask3 = xyz[:, 0] < min_x.item()
+    #     mask4 = xyz[:, 1] < min_y.item()
+    #     mask5 = xyz[:, 2] < min_z.item()
+    #     mask = logical_or_list([mask0, mask1, mask2, mask3, mask4, mask5])
+    #     # mask = np.logical_not(mask)# now the reset point is within the boundray
+
+    #     unstable_points = np.sum(np.abs(motion[:, 0:3]), axis=1)
+    #     moving_points = unstable_points > 0.03
+    #     trbf_mask = trbf_scale < 3  # temporal unstable points
+
+    #     mask_st = np.logical_or(trbf_mask.squeeze(1), moving_points)
+
+    #     mask = np.logical_or(mask, mask_st)  # only use large t_scale points.
+    #     # replace points with input ?
+
+    #     mask = np.logical_not(mask)  # remaining good points. todo remove good mask's NN
+
+    #     xyz = torch.cat((self._xyz, torch.tensor(xyz[mask], dtype=torch.float, device="cuda")))
+
+    #     self._xyz = nn.Parameter(xyz.requires_grad_(True))
+
+    #     features_dc = torch.cat((self._features_dc, torch.tensor(features_dc[mask], dtype=torch.float, device="cuda")))
+    #     self._features_dc = nn.Parameter(features_dc.requires_grad_(True))
+
+    #     opacities = torch.cat((self._opacity, torch.tensor(opacities[mask], dtype=torch.float, device="cuda")))
+    #     self._opacity = nn.Parameter(opacities).requires_grad_(True)
+
+    #     scales = torch.cat((self._scaling, torch.tensor(scales[mask], dtype=torch.float, device="cuda")))
+
+    #     self._scaling = nn.Parameter(scales).requires_grad_(True)
+    #     rots = torch.cat((self._rotation, torch.tensor(rots[mask], dtype=torch.float, device="cuda")))
+
+    #     self._rotation = nn.Parameter(rots).requires_grad_(True)
+    #     trbf_center = torch.cat((self._trbf_center, torch.tensor(trbf_center[mask], dtype=torch.float, device="cuda")))
+    #     self._trbf_center = nn.Parameter(trbf_center).requires_grad_(True)
+    #     trbf_scale = torch.cat((self._trbf_scale, torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda")))
+
+    #     self._trbf_scale = nn.Parameter(trbf_scale.requires_grad_(True))
+
+    #     motion = torch.cat((self._motion, torch.tensor(motion[mask], dtype=torch.float, device="cuda")))
+
+    #     self._motion = nn.Parameter(motion.requires_grad_(True))
+    #     omegas = torch.cat((self._omega, torch.tensor(omegas[mask], dtype=torch.float, device="cuda")))
+    #     self._omega = nn.Parameter(omegas.requires_grad_(True))
+
+    #     self.active_sh_degree = self.max_sh_degree
 
     def load_ply(self, path):
         ply_data = PlyData.read(path)
@@ -1005,92 +1005,92 @@ class GaussianModel:
         self.denom = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
 
-    def densify_and_split_v2(self, grads, grad_threshold, scene_extent, N=2):
-        n_init_points = self.get_xyz.shape[0]
-        # Extract points that satisfy the gradient condition
-        padded_grad = torch.zeros((n_init_points), device="cuda")
-        padded_grad[: grads.shape[0]] = grads.squeeze()
-        selected_pts_mask = torch.where(padded_grad >= grad_threshold, True, False)
-        selected_pts_mask = torch.logical_and(
-            selected_pts_mask, torch.max(self.get_scaling, dim=1).values > self.percent_dense * scene_extent
-        )
-        # trbf_mask =  self.trbf_output > 0.8
-        # selected_pts_mask = torch.logical_and(selected_pts_mask, trbf_mask.squeeze(1))
-        stds = self.get_scaling[selected_pts_mask].repeat(N, 1)
-        means = torch.zeros((stds.size(0), 3), device="cuda")
-        samples = torch.normal(mean=means, std=stds)
-        rots = build_rotation(self._rotation[selected_pts_mask]).repeat(N, 1, 1)
-        new_xyz = torch.bmm(rots, samples.unsqueeze(-1)).squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1)
+    # def densify_and_split_v2(self, grads, grad_threshold, scene_extent, N=2):
+    #     n_init_points = self.get_xyz.shape[0]
+    #     # Extract points that satisfy the gradient condition
+    #     padded_grad = torch.zeros((n_init_points), device="cuda")
+    #     padded_grad[: grads.shape[0]] = grads.squeeze()
+    #     selected_pts_mask = torch.where(padded_grad >= grad_threshold, True, False)
+    #     selected_pts_mask = torch.logical_and(
+    #         selected_pts_mask, torch.max(self.get_scaling, dim=1).values > self.percent_dense * scene_extent
+    #     )
+    #     # trbf_mask =  self.trbf_output > 0.8
+    #     # selected_pts_mask = torch.logical_and(selected_pts_mask, trbf_mask.squeeze(1))
+    #     stds = self.get_scaling[selected_pts_mask].repeat(N, 1)
+    #     means = torch.zeros((stds.size(0), 3), device="cuda")
+    #     samples = torch.normal(mean=means, std=stds)
+    #     rots = build_rotation(self._rotation[selected_pts_mask]).repeat(N, 1, 1)
+    #     new_xyz = torch.bmm(rots, samples.unsqueeze(-1)).squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1)
 
-        new_scaling = self.scaling_inverse_activation(self.get_scaling[selected_pts_mask].repeat(N, 1) / (0.8 * N))
-        new_rotation = self._rotation[selected_pts_mask].repeat(N, 1)
-        new_features_dc = self._features_dc[selected_pts_mask].repeat(N, 1)  # n,1,1 to n1
-        # new_features_rest = self._features_rest[selected_pts_mask].repeat(N,1)
-        new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
-        new_trbf_center = self._trbf_center[selected_pts_mask].repeat(N, 1)
-        new_trbf_center = torch.rand_like(new_trbf_center)  # * 0.5
-        new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
-        new_motion = self._motion[selected_pts_mask].repeat(N, 1)
-        new_omega = self._omega[selected_pts_mask].repeat(N, 1)
+    #     new_scaling = self.scaling_inverse_activation(self.get_scaling[selected_pts_mask].repeat(N, 1) / (0.8 * N))
+    #     new_rotation = self._rotation[selected_pts_mask].repeat(N, 1)
+    #     new_features_dc = self._features_dc[selected_pts_mask].repeat(N, 1)  # n,1,1 to n1
+    #     # new_features_rest = self._features_rest[selected_pts_mask].repeat(N,1)
+    #     new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
+    #     new_trbf_center = self._trbf_center[selected_pts_mask].repeat(N, 1)
+    #     new_trbf_center = torch.rand_like(new_trbf_center)  # * 0.5
+    #     new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
+    #     new_motion = self._motion[selected_pts_mask].repeat(N, 1)
+    #     new_omega = self._omega[selected_pts_mask].repeat(N, 1)
 
-        self.densification_postfix(
-            new_xyz,
-            new_features_dc,
-            new_opacity,
-            new_scaling,
-            new_rotation,
-            new_trbf_center,
-            new_trbf_scale,
-            new_motion,
-            new_omega,
-        )
+    #     self.densification_postfix(
+    #         new_xyz,
+    #         new_features_dc,
+    #         new_opacity,
+    #         new_scaling,
+    #         new_rotation,
+    #         new_trbf_center,
+    #         new_trbf_scale,
+    #         new_motion,
+    #         new_omega,
+    #     )
 
-        prune_filter = torch.cat(
-            (selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool))
-        )
-        self.prune_points(prune_filter)
+    #     prune_filter = torch.cat(
+    #         (selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool))
+    #     )
+    #     self.prune_points(prune_filter)
 
-    def densify_and_split_im(self, grads, grad_threshold, scene_extent, N=2):
-        n_init_points = self.get_xyz.shape[0]
-        padded_grad = torch.zeros((n_init_points), device="cuda")
-        padded_grad[: grads.shape[0]] = grads.squeeze()
-        selected_pts_mask = torch.where(padded_grad >= grad_threshold, True, False)
-        selected_pts_mask = torch.logical_and(
-            selected_pts_mask, torch.max(self.get_scaling, dim=1).values > self.percent_dense * scene_extent
-        )
-        stds = self.get_scaling[selected_pts_mask].repeat(N, 1)
-        means = torch.zeros((stds.size(0), 3), device="cuda")
-        samples = torch.normal(mean=means, std=stds)
-        rots = build_rotation(self._rotation[selected_pts_mask]).repeat(N, 1, 1)
-        numpy_tmp = (
-            rots.cpu().numpy() @ samples.unsqueeze(-1).cpu().numpy()
-        )  # numpy better than cublas..., cublas use stochastic for bmm
-        new_xyz = torch.from_numpy(numpy_tmp).cuda().squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1)
-        new_scaling = self.scaling_inverse_activation(self.get_scaling[selected_pts_mask].repeat(N, 1) / (0.8 * N))
-        new_rotation = self._rotation[selected_pts_mask].repeat(N, 1)
-        new_features_dc = self._features_dc[selected_pts_mask].repeat(N, 1)  # n,1,1 to n1
-        new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
-        new_trbf_center = self._trbf_center[selected_pts_mask].repeat(N, 1)
-        new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
-        new_motion = self._motion[selected_pts_mask].repeat(N, 1)
-        new_omega = self._omega[selected_pts_mask].repeat(N, 1)
+    # def densify_and_split_im(self, grads, grad_threshold, scene_extent, N=2):
+    #     n_init_points = self.get_xyz.shape[0]
+    #     padded_grad = torch.zeros((n_init_points), device="cuda")
+    #     padded_grad[: grads.shape[0]] = grads.squeeze()
+    #     selected_pts_mask = torch.where(padded_grad >= grad_threshold, True, False)
+    #     selected_pts_mask = torch.logical_and(
+    #         selected_pts_mask, torch.max(self.get_scaling, dim=1).values > self.percent_dense * scene_extent
+    #     )
+    #     stds = self.get_scaling[selected_pts_mask].repeat(N, 1)
+    #     means = torch.zeros((stds.size(0), 3), device="cuda")
+    #     samples = torch.normal(mean=means, std=stds)
+    #     rots = build_rotation(self._rotation[selected_pts_mask]).repeat(N, 1, 1)
+    #     numpy_tmp = (
+    #         rots.cpu().numpy() @ samples.unsqueeze(-1).cpu().numpy()
+    #     )  # numpy better than cublas..., cublas use stochastic for bmm
+    #     new_xyz = torch.from_numpy(numpy_tmp).cuda().squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1)
+    #     new_scaling = self.scaling_inverse_activation(self.get_scaling[selected_pts_mask].repeat(N, 1) / (0.8 * N))
+    #     new_rotation = self._rotation[selected_pts_mask].repeat(N, 1)
+    #     new_features_dc = self._features_dc[selected_pts_mask].repeat(N, 1)  # n,1,1 to n1
+    #     new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
+    #     new_trbf_center = self._trbf_center[selected_pts_mask].repeat(N, 1)
+    #     new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
+    #     new_motion = self._motion[selected_pts_mask].repeat(N, 1)
+    #     new_omega = self._omega[selected_pts_mask].repeat(N, 1)
 
-        self.densification_postfix(
-            new_xyz,
-            new_features_dc,
-            new_opacity,
-            new_scaling,
-            new_rotation,
-            new_trbf_center,
-            new_trbf_scale,
-            new_motion,
-            new_omega,
-        )
+    #     self.densification_postfix(
+    #         new_xyz,
+    #         new_features_dc,
+    #         new_opacity,
+    #         new_scaling,
+    #         new_rotation,
+    #         new_trbf_center,
+    #         new_trbf_scale,
+    #         new_motion,
+    #         new_omega,
+    #     )
 
-        prune_filter = torch.cat(
-            (selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool))
-        )
-        self.prune_points(prune_filter)
+    #     prune_filter = torch.cat(
+    #         (selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool))
+    #     )
+    #     self.prune_points(prune_filter)
 
     def densify_and_split(self, grads, grad_threshold, scene_extent, N=2):
         n_init_points = self.get_xyz.shape[0]
@@ -1136,26 +1136,26 @@ class GaussianModel:
         )
         self.prune_points(prune_filter)
 
-    def densify_prune_clone_image_neral(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
-        # print("before", torch.amax(self.get_scaling))
-        grads = self.xyz_gradient_accum / self.denom
-        grads[grads.isnan()] = 0.0
+    # def densify_prune_clone_image_neral(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
+    #     # print("before", torch.amax(self.get_scaling))
+    #     grads = self.xyz_gradient_accum / self.denom
+    #     grads[grads.isnan()] = 0.0
 
-        print("before clone", self._xyz.shape[0])
-        self.densify_and_clone_im(grads, max_grad, extent)
-        print("after clone", self._xyz.shape[0])
+    #     print("before clone", self._xyz.shape[0])
+    #     self.densify_and_clone_im(grads, max_grad, extent)
+    #     print("after clone", self._xyz.shape[0])
 
-        self.densify_and_split(grads, max_grad, extent, 2)
-        print("after split", self._xyz.shape[0])
+    #     self.densify_and_split(grads, max_grad, extent, 2)
+    #     print("after split", self._xyz.shape[0])
 
-        prune_mask = (self.get_opacity < min_opacity).squeeze()
-        if max_screen_size:
-            big_points_vs = self.max_radii2D > max_screen_size
-            big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
+    #     prune_mask = (self.get_opacity < min_opacity).squeeze()
+    #     if max_screen_size:
+    #         big_points_vs = self.max_radii2D > max_screen_size
+    #         big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
 
-            prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+    #         prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
 
-        torch.cuda.empty_cache()
+    #     torch.cuda.empty_cache()
 
     def densify_and_clone(self, grads, grad_threshold, scene_extent):
         # Extract points that satisfy the gradient condition
@@ -1188,55 +1188,55 @@ class GaussianModel:
             new_omega,
         )
 
-    def densify_and_clone_im(self, grads, grad_threshold, scene_extent):
-        # Extract points that satisfy the gradient condition
-        selected_pts_mask = torch.where(torch.norm(grads, dim=-1) >= grad_threshold, True, False)
-        selected_pts_mask = torch.logical_and(
-            selected_pts_mask, torch.max(self.get_scaling, dim=1).values <= self.percent_dense * scene_extent
-        )
+    # def densify_and_clone_im(self, grads, grad_threshold, scene_extent):
+    #     # Extract points that satisfy the gradient condition
+    #     selected_pts_mask = torch.where(torch.norm(grads, dim=-1) >= grad_threshold, True, False)
+    #     selected_pts_mask = torch.logical_and(
+    #         selected_pts_mask, torch.max(self.get_scaling, dim=1).values <= self.percent_dense * scene_extent
+    #     )
 
-        new_xyz = self._xyz[selected_pts_mask]
-        new_features_dc = self._features_dc[selected_pts_mask]
-        new_opacities = self._opacity[selected_pts_mask]
-        new_scaling = self._scaling[selected_pts_mask]
-        new_rotation = self._rotation[selected_pts_mask]
+    #     new_xyz = self._xyz[selected_pts_mask]
+    #     new_features_dc = self._features_dc[selected_pts_mask]
+    #     new_opacities = self._opacity[selected_pts_mask]
+    #     new_scaling = self._scaling[selected_pts_mask]
+    #     new_rotation = self._rotation[selected_pts_mask]
 
-        new_trbf_center = self._trbf_center[selected_pts_mask]  #
-        new_trbf_scale = self._trbf_scale[selected_pts_mask]
-        new_motion = self._motion[selected_pts_mask]
-        new_omega = self._omega[selected_pts_mask]
-        self.densification_postfix(
-            new_xyz,
-            new_features_dc,
-            new_opacities,
-            new_scaling,
-            new_rotation,
-            new_trbf_center,
-            new_trbf_scale,
-            new_motion,
-            new_omega,
-        )
+    #     new_trbf_center = self._trbf_center[selected_pts_mask]  #
+    #     new_trbf_scale = self._trbf_scale[selected_pts_mask]
+    #     new_motion = self._motion[selected_pts_mask]
+    #     new_omega = self._omega[selected_pts_mask]
+    #     self.densification_postfix(
+    #         new_xyz,
+    #         new_features_dc,
+    #         new_opacities,
+    #         new_scaling,
+    #         new_rotation,
+    #         new_trbf_center,
+    #         new_trbf_scale,
+    #         new_motion,
+    #         new_omega,
+    #     )
 
-    def densify_prune_clone_im(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
-        # print("before", torch.amax(self.get_scaling))
-        grads = self.xyz_gradient_accum / self.denom
-        grads[grads.isnan()] = 0.0
+    # def densify_prune_clone_im(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
+    #     # print("before", torch.amax(self.get_scaling))
+    #     grads = self.xyz_gradient_accum / self.denom
+    #     grads[grads.isnan()] = 0.0
 
-        print("before clone", self._xyz.shape[0])
-        self.densify_and_clone_im(grads, max_grad, extent)
-        print("after clone", self._xyz.shape[0])
+    #     print("before clone", self._xyz.shape[0])
+    #     self.densify_and_clone_im(grads, max_grad, extent)
+    #     print("after clone", self._xyz.shape[0])
 
-        self.densify_and_split_im(grads, max_grad, extent, 2)
-        print("after split", self._xyz.shape[0])
+    #     self.densify_and_split_im(grads, max_grad, extent, 2)
+    #     print("after split", self._xyz.shape[0])
 
-        prune_mask = (self.get_opacity < min_opacity).squeeze()
-        if max_screen_size:
-            big_points_vs = self.max_radii2D > max_screen_size
-            big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
+    #     prune_mask = (self.get_opacity < min_opacity).squeeze()
+    #     if max_screen_size:
+    #         big_points_vs = self.max_radii2D > max_screen_size
+    #         big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
 
-            prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+    #         prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
 
-        torch.cuda.empty_cache()
+    #     torch.cuda.empty_cache()
 
     def densify_prune_clone(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
         # print("before", torch.amax(self.get_scaling))
@@ -1266,182 +1266,182 @@ class GaussianModel:
         )
         self.denom[update_filter] += 1
 
-    def add_gaussians(
-        self,
-        bad_uv_idx,
-        viewpoint_cam,
-        depth_map,
-        gt_image,
-        new_ray_step=3,
-        ray_end=2,
-        trbf_center=0.5,
-        depth_max=None,
-        shuffle=False,
-    ):
-        def pix2ndc(v, S):
-            return (v * 2.0 + 1.0) / S - 1.0
+    # def add_gaussians(
+    #     self,
+    #     bad_uv_idx,
+    #     viewpoint_cam,
+    #     depth_map,
+    #     gt_image,
+    #     new_ray_step=3,
+    #     ray_end=2,
+    #     trbf_center=0.5,
+    #     depth_max=None,
+    #     shuffle=False,
+    # ):
+    #     def pix2ndc(v, S):
+    #         return (v * 2.0 + 1.0) / S - 1.0
 
-        ray_list = torch.linspace(self.ray_start, ray_end, new_ray_step)  # 0.7 to ray_end
-        rgbs = gt_image[:, bad_uv_idx[:, 0], bad_uv_idx[:, 1]]
-        rgbs = rgbs.permute(1, 0)
-        # should we add the feature dc with non zero values?
-        feature_dc = rgbs  # torch.cat((rgbs, torch.zeros_like(rgbs)), dim=1)
+    #     ray_list = torch.linspace(self.ray_start, ray_end, new_ray_step)  # 0.7 to ray_end
+    #     rgbs = gt_image[:, bad_uv_idx[:, 0], bad_uv_idx[:, 1]]
+    #     rgbs = rgbs.permute(1, 0)
+    #     # should we add the feature dc with non zero values?
+    #     feature_dc = rgbs  # torch.cat((rgbs, torch.zeros_like(rgbs)), dim=1)
 
-        depths = depth_map[:, bad_uv_idx[:, 0], bad_uv_idx[:, 1]]
-        depths = depths.permute(1, 0)  # only use depth map > 15 .
+    #     depths = depth_map[:, bad_uv_idx[:, 0], bad_uv_idx[:, 1]]
+    #     depths = depths.permute(1, 0)  # only use depth map > 15 .
 
-        # max_depth = torch.amax(depths) # not use max depth, use the top 5% depths? avoid to much growing
-        depths = torch.ones_like(depths) * depth_max  # use the max local depth for the scene ?
+    #     # max_depth = torch.amax(depths) # not use max depth, use the top 5% depths? avoid to much growing
+    #     depths = torch.ones_like(depths) * depth_max  # use the max local depth for the scene ?
 
-        u = bad_uv_idx[:, 0]  # hight y
-        v = bad_uv_idx[:, 1]  # width  x
-        # v = viewpoint_cam.image_height - v
-        N_points = u.shape[0]
+    #     u = bad_uv_idx[:, 0]  # hight y
+    #     v = bad_uv_idx[:, 1]  # width  x
+    #     # v = viewpoint_cam.image_height - v
+    #     N_points = u.shape[0]
 
-        new_xyz = []
-        new_scaling = []
-        new_rotation = []
-        new_features_dc = []
-        new_opacity = []
-        new_trbf_center = []
-        new_trbf_scale = []
-        new_motion = []
-        new_omega = []
-        new_feature_t = []
+    #     new_xyz = []
+    #     new_scaling = []
+    #     new_rotation = []
+    #     new_features_dc = []
+    #     new_opacity = []
+    #     new_trbf_center = []
+    #     new_trbf_scale = []
+    #     new_motion = []
+    #     new_omega = []
+    #     new_feature_t = []
 
-        camera2wold = viewpoint_cam.world_view_transform.T.inverse()
-        project_inverse = viewpoint_cam.projection_matrix.T.inverse()
-        max_z, min_z = self.max_z, self.min_z
-        max_y, min_y = self.max_y, self.min_y
-        max_x, min_x = self.max_x, self.min_x
+    #     camera2wold = viewpoint_cam.world_view_transform.T.inverse()
+    #     project_inverse = viewpoint_cam.projection_matrix.T.inverse()
+    #     max_z, min_z = self.max_z, self.min_z
+    #     max_y, min_y = self.max_y, self.min_y
+    #     max_x, min_x = self.max_x, self.min_x
 
-        for z_scale in ray_list:
-            ndc_u, ndc_v = pix2ndc(u, viewpoint_cam.image_height), pix2ndc(v, viewpoint_cam.image_width)
-            # targetPz = depths*z_scale # depth in local cameras..
-            if shuffle == True:
-                random_depth = torch.rand_like(depths) - 0.5  # -0.5 to 0.5
-                targetPz = (depths + depths / 10 * (random_depth)) * z_scale
-            else:
-                targetPz = depths * z_scale  # depth in local cameras..
+    #     for z_scale in ray_list:
+    #         ndc_u, ndc_v = pix2ndc(u, viewpoint_cam.image_height), pix2ndc(v, viewpoint_cam.image_width)
+    #         # targetPz = depths*z_scale # depth in local cameras..
+    #         if shuffle == True:
+    #             random_depth = torch.rand_like(depths) - 0.5  # -0.5 to 0.5
+    #             targetPz = (depths + depths / 10 * (random_depth)) * z_scale
+    #         else:
+    #             targetPz = depths * z_scale  # depth in local cameras..
 
-            ndc_u = ndc_u.unsqueeze(1)
-            ndc_v = ndc_v.unsqueeze(1)
+    #         ndc_u = ndc_u.unsqueeze(1)
+    #         ndc_v = ndc_v.unsqueeze(1)
 
-            # N,4 ...
-            ndc_camera = torch.cat((ndc_v, ndc_u, torch.ones_like(ndc_u) * (1.0), torch.ones_like(ndc_u)), 1)
+    #         # N,4 ...
+    #         ndc_camera = torch.cat((ndc_v, ndc_u, torch.ones_like(ndc_u) * (1.0), torch.ones_like(ndc_u)), 1)
 
-            local_point_uv = ndc_camera @ project_inverse.T
+    #         local_point_uv = ndc_camera @ project_inverse.T
 
-            direction_in_local = local_point_uv / local_point_uv[:, 3:]  # ray direction in camera space
+    #         direction_in_local = local_point_uv / local_point_uv[:, 3:]  # ray direction in camera space
 
-            rate = targetPz / direction_in_local[:, 2:3]  #
+    #         rate = targetPz / direction_in_local[:, 2:3]  #
 
-            local_point = direction_in_local * rate
+    #         local_point = direction_in_local * rate
 
-            local_point[:, -1] = 1
+    #         local_point[:, -1] = 1
 
-            world_point_H = local_point @ camera2wold.T  # my_product4x4batch(local_point, camera2wold)
-            world_point = world_point_H / world_point_H[:, 3:]  #
+    #         world_point_H = local_point @ camera2wold.T  # my_product4x4batch(local_point, camera2wold)
+    #         world_point = world_point_H / world_point_H[:, 3:]  #
 
-            xyz = world_point[:, :3]
-            distance_to_camera_center = viewpoint_cam.camera_center - xyz
-            distance_to_camera_center = torch.norm(distance_to_camera_center, dim=1)
+    #         xyz = world_point[:, :3]
+    #         distance_to_camera_center = viewpoint_cam.camera_center - xyz
+    #         distance_to_camera_center = torch.norm(distance_to_camera_center, dim=1)
 
-            x_mask = torch.logical_and(xyz[:, 0] > min_x, xyz[:, 0] < max_x)
-            # y_mask = torch.logical_and(xyz[:, 1] > min_y, xyz[:, 1] < max_y )
-            # z_mask = torch.logical_and(xyz[:, 2] > min_z, xyz[:, 2] < max_z )
-            # selected_mask = torch.logical_and(x_mask,torch.logical_and(y_mask,z_mask))
-            selected_mask = torch.logical_or(x_mask, torch.logical_not(x_mask))  # torch.logical_and(x_mask, y_mask)
-            new_xyz.append(xyz[selected_mask])
-            # new_xyz.append(xyz)
+    #         x_mask = torch.logical_and(xyz[:, 0] > min_x, xyz[:, 0] < max_x)
+    #         # y_mask = torch.logical_and(xyz[:, 1] > min_y, xyz[:, 1] < max_y )
+    #         # z_mask = torch.logical_and(xyz[:, 2] > min_z, xyz[:, 2] < max_z )
+    #         # selected_mask = torch.logical_and(x_mask,torch.logical_and(y_mask,z_mask))
+    #         selected_mask = torch.logical_or(x_mask, torch.logical_not(x_mask))  # torch.logical_and(x_mask, y_mask)
+    #         new_xyz.append(xyz[selected_mask])
+    #         # new_xyz.append(xyz)
 
-            # new_scaling.append(new_scaling_mean.repeat(N_points,1))
-            # new_rotation.append(new_rotation_mean.repeat(N_points,1))
-            new_features_dc.append(feature_dc.cuda(0)[selected_mask])
-            # new_opacity.append(new_opacity_mean.repeat(N_points,1))
+    #         # new_scaling.append(new_scaling_mean.repeat(N_points,1))
+    #         # new_rotation.append(new_rotation_mean.repeat(N_points,1))
+    #         new_features_dc.append(feature_dc.cuda(0)[selected_mask])
+    #         # new_opacity.append(new_opacity_mean.repeat(N_points,1))
 
-            # new_trbf_center.append(torch.rand(1).cuda() * torch.ones((N_points, 1), device="cuda"))
-            select_num_points = torch.sum(selected_mask).item()
-            new_trbf_center.append(torch.rand((select_num_points, 1)).cuda())
+    #         # new_trbf_center.append(torch.rand(1).cuda() * torch.ones((N_points, 1), device="cuda"))
+    #         select_num_points = torch.sum(selected_mask).item()
+    #         new_trbf_center.append(torch.rand((select_num_points, 1)).cuda())
 
-            assert self.trbf_scale_init < 1
-            new_trbf_scale.append(self.trbf_scale_init * torch.ones((select_num_points, 1), device="cuda"))
-            new_motion.append(torch.zeros((select_num_points, 3), device="cuda"))
-            new_omega.append(torch.zeros((select_num_points, 4), device="cuda"))
-            new_feature_t.append(torch.zeros((select_num_points, 3), device="cuda"))
+    #         assert self.trbf_scale_init < 1
+    #         new_trbf_scale.append(self.trbf_scale_init * torch.ones((select_num_points, 1), device="cuda"))
+    #         new_motion.append(torch.zeros((select_num_points, 3), device="cuda"))
+    #         new_omega.append(torch.zeros((select_num_points, 4), device="cuda"))
+    #         new_feature_t.append(torch.zeros((select_num_points, 3), device="cuda"))
 
-        new_xyz = torch.cat(new_xyz, dim=0)
-        # new_scaling = torch.cat(new_scaling, dim=0)
-        # new_rotation = torch.cat(new_rotation, dim=0)
-        new_rotation = torch.zeros((new_xyz.shape[0], 4), device="cuda")
-        new_rotation[:, 1] = 0
+    #     new_xyz = torch.cat(new_xyz, dim=0)
+    #     # new_scaling = torch.cat(new_scaling, dim=0)
+    #     # new_rotation = torch.cat(new_rotation, dim=0)
+    #     new_rotation = torch.zeros((new_xyz.shape[0], 4), device="cuda")
+    #     new_rotation[:, 1] = 0
 
-        new_features_dc = torch.cat(new_features_dc, dim=0)
-        # new_opacity = torch.cat(new_opacity, dim=0)
-        new_opacity = inverse_sigmoid(0.1 * torch.ones_like(new_xyz[:, 0:1]))
-        new_trbf_center = torch.cat(new_trbf_center, dim=0)
-        new_trbf_scale = torch.cat(new_trbf_scale, dim=0)
-        new_motion = torch.cat(new_motion, dim=0)
-        new_omega = torch.cat(new_omega, dim=0)
-        new_feature_t = torch.cat(new_feature_t, dim=0)
+    #     new_features_dc = torch.cat(new_features_dc, dim=0)
+    #     # new_opacity = torch.cat(new_opacity, dim=0)
+    #     new_opacity = inverse_sigmoid(0.1 * torch.ones_like(new_xyz[:, 0:1]))
+    #     new_trbf_center = torch.cat(new_trbf_center, dim=0)
+    #     new_trbf_scale = torch.cat(new_trbf_scale, dim=0)
+    #     new_motion = torch.cat(new_motion, dim=0)
+    #     new_omega = torch.cat(new_omega, dim=0)
+    #     new_feature_t = torch.cat(new_feature_t, dim=0)
 
-        tmp_xyz = torch.cat((new_xyz, self._xyz), dim=0)
-        dist2 = torch.clamp_min(distCUDA2(tmp_xyz), 0.0000001)
-        dist2 = dist2[: new_xyz.shape[0]]
-        scales = torch.log(torch.sqrt(dist2))[..., None].repeat(1, 3)
-        scales = torch.clamp(scales, -10, 1.0)
-        new_scaling = scales
+    #     tmp_xyz = torch.cat((new_xyz, self._xyz), dim=0)
+    #     dist2 = torch.clamp_min(distCUDA2(tmp_xyz), 0.0000001)
+    #     dist2 = dist2[: new_xyz.shape[0]]
+    #     scales = torch.log(torch.sqrt(dist2))[..., None].repeat(1, 3)
+    #     scales = torch.clamp(scales, -10, 1.0)
+    #     new_scaling = scales
 
-        self.densification_postfix(
-            new_xyz,
-            new_features_dc,
-            new_opacity,
-            new_scaling,
-            new_rotation,
-            new_trbf_center,
-            new_trbf_scale,
-            new_motion,
-            new_omega,
-            new_feature_t,
-        )
-        return new_xyz.shape[0]
+    #     self.densification_postfix(
+    #         new_xyz,
+    #         new_features_dc,
+    #         new_opacity,
+    #         new_scaling,
+    #         new_rotation,
+    #         new_trbf_center,
+    #         new_trbf_scale,
+    #         new_motion,
+    #         new_omega,
+    #         new_feature_t,
+    #     )
+    #     return new_xyz.shape[0]
 
-    def prune_points_with_ems_mask(self, mask):
-        valid_points_mask = ~mask
-        optimizable_tensors = self._prune_optimizer(valid_points_mask)
+    # def prune_points_with_ems_mask(self, mask):
+    #     valid_points_mask = ~mask
+    #     optimizable_tensors = self._prune_optimizer(valid_points_mask)
 
-        self._xyz = optimizable_tensors["xyz"]
-        self._features_dc = optimizable_tensors["f_dc"]
-        # self._features_rest = optimizable_tensors["f_rest"]
-        self._opacity = optimizable_tensors["opacity"]
-        self._scaling = optimizable_tensors["scaling"]
-        self._rotation = optimizable_tensors["rotation"]
-        self._trbf_center = optimizable_tensors["trbf_center"]
-        self._trbf_scale = optimizable_tensors["trbf_scale"]
-        self._motion = optimizable_tensors["motion"]
-        self._omega = optimizable_tensors["omega"]
+    #     self._xyz = optimizable_tensors["xyz"]
+    #     self._features_dc = optimizable_tensors["f_dc"]
+    #     # self._features_rest = optimizable_tensors["f_rest"]
+    #     self._opacity = optimizable_tensors["opacity"]
+    #     self._scaling = optimizable_tensors["scaling"]
+    #     self._rotation = optimizable_tensors["rotation"]
+    #     self._trbf_center = optimizable_tensors["trbf_center"]
+    #     self._trbf_scale = optimizable_tensors["trbf_scale"]
+    #     self._motion = optimizable_tensors["motion"]
+    #     self._omega = optimizable_tensors["omega"]
 
-        self.xyz_gradient_accum = self.xyz_gradient_accum[valid_points_mask]
+    #     self.xyz_gradient_accum = self.xyz_gradient_accum[valid_points_mask]
 
-        self.denom = self.denom[valid_points_mask]
-        self.max_radii2D = self.max_radii2D[valid_points_mask]
+    #     self.denom = self.denom[valid_points_mask]
+    #     self.max_radii2D = self.max_radii2D[valid_points_mask]
 
-        self.mask_for_ems = self.mask_for_ems[valid_points_mask]  # we only remain valid mask from ems
+    #     self.mask_for_ems = self.mask_for_ems[valid_points_mask]  # we only remain valid mask from ems
 
-    def reduce_points_op_scale_by_mask(self, selected_pts_mask):
-        # restrict original one
-        mean_value = torch.min(self.get_opacity)
-        opacities_new = inverse_sigmoid(
-            torch.min(
-                torch.ones_like(self.get_opacity[selected_pts_mask]) * mean_value,
-                torch.ones_like(self.get_opacity[selected_pts_mask]) * 0.004,
-            )
-        )
-        opacity_old = self._opacity.clone()
-        opacity_old[selected_pts_mask] = opacities_new
+    # def reduce_points_op_scale_by_mask(self, selected_pts_mask):
+    #     # restrict original one
+    #     mean_value = torch.min(self.get_opacity)
+    #     opacities_new = inverse_sigmoid(
+    #         torch.min(
+    #             torch.ones_like(self.get_opacity[selected_pts_mask]) * mean_value,
+    #             torch.ones_like(self.get_opacity[selected_pts_mask]) * 0.004,
+    #         )
+    #     )
+    #     opacity_old = self._opacity.clone()
+    #     opacity_old[selected_pts_mask] = opacities_new
 
-        optimizable_tensors = self.replace_tensor_to_optimizer(opacity_old, "opacity")
-        self._opacity = optimizable_tensors["opacity"]
+    #     optimizable_tensors = self.replace_tensor_to_optimizer(opacity_old, "opacity")
+    #     self._opacity = optimizable_tensors["opacity"]
 
     def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, **kwargs):
         ## raw method from 3dgs debugging hyfluid

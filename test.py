@@ -192,6 +192,12 @@ def render_set(
             means3D_no_t_path = os.path.join(quantities_out_path, f"means3D_no_t_{cur_view_time_idx:05d}.npy")
             np.save(means3D_no_t_path, means3D_no_t)
 
+            if "means3D_timed" in rendering_pkg:
+                means3D_timed = rendering_pkg["means3D_timed"]
+                means3D_timed = means3D_timed.detach().cpu().numpy()
+                means3D_timed_path = os.path.join(quantities_out_path, f"means3D_timed_{cur_view_time_idx:05d}.npy")
+                np.save(means3D_timed_path, means3D_timed)
+
             means3D = rendering_pkg["means3D"]
             means3D = means3D.detach().cpu().numpy()
             means3D_path = os.path.join(quantities_out_path, f"means3D_{cur_view_time_idx:05d}.npy")
@@ -207,10 +213,22 @@ def render_set(
             velocities3D_path = os.path.join(quantities_out_path, f"velocities3D_{cur_view_time_idx:05d}.npy")
             np.save(velocities3D_path, velocities3D)
 
+            if "velocities3D_timed" in rendering_pkg:
+                velocities3D_timed = rendering_pkg["velocities3D_timed"]
+                velocities3D_timed = velocities3D_timed.detach().cpu().numpy()
+                velocities3D_timed_path = os.path.join(quantities_out_path, f"velocities3D_timed_{cur_view_time_idx:05d}.npy")
+                np.save(velocities3D_timed_path, velocities3D_timed)
+
             opacity = rendering_pkg["opacity"]
             opacity = opacity.detach().cpu().numpy()
             opacity_path = os.path.join(quantities_out_path, f"opacity_{cur_view_time_idx:05d}.npy")
             np.save(opacity_path, opacity)
+
+            if "opacity_timed" in rendering_pkg:
+                opacity_timed = rendering_pkg["opacity_timed"]
+                opacity_timed = opacity_timed.detach().cpu().numpy()
+                opacity_timed_path = os.path.join(quantities_out_path, f"opacity_timed_{cur_view_time_idx:05d}.npy")
+                np.save(opacity_timed_path, opacity_timed)
 
             visibility_filter = rendering_pkg["visibility_filter"]
             visibility_filter = visibility_filter.detach().cpu().numpy()

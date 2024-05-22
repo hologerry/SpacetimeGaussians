@@ -5,6 +5,7 @@
   "feature_lr": 0.0,
   "preprocess_points": 0,
   "source_init": false,
+  "init_region_type": "small",
   "img_offset": true,
   "new_pts": 1000,
   "iterations": 3000,

@@ -1302,148 +1302,146 @@ def read_cameras_from_transforms_hyfluid(
     with open(os.path.join(path, transforms_file)) as json_file:
         contents = json.load(json_file)
 
-        near = float(contents["near"])
-        far = float(contents["far"])
+    near = float(contents["near"])
+    far = float(contents["far"])
 
-        voxel_scale = np.array(contents["voxel_scale"])
-        voxel_scale = np.broadcast_to(voxel_scale, [3])
+    voxel_scale = np.array(contents["voxel_scale"])
+    voxel_scale = np.broadcast_to(voxel_scale, [3])
 
-        voxel_matrix = np.array(contents["voxel_matrix"])
-        voxel_matrix = np.stack(
-            [voxel_matrix[:, 2], voxel_matrix[:, 1], voxel_matrix[:, 0], voxel_matrix[:, 3]], axis=1
-        )
-        voxel_matrix_inv = np.linalg.inv(voxel_matrix)
-        bbox_model = BBoxTool(voxel_matrix_inv, voxel_scale)
+    voxel_matrix = np.array(contents["voxel_matrix"])
+    voxel_matrix = np.stack([voxel_matrix[:, 2], voxel_matrix[:, 1], voxel_matrix[:, 0], voxel_matrix[:, 3]], axis=1)
+    voxel_matrix_inv = np.linalg.inv(voxel_matrix)
+    bbox_model = BBoxTool(voxel_matrix_inv, voxel_scale)
 
-        # voxel_R = -np.transpose(voxel_matrix[:3, :3])
-        # voxel_R[:, 0] = -voxel_R[:, 0]
-        # voxel_T = -voxel_matrix[:3, 3]
+    # voxel_R = -np.transpose(voxel_matrix[:3, :3])
+    # voxel_R[:, 0] = -voxel_R[:, 0]
+    # voxel_T = -voxel_matrix[:3, 3]
 
-        frames = contents["frames"]
-        camera_uid = 0
-        for idx, frame in tqdm(enumerate(frames), desc="Reading views", total=len(frames), leave=False):  # camera idx
+    frames = contents["frames"]
+    camera_uid = 0
+    for idx, frame in tqdm(enumerate(frames), desc="Reading views", total=len(frames), leave=False):  # camera idx
 
-            # NeRF 'transform_matrix' is a camera-to-world transform
-            c2w = np.array(frame["transform_matrix"])
-            # change from OpenGL/Blender camera axes (Y up, Z back) to COLMAP (Y down, Z forward)
-            c2w[:3, 1:3] *= -1
+        # NeRF 'transform_matrix' is a camera-to-world transform
+        c2w = np.array(frame["transform_matrix"])
+        # change from OpenGL/Blender camera axes (Y up, Z back) to COLMAP (Y down, Z forward)
+        c2w[:3, 1:3] *= -1
 
-            # get the world-to-camera transform and set R, T
-            w2c = np.linalg.inv(c2w)
-            R = np.transpose(w2c[:3, :3])  # R is stored transposed due to 'glm' in CUDA code
-            T = w2c[:3, 3]
+        # get the world-to-camera transform and set R, T
+        w2c = np.linalg.inv(c2w)
+        R = np.transpose(w2c[:3, :3])  # R is stored transposed due to 'glm' in CUDA code
+        T = w2c[:3, 3]
 
-            camera_hw = frame["camera_hw"]
-            h, w = camera_hw
-            fov_x = frame["camera_angle_x"]
-            focal_length = fov2focal(fov_x, w)
-            fov_y = focal2fov(focal_length, h)
-            FovY = fov_y
-            FovX = fov_x
-            cam_name = frame["file_path"][-1:]  # train0x -> x used to determine with train_views
-            # print(f"frame {frame['file_path']} focal_length {focal_length} FovX {FovX} FovY {FovY}")
-            for time_idx in trange(start_time, start_time + duration, time_step, desc=f"cam0{cam_name}"):
+        camera_hw = frame["camera_hw"]
+        h, w = camera_hw
+        fov_x = frame["camera_angle_x"]
+        focal_length = fov2focal(fov_x, w)
+        fov_y = focal2fov(focal_length, h)
+        FovY = fov_y
+        FovX = fov_x
+        cam_name = frame["file_path"][-1:]  # train0x -> x used to determine with train_views
+        # print(f"frame {frame['file_path']} focal_length {focal_length} FovX {FovX} FovY {FovY}")
+        for time_idx in trange(start_time, start_time + duration, time_step, desc=f"cam0{cam_name}"):
 
-                frame_name = os.path.join("colmap_frames", f"colmap_{time_idx}", frame["file_path"] + extension)
-                # used to determine the loss type
-                is_fake_view = False
-                real_frame_name = frame_name
+            frame_name = os.path.join("colmap_frames", f"colmap_{time_idx}", frame["file_path"] + extension)
+            # used to determine the loss type
+            is_fake_view = False
+            real_frame_name = frame_name
 
-                if train_views_fake is not None and cam_name in train_views_fake:
-                    # print(f"FAKE VIEW: time_idx: {time_idx}, cam_name: {cam_name}, train_views_fake: {train_views_fake}")
-                    is_fake_view = True
-                    if use_best_fake:
-                        frame_name = os.path.join(
-                            f"zero123_finetune_15000_best_cam0{cam_name}_1920h_1080w", f"frame_{time_idx:06d}.png"
-                        )
-                    else:
-                        source_cam = train_views[:1]
-                        frame_name = os.path.join(
-                            f"zero123_finetune_15000_cam{source_cam}to{cam_name}_1920h_1080w",
-                            f"frame_{time_idx:06d}.png",
-                        )
-
-                timestamp = (time_idx - start_time) / duration
-
-                image_path = os.path.join(path, frame_name)
-                real_image_path = os.path.join(path, real_frame_name)
-                # the image_name is used to index the camera so we all use the real name
-                image_name = frame["file_path"].split("/")[-1]  # os.path.basename(image_path).split(".")[0]
-                # image = Image.open(image_path)
-                # real_image = Image.open(real_image_path)
-
-                # im_data = np.array(image.convert("RGBA"))
-                # real_im_data = np.array(real_image.convert("RGBA"))
-
-                # bg = np.array([1, 1, 1]) if white_background else np.array([0, 0, 0])
-
-                # norm_data = im_data / 255.0
-                # arr = norm_data[:, :, :3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
-                # image = Image.fromarray(np.array(arr * 255.0, dtype=np.byte), "RGB")
-
-                # real_norm_data = real_im_data
-                # real_arr = real_norm_data[:, :, :3] * real_norm_data[:, :, 3:4] + bg * (1 - real_norm_data[:, :, 3:4])
-                # real_image = Image.fromarray(np.array(real_arr * 255.0, dtype=np.byte), "RGB")
-
-                image = cv2.imread(image_path, cv2.IMREAD_COLOR)
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-                real_image = cv2.imread(real_image_path, cv2.IMREAD_COLOR)
-                real_image = cv2.cvtColor(real_image, cv2.COLOR_BGR2RGB)
-
-                if img_offset:
-                    if cam_name == "0":
-                        image = shift_image(image, -12, 18)
-                        real_image = shift_image(real_image, -12, 18)
-                    if cam_name == "1":
-                        image = shift_image(image, 52, 18)
-                        real_image = shift_image(real_image, 52, 18)
-                    if cam_name == "3":
-                        image = shift_image(image, 11, -12)
-                        real_image = shift_image(real_image, 11, -12)
-                    if cam_name == "4":
-                        image = shift_image(image, 11, -18)
-                        real_image = shift_image(real_image, 11, -18)
-
-                image = Image.fromarray(image)
-                real_image = Image.fromarray(real_image)
-
-                if grey_image:
-                    image = image.convert("L")
-                    real_image = real_image.convert("L")
-
-                pose = 1 if time_idx == start_time else None
-                hp_directions = 1 if time_idx == start_time else None
-
-                uid = camera_uid  # idx * duration//time_step + time_idx
-                camera_uid += 1
-
-                # print(f"frame_name {frame_name} timestamp {timestamp} camera uid {uid}")
-
-                cam_infos.append(
-                    CameraInfo(
-                        uid=uid,
-                        R=R,
-                        T=T,
-                        FovY=FovY,
-                        FovX=FovX,
-                        image=image,
-                        real_image=real_image,
-                        image_path=image_path,
-                        image_name=image_name,
-                        width=image.size[0],
-                        height=image.size[1],
-                        time_idx=time_idx,
-                        timestamp=timestamp,
-                        near=near,
-                        far=far,
-                        pose=pose,
-                        hp_directions=hp_directions,
-                        cxr=0.0,
-                        cyr=0.0,
-                        is_fake_view=is_fake_view,
+            if train_views_fake is not None and cam_name in train_views_fake:
+                # print(f"FAKE VIEW: time_idx: {time_idx}, cam_name: {cam_name}, train_views_fake: {train_views_fake}")
+                is_fake_view = True
+                if use_best_fake:
+                    frame_name = os.path.join(
+                        f"zero123_finetune_15000_best_cam0{cam_name}_1920h_1080w", f"frame_{time_idx:06d}.png"
                     )
+                else:
+                    source_cam = train_views[:1]
+                    frame_name = os.path.join(
+                        f"zero123_finetune_15000_cam{source_cam}to{cam_name}_1920h_1080w",
+                        f"frame_{time_idx:06d}.png",
+                    )
+
+            timestamp = (time_idx - start_time) / duration
+
+            image_path = os.path.join(path, frame_name)
+            real_image_path = os.path.join(path, real_frame_name)
+            # the image_name is used to index the camera so we all use the real name
+            image_name = frame["file_path"].split("/")[-1]  # os.path.basename(image_path).split(".")[0]
+            # image = Image.open(image_path)
+            # real_image = Image.open(real_image_path)
+
+            # im_data = np.array(image.convert("RGBA"))
+            # real_im_data = np.array(real_image.convert("RGBA"))
+
+            # bg = np.array([1, 1, 1]) if white_background else np.array([0, 0, 0])
+
+            # norm_data = im_data / 255.0
+            # arr = norm_data[:, :, :3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
+            # image = Image.fromarray(np.array(arr * 255.0, dtype=np.byte), "RGB")
+
+            # real_norm_data = real_im_data
+            # real_arr = real_norm_data[:, :, :3] * real_norm_data[:, :, 3:4] + bg * (1 - real_norm_data[:, :, 3:4])
+            # real_image = Image.fromarray(np.array(real_arr * 255.0, dtype=np.byte), "RGB")
+
+            image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+            real_image = cv2.imread(real_image_path, cv2.IMREAD_COLOR)
+            real_image = cv2.cvtColor(real_image, cv2.COLOR_BGR2RGB)
+
+            if img_offset:
+                if cam_name == "0":
+                    image = shift_image(image, -12, 18)
+                    real_image = shift_image(real_image, -12, 18)
+                if cam_name == "1":
+                    image = shift_image(image, 52, 18)
+                    real_image = shift_image(real_image, 52, 18)
+                if cam_name == "3":
+                    image = shift_image(image, 11, -12)
+                    real_image = shift_image(real_image, 11, -12)
+                if cam_name == "4":
+                    image = shift_image(image, 11, -18)
+                    real_image = shift_image(real_image, 11, -18)
+
+            image = Image.fromarray(image)
+            real_image = Image.fromarray(real_image)
+
+            if grey_image:
+                image = image.convert("L")
+                real_image = real_image.convert("L")
+
+            pose = 1 if time_idx == start_time else None
+            hp_directions = 1 if time_idx == start_time else None
+
+            uid = camera_uid  # idx * duration//time_step + time_idx
+            camera_uid += 1
+
+            # print(f"frame_name {frame_name} timestamp {timestamp} camera uid {uid}")
+
+            cam_infos.append(
+                CameraInfo(
+                    uid=uid,
+                    R=R,
+                    T=T,
+                    FovY=FovY,
+                    FovX=FovX,
+                    image=image,
+                    real_image=real_image,
+                    image_path=image_path,
+                    image_name=image_name,
+                    width=image.size[0],
+                    height=image.size[1],
+                    time_idx=time_idx,
+                    timestamp=timestamp,
+                    near=near,
+                    far=far,
+                    pose=pose,
+                    hp_directions=hp_directions,
+                    cxr=0.0,
+                    cyr=0.0,
+                    is_fake_view=is_fake_view,
                 )
+            )
 
     return cam_infos, bbox_model
 
@@ -1463,6 +1461,7 @@ def read_nerf_synthetic_info_hyfluid(
     test_all_views=False,
     source_init=False,
     img_offset=False,
+    init_region_type="large",
     **kwargs,
 ):
     print("Reading Training Transforms...")
@@ -1511,36 +1510,39 @@ def read_nerf_synthetic_info_hyfluid(
     if os.path.exists(total_ply_path):
         os.remove(total_ply_path)
 
-    # Since this data set has no colmap data, we start with random points
-    total_pts = 100_000
-    num_pts = total_pts // (duration // time_step)
-
-    # # We create random points inside the bounds of the synthetic Blender scenes
-    # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
-    # shs = np.random.random((num_pts, 3)) / 255.0
-    # pcd = BasicPointCloud(points=xyz, colors=sh2rgb(shs), normals=np.zeros((num_pts, 3)))
-
-    # store_ply(ply_path, xyz, sh2rgb(shs) * 255)
-
     total_xyz = []
     total_rgb = []
     total_time = []
     img_channel = 1 if grey_image else 3
 
-    # radius = 0.18  # default value 0.18  source region 0.026
-    # x_mid = 0.34  # default value 0.34 source region 0.34
-    # y_min = -0.01  # default value -0.01  source region -0.01
-    # y_max = 0.7  # default value 0.7  source region 0.05
-    # z_mid = -0.225  # default value -0.225  source region -0.225
+    if init_region_type == "large":
+        radius_max = 0.18  # default value 0.18  source region 0.026
+        x_mid = 0.34  # default value 0.34 source region 0.34
+        y_min = -0.01  # default value -0.01  source region -0.01
+        y_max = 0.7  # default value 0.7  source region 0.05
+        z_mid = -0.225  # default value -0.225  source region -0.225
 
-    radius = 0.026  # default value 0.18  source region 0.026
-    x_mid = 0.34  # default value 0.34 source region 0.34
-    y_min = -0.01  # default value -0.01  source region -0.01
-    y_max = 0.03  # default value 0.7  source region 0.05
-    z_mid = -0.225  # default value -0.225  source region -0.225
+    elif init_region_type == "small":
+        radius_max = 0.026  # default value 0.18  source region 0.026
+        x_mid = 0.34  # default value 0.34 source region 0.34
+        y_min = -0.01  # default value -0.01  source region -0.01
+        y_max = 0.03  # default value 0.7  source region 0.05
+        z_mid = -0.225  # default value -0.225  source region -0.225
+
+    elif init_region_type == "adaptive":
+        radius_max_range = [0.026, 0.18]
+        x_mid = 0.34
+        z_mid = -0.225
+        y_min = -0.01
+        y_max_range = [0.03, 0.7]
+
+    else:
+        raise ValueError(f"Unknown init_region_type: {init_region_type}")
 
     if source_init:
         num_pts = 2000
+        print(f"Init {num_pts} points with {init_region_type} region type with source_init mode.")
+        assert init_region_type in ["small", "large"], f"In source_init mode, init_region_type must be small or large."
         print(f"Generating source_init random point cloud ({num_pts})...")
         y = np.random.uniform(y_min, y_max, (num_pts, 1))  # [-0.05, 0.15] [-0.05, 0.7]
 
@@ -1560,23 +1562,16 @@ def read_nerf_synthetic_info_hyfluid(
         time = np.zeros((xyz.shape[0], 1))
 
     else:
-        print(f"Generating random point cloud ({num_pts}/{num_pts*(duration // time_step)})...")
+        num_pts = 3000
+        print(f"Init {num_pts} points per time with {init_region_type} region type with time-based mode.")
         for i in range(start_time, start_time + duration, time_step):
-            ## gaussian default random initialized points
-            # xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
+            if init_region_type == "adaptive":
+                y_max = y_max_range[0] + (y_max_range[1] - y_max_range[0]) * (i - start_time) / duration
+                radius_max = radius_max_range[0] + (radius_max_range[1] - radius_max_range[0]) * (i - start_time) / duration
 
-            ## hyfluid bbox range initialized points
-            # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
-            # y = np.random.random((num_pts, 1)) * 0.75 - 0.05  # [-0.05, 0.7]
-            # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
-            # xyz = np.concatenate((x, y, z), axis=1)
+            y = np.random.uniform(y_min, y_max, (num_pts, 1))
 
-            # x = np.random.random((num_pts, 1)) * 0.35 + 0.15  # [0.15, 0.5]
-            y = np.random.uniform(y_min, y_max, (num_pts, 1))  # [-0.05, 0.15] [-0.05, 0.7]
-
-            # z = -np.random.random((num_pts, 1)) * 0.5 - 0.08  # [-0.08, -0.42]
-
-            radius = np.random.random((num_pts, 1)) * radius  # * 0.03 # 0.18
+            radius = np.random.random((num_pts, 1)) * radius_max
             theta = np.random.random((num_pts, 1)) * 2 * np.pi
             x = radius * np.cos(theta) + x_mid
             z = radius * np.sin(theta) + z_mid
@@ -1587,9 +1582,11 @@ def read_nerf_synthetic_info_hyfluid(
 
             xyz = np.concatenate((x, y, z), axis=1)
 
-            shs = np.random.random((num_pts, img_channel)) / 255.0
+            # shs = np.random.random((num_pts, img_channel)) / 255.0
             # rgb = np.random.random((num_pts, 3)) * 255.0
-            rgb = sh2rgb(shs) * 255
+            # rgb = sh2rgb(shs) * 255
+            # 0.6 does not matter, the init value in Gaussian Model is used
+            rgb = np.ones((num_pts, img_channel)) * 0.6 * 255.0
 
             total_xyz.append(xyz)
             # rgb is not used for fixed color

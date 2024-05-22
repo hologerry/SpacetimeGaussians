@@ -5,6 +5,7 @@
   "feature_lr": 0.0,
   "preprocess_points": 0,
   "source_init": true,
+  "init_region_type": "small",
   "new_pts": 1000,
   "iterations": 500,
   "cur_time_only_iterations": 200,

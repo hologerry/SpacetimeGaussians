@@ -36,9 +36,6 @@ from thirdparty.gaussian_splatting.utils.graphics_utils import BasicPointCloud
 from thirdparty.gaussian_splatting.utils.system_utils import mkdir_p
 
 
-def step_function(delta_t):
-    return (delta_t >= 0).float()
-
 
 class GaussianModel:
 
@@ -48,6 +45,9 @@ class GaussianModel:
             actual_covariance = L @ L.transpose(1, 2)
             symm = strip_symmetric(actual_covariance)
             return symm
+
+        def step_function(delta_t):
+            return (delta_t >= 0).float()
 
         self.scaling_activation = torch.exp
         self.scaling_inverse_activation = torch.log
@@ -423,7 +423,7 @@ class GaussianModel:
         trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
         trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
 
-        point_timestamp = np.asarray(ply_data.elements[0]["point_timestamps"])[..., np.newaxis]
+        point_timestamp = np.asarray(ply_data.elements[0]["point_timestamp"])[..., np.newaxis]
 
         # motion = np.asarray(ply_data.elements[0]["motion"])
         motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]

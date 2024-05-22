@@ -350,26 +350,26 @@ def train(
             gaussians.cache_gradient()
             gaussians.optimizer.zero_grad(set_to_none=True)
 
-        if flag_ems == 1 and len(loss_dict.keys()) == len(viewpoint_set):
-            # sort dict by value
-            # ssim_dict loss_dict
-            ordered_loss_dict = sorted(ssim_dict.items(), key=lambda item: item[1], reverse=False)
-            flag_ems = 2
-            select_views_list = []
-            select_views = {}
-            for idx, pair in enumerate(ordered_loss_dict):
-                viewname, loss_score = pair
-                ssim_score = ssim_dict[viewname]
-                if ssim_score < 0.91:  # avoid large ssim
-                    select_views_list.append((viewname, "rk" + str(idx) + "_ssim" + str(ssim_score)[0:4]))
-            if len(select_views_list) < 2:
-                select_views = []
-            else:
-                select_views_list = select_views_list[:2]
-                for v in select_views_list:
-                    select_views[v[0]] = v[1]
+        # if flag_ems == 1 and len(loss_dict.keys()) == len(viewpoint_set):
+        #     # sort dict by value
+        #     # ssim_dict loss_dict
+        #     ordered_loss_dict = sorted(ssim_dict.items(), key=lambda item: item[1], reverse=False)
+        #     flag_ems = 2
+        #     select_views_list = []
+        #     select_views = {}
+        #     for idx, pair in enumerate(ordered_loss_dict):
+        #         viewname, loss_score = pair
+        #         ssim_score = ssim_dict[viewname]
+        #         if ssim_score < 0.91:  # avoid large ssim
+        #             select_views_list.append((viewname, "rk" + str(idx) + "_ssim" + str(ssim_score)[0:4]))
+        #     if len(select_views_list) < 2:
+        #         select_views = []
+        #     else:
+        #         select_views_list = select_views_list[:2]
+        #         for v in select_views_list:
+        #             select_views[v[0]] = v[1]
 
-            selected_length = len(select_views)
+        #     selected_length = len(select_views)
 
         iter_end.record()
         gaussians.set_batch_gradient(optim_args.batch)
@@ -408,13 +408,6 @@ def train(
             )
 
             # Densification and pruning here
-
-            if iteration < optim_args.densify_until_iter:
-                gaussians.max_radii2D[visibility_filter] = torch.max(
-                    gaussians.max_radii2D[visibility_filter], radii[visibility_filter]
-                )
-                gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
-
             flag = control_gaussians(
                 optim_args,
                 gaussians,
@@ -431,169 +424,169 @@ def train(
                 white_background=model_args.white_background,
             )
 
-            # guided sampling step
-            if (
-                iteration > ems_start_from_iterations
-                and flag_ems == 2
-                and ems_cnt < selected_length
-                and viewpoint_cam.image_name in select_views
-                and (iteration - laster_ems > 100)
-            ):
-                # ["camera_0002"] :#select_views :  #["camera_0002"]:
-                select_views.pop(viewpoint_cam.image_name)  # remove sampled cameras
-                ems_cnt += 1
-                laster_ems = iteration
-                ssim_current = ssim(image.detach(), gt_image.detach()).item()
-                scene.record_points(iteration, "ssim_" + str(ssim_current))
-                # some scenes' structure is already good, no need to add more points
-                if ssim_current < 0.88:
-                    image_adjust = image / (torch.mean(image) + 0.01)  #
-                    gt_adjust = gt_image / (torch.mean(gt_image) + 0.01)
-                    diff = torch.abs(image_adjust - gt_adjust)
-                    diff = torch.sum(diff, dim=0)  # h, w
-                    diff_sorted, _ = torch.sort(diff.reshape(-1))
-                    num_pixels = diff.shape[0] * diff.shape[1]
-                    threshold = diff_sorted[int(num_pixels * optim_args.ems_threshold)].item()
-                    out_mask = diff > threshold  #
-                    kh, kw = 16, 16  # kernel size
-                    dh, dw = 16, 16  # stride
-                    # compute padding
-                    ideal_h, ideal_w = (
-                        int(image.shape[1] / dh + 1) * kw,
-                        int(image.shape[2] / dw + 1) * kw,
-                    )
+            # # guided sampling step
+            # if (
+            #     iteration > ems_start_from_iterations
+            #     and flag_ems == 2
+            #     and ems_cnt < selected_length
+            #     and viewpoint_cam.image_name in select_views
+            #     and (iteration - laster_ems > 100)
+            # ):
+            #     # ["camera_0002"] :#select_views :  #["camera_0002"]:
+            #     select_views.pop(viewpoint_cam.image_name)  # remove sampled cameras
+            #     ems_cnt += 1
+            #     laster_ems = iteration
+            #     ssim_current = ssim(image.detach(), gt_image.detach()).item()
+            #     scene.record_points(iteration, "ssim_" + str(ssim_current))
+            #     # some scenes' structure is already good, no need to add more points
+            #     if ssim_current < 0.88:
+            #         image_adjust = image / (torch.mean(image) + 0.01)  #
+            #         gt_adjust = gt_image / (torch.mean(gt_image) + 0.01)
+            #         diff = torch.abs(image_adjust - gt_adjust)
+            #         diff = torch.sum(diff, dim=0)  # h, w
+            #         diff_sorted, _ = torch.sort(diff.reshape(-1))
+            #         num_pixels = diff.shape[0] * diff.shape[1]
+            #         threshold = diff_sorted[int(num_pixels * optim_args.ems_threshold)].item()
+            #         out_mask = diff > threshold  #
+            #         kh, kw = 16, 16  # kernel size
+            #         dh, dw = 16, 16  # stride
+            #         # compute padding
+            #         ideal_h, ideal_w = (
+            #             int(image.shape[1] / dh + 1) * kw,
+            #             int(image.shape[2] / dw + 1) * kw,
+            #         )
 
-                    out_mask = torch.nn.functional.pad(
-                        out_mask,
-                        (0, ideal_w - out_mask.shape[1], 0, ideal_h - out_mask.shape[0]),
-                        mode="constant",
-                        value=0,
-                    )
-                    patches = out_mask.unfold(0, kh, dh).unfold(1, kw, dw)
-                    dummy_patch = torch.ones_like(patches)
-                    patches_sum = patches.sum(dim=(2, 3))
-                    patches_mask = patches_sum > kh * kh * 0.85
-                    patches_mask = patches_mask.unsqueeze(2).unsqueeze(3).repeat(1, 1, kh, kh).float()
-                    patches = dummy_patch * patches_mask
+            #         out_mask = torch.nn.functional.pad(
+            #             out_mask,
+            #             (0, ideal_w - out_mask.shape[1], 0, ideal_h - out_mask.shape[0]),
+            #             mode="constant",
+            #             value=0,
+            #         )
+            #         patches = out_mask.unfold(0, kh, dh).unfold(1, kw, dw)
+            #         dummy_patch = torch.ones_like(patches)
+            #         patches_sum = patches.sum(dim=(2, 3))
+            #         patches_mask = patches_sum > kh * kh * 0.85
+            #         patches_mask = patches_mask.unsqueeze(2).unsqueeze(3).repeat(1, 1, kh, kh).float()
+            #         patches = dummy_patch * patches_mask
 
-                    depth = render_pkg["depth"]
-                    depth = depth.squeeze(0)
-                    # compute padding for depth
-                    ideal_depth_h, ideal_depth_w = (
-                        int(depth.shape[0] / dh + 1) * kw,
-                        int(depth.shape[1] / dw + 1) * kw,
-                    )
+            #         depth = render_pkg["depth"]
+            #         depth = depth.squeeze(0)
+            #         # compute padding for depth
+            #         ideal_depth_h, ideal_depth_w = (
+            #             int(depth.shape[0] / dh + 1) * kw,
+            #             int(depth.shape[1] / dw + 1) * kw,
+            #         )
 
-                    depth = torch.nn.functional.pad(
-                        depth,
-                        (0, ideal_depth_w - depth.shape[1], 0, ideal_depth_h - depth.shape[0]),
-                        mode="constant",
-                        value=0,
-                    )
+            #         depth = torch.nn.functional.pad(
+            #             depth,
+            #             (0, ideal_depth_w - depth.shape[1], 0, ideal_depth_h - depth.shape[0]),
+            #             mode="constant",
+            #             value=0,
+            #         )
 
-                    depth_patches = depth.unfold(0, kh, dh).unfold(1, kw, dw)
-                    dummy_depth_patches = torch.ones_like(depth_patches)
-                    a, b, c, d = depth_patches.shape
-                    depth_patches = depth_patches.reshape(a, b, c * d)
-                    median_depth_patch = torch.median(depth_patches, dim=(2))[0]
-                    depth_patches = dummy_depth_patches * (median_depth_patch.unsqueeze(2).unsqueeze(3))
-                    unfold_depth_shape = dummy_depth_patches.size()
-                    output_depth_h = unfold_depth_shape[0] * unfold_depth_shape[2]
-                    output_depth_w = unfold_depth_shape[1] * unfold_depth_shape[3]
+            #         depth_patches = depth.unfold(0, kh, dh).unfold(1, kw, dw)
+            #         dummy_depth_patches = torch.ones_like(depth_patches)
+            #         a, b, c, d = depth_patches.shape
+            #         depth_patches = depth_patches.reshape(a, b, c * d)
+            #         median_depth_patch = torch.median(depth_patches, dim=(2))[0]
+            #         depth_patches = dummy_depth_patches * (median_depth_patch.unsqueeze(2).unsqueeze(3))
+            #         unfold_depth_shape = dummy_depth_patches.size()
+            #         output_depth_h = unfold_depth_shape[0] * unfold_depth_shape[2]
+            #         output_depth_w = unfold_depth_shape[1] * unfold_depth_shape[3]
 
-                    patches_depth_orig = depth_patches.view(unfold_depth_shape)
-                    patches_depth_orig = patches_depth_orig.permute(0, 2, 1, 3).contiguous()
-                    # 1 for error, 0 for no error
-                    patches_depth = patches_depth_orig.view(output_depth_h, output_depth_w).float()
+            #         patches_depth_orig = depth_patches.view(unfold_depth_shape)
+            #         patches_depth_orig = patches_depth_orig.permute(0, 2, 1, 3).contiguous()
+            #         # 1 for error, 0 for no error
+            #         patches_depth = patches_depth_orig.view(output_depth_h, output_depth_w).float()
 
-                    depth = patches_depth[: render_pkg["depth"].shape[1], : render_pkg["depth"].shape[2]]
-                    depth = depth.unsqueeze(0)
+            #         depth = patches_depth[: render_pkg["depth"].shape[1], : render_pkg["depth"].shape[2]]
+            #         depth = depth.unsqueeze(0)
 
-                    mid_patch = torch.ones_like(patches)
+            #         mid_patch = torch.ones_like(patches)
 
-                    for i in range(0, kh, 2):
-                        for j in range(0, kw, 2):
-                            mid_patch[:, :, i, j] = 0.0
+            #         for i in range(0, kh, 2):
+            #             for j in range(0, kw, 2):
+            #                 mid_patch[:, :, i, j] = 0.0
 
-                    center_patches = patches * mid_patch
+            #         center_patches = patches * mid_patch
 
-                    unfold_shape = patches.size()
-                    patches_orig = patches.view(unfold_shape)
-                    center_patches_orig = center_patches.view(unfold_shape)
+            #         unfold_shape = patches.size()
+            #         patches_orig = patches.view(unfold_shape)
+            #         center_patches_orig = center_patches.view(unfold_shape)
 
-                    output_h = unfold_shape[0] * unfold_shape[2]
-                    output_w = unfold_shape[1] * unfold_shape[3]
-                    patches_orig = patches_orig.permute(0, 2, 1, 3).contiguous()
-                    center_patches_orig = center_patches_orig.permute(0, 2, 1, 3).contiguous()
-                    # H * W  mask, # 1 for error, 0 for no error
-                    center_mask = center_patches_orig.view(output_h, output_w).float()
-                    center_mask = center_mask[: image.shape[1], : image.shape[2]]  # reverse back
+            #         output_h = unfold_shape[0] * unfold_shape[2]
+            #         output_w = unfold_shape[1] * unfold_shape[3]
+            #         patches_orig = patches_orig.permute(0, 2, 1, 3).contiguous()
+            #         center_patches_orig = center_patches_orig.permute(0, 2, 1, 3).contiguous()
+            #         # H * W  mask, # 1 for error, 0 for no error
+            #         center_mask = center_patches_orig.view(output_h, output_w).float()
+            #         center_mask = center_mask[: image.shape[1], : image.shape[2]]  # reverse back
 
-                    # H * W  mask, # 1 for error, 0 for no error
-                    error_mask = patches_orig.view(output_h, output_w).float()
-                    error_mask = error_mask[: image.shape[1], : image.shape[2]]  # reverse back
+            #         # H * W  mask, # 1 for error, 0 for no error
+            #         error_mask = patches_orig.view(output_h, output_w).float()
+            #         error_mask = error_mask[: image.shape[1], : image.shape[2]]  # reverse back
 
-                    H, W = center_mask.shape
+            #         H, W = center_mask.shape
 
-                    offset_H = int(H / 10)
-                    offset_W = int(W / 10)
+            #         offset_H = int(H / 10)
+            #         offset_W = int(W / 10)
 
-                    center_mask[0:offset_H, :] = 0.0
-                    center_mask[:, 0:offset_W] = 0.0
+            #         center_mask[0:offset_H, :] = 0.0
+            #         center_mask[:, 0:offset_W] = 0.0
 
-                    center_mask[-offset_H:, :] = 0.0
-                    center_mask[:, -offset_W:] = 0.0
+            #         center_mask[-offset_H:, :] = 0.0
+            #         center_mask[:, -offset_W:] = 0.0
 
-                    depth = render_pkg["depth"]
-                    depth_map = torch.cat((depth, depth, depth), dim=0)
-                    invalid_depth_mask = depth == 15.0
+            #         depth = render_pkg["depth"]
+            #         depth_map = torch.cat((depth, depth, depth), dim=0)
+            #         invalid_depth_mask = depth == 15.0
 
-                    path_dir = scene.model_path + "/ems_" + str(ems_cnt - 1)
-                    if not os.path.exists(path_dir):
-                        os.makedirs(path_dir)
+            #         path_dir = scene.model_path + "/ems_" + str(ems_cnt - 1)
+            #         if not os.path.exists(path_dir):
+            #             os.makedirs(path_dir)
 
-                    depth_map = depth_map / torch.amax(depth_map)
-                    invalid_depth_map = torch.cat(
-                        (invalid_depth_mask, invalid_depth_mask, invalid_depth_mask), dim=0
-                    ).float()
+            #         depth_map = depth_map / torch.amax(depth_map)
+            #         invalid_depth_map = torch.cat(
+            #             (invalid_depth_mask, invalid_depth_mask, invalid_depth_mask), dim=0
+            #         ).float()
 
-                    save_image(gt_image, os.path.join(path_dir, "gt" + str(iteration) + ".png"))
-                    save_image(image, os.path.join(path_dir, "render" + str(iteration) + ".png"))
-                    save_image(depth_map, os.path.join(path_dir, "depth" + str(iteration) + ".png"))
-                    save_image(invalid_depth_map, os.path.join(path_dir, "invalid_depth" + str(iteration) + ".png"))
+            #         save_image(gt_image, os.path.join(path_dir, "gt" + str(iteration) + ".png"))
+            #         save_image(image, os.path.join(path_dir, "render" + str(iteration) + ".png"))
+            #         save_image(depth_map, os.path.join(path_dir, "depth" + str(iteration) + ".png"))
+            #         save_image(invalid_depth_map, os.path.join(path_dir, "invalid_depth" + str(iteration) + ".png"))
 
-                    bad_indices = center_mask.nonzero()
-                    diff_sorted, _ = torch.sort(depth.reshape(-1))
-                    N = diff_sorted.shape[0]
-                    median_depth = int(0.7 * N)
-                    median_depth = diff_sorted[median_depth]
+            #         bad_indices = center_mask.nonzero()
+            #         diff_sorted, _ = torch.sort(depth.reshape(-1))
+            #         N = diff_sorted.shape[0]
+            #         median_depth = int(0.7 * N)
+            #         median_depth = diff_sorted[median_depth]
 
-                    depth = torch.where(depth > median_depth, depth, median_depth)
+            #         depth = torch.where(depth > median_depth, depth, median_depth)
 
-                    total_N_new_points = gaussians.add_gaussians(
-                        bad_indices,
-                        viewpoint_cam,
-                        depth,
-                        gt_image,
-                        new_ray_step=optim_args.new_ray_step,
-                        ray_end=optim_args.ray_end,
-                        depth_max=depth_dict[viewpoint_cam.image_name],
-                        shuffle=(optim_args.shuffle_ems != 0),
-                    )
+            #         total_N_new_points = gaussians.add_gaussians(
+            #             bad_indices,
+            #             viewpoint_cam,
+            #             depth,
+            #             gt_image,
+            #             new_ray_step=optim_args.new_ray_step,
+            #             ray_end=optim_args.ray_end,
+            #             depth_max=depth_dict[viewpoint_cam.image_name],
+            #             shuffle=(optim_args.shuffle_ems != 0),
+            #         )
 
-                    gt_image = gt_image * error_mask
-                    image = render_pkg["render"] * error_mask
+            #         gt_image = gt_image * error_mask
+            #         image = render_pkg["render"] * error_mask
 
-                    scene.record_points(iteration, "after add points by uv")
+            #         scene.record_points(iteration, "after add points by uv")
 
-                    save_image(gt_image, os.path.join(path_dir, "masked_gt" + str(iteration) + ".png"))
-                    save_image(image, os.path.join(path_dir, "masked_render" + str(iteration) + ".png"))
-                    visibility_filter = torch.cat((visibility_filter, torch.zeros(total_N_new_points).cuda(0)), dim=0)
-                    visibility_filter = visibility_filter.bool()
-                    radii = torch.cat((radii, torch.zeros(total_N_new_points).cuda(0)), dim=0)
-                    viewspace_point_tensor = torch.cat(
-                        (viewspace_point_tensor, torch.zeros(total_N_new_points, 3).cuda(0)), dim=0
-                    )
+            #         save_image(gt_image, os.path.join(path_dir, "masked_gt" + str(iteration) + ".png"))
+            #         save_image(image, os.path.join(path_dir, "masked_render" + str(iteration) + ".png"))
+            #         visibility_filter = torch.cat((visibility_filter, torch.zeros(total_N_new_points).cuda(0)), dim=0)
+            #         visibility_filter = visibility_filter.bool()
+            #         radii = torch.cat((radii, torch.zeros(total_N_new_points).cuda(0)), dim=0)
+            #         viewspace_point_tensor = torch.cat(
+            #             (viewspace_point_tensor, torch.zeros(total_N_new_points, 3).cuda(0)), dim=0
+            #         )
 
             # Optimizer step
             if iteration < optim_args.iterations:

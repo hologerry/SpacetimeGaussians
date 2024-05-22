@@ -87,6 +87,7 @@ class ModelParams(ParamGroup):
         self.source_init = False
         self.new_pts = 10_000
         self.img_offset = False
+        self.init_region_type = "large"
 
         super().__init__(parser, "Loading Parameters", sentinel)
 

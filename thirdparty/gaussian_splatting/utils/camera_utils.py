@@ -63,7 +63,7 @@ def load_cam(args, id, cam_info, resolution_scale):
     if camera_pose is not None:
         raise NotImplementedError("get_image_rays is not implemented")
         c2w = torch.FloatTensor(camera_pose)
-        rays_o, rays_d = get_image_rays(camera_direct, c2w)  # get_image_rays          get_rays
+        rays_o, rays_d = get_image_rays(camera_direct, c2w)  # get_image_rays get_rays
     else:
         rays_o = None
         rays_d = None

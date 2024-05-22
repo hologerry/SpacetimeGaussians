@@ -1,20 +1,24 @@
 # Copyright (C) 2020, Inria
 # GRAPHDECO research group, https://team.inria.fr/graphdeco
 # All rights reserved.
-# 
-# This software is free for non-commercial, research and evaluation use 
+#
+# This software is free for non-commercial, research and evaluation use
 # under the terms of the LICENSE.md file.
-# 
+#
 # For inquiries contact sibr@inria.fr and/or George.Drettakis@inria.fr
 
 
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import argparse, sys, os
+import argparse
+import os
+import sys
+
 from PIL import Image, UnidentifiedImageError
 
-def generateListImages(imagesPath, outputPath = None, filename = "list_images.txt"):
+
+def generateListImages(imagesPath, outputPath=None, filename="list_images.txt"):
     if not os.path.exists(imagesPath):
         print("Path '%s' does not exists. Aborting." % imagesPath)
         sys.exit(1)
@@ -42,7 +46,6 @@ def generateListImages(imagesPath, outputPath = None, filename = "list_images.tx
                 print("File '%s' is not a recognizable image. Skipping." % file)
 
 
-
 def main():
     parser = argparse.ArgumentParser()
 
@@ -57,16 +60,20 @@ def main():
         args["outputPath"] = args["imagesPath"]
     elif not os.path.isdir(args["outputPath"]) and os.path.basename(args["outputPath"]) and not args["filename"]:
         args["outputPath"], args["filename"] = os.path.split(args["outputPath"])
-    
+
     if not args["filename"]:
         args["filename"] = "list_images.txt"
 
-    print("Generating '%s' file from images in '%s' and saving to '%s'." % (args["filename"], args["imagesPath"], args["outputPath"]))
+    print(
+        "Generating '%s' file from images in '%s' and saving to '%s'."
+        % (args["filename"], args["imagesPath"], args["outputPath"])
+    )
 
     generateListImages(os.path.abspath(args["imagesPath"]), os.path.abspath(args["outputPath"]), args["filename"])
 
     print("'%s' generated successfully." % args["filename"])
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

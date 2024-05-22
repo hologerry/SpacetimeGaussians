@@ -276,6 +276,31 @@ def get_render_pipe(option="train_ours_full"):
 
         return test_ours_lite_xyz_linear_color_vis, GaussianRasterizationSettings, GaussianRasterizer
 
+
+    elif option == "train_ours_lite_single_xyz_linear_color_trbf_c_act":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import (
+            train_ours_lite_xyz_linear_color_trbf_c_act,
+        )
+
+        return train_ours_lite_xyz_linear_color_trbf_c_act, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_xyz_linear_color_trbf_c_act_vis":
+        from forward_lite_single_xyz_linear_color_trbf_c_act import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import (
+            test_ours_lite_xyz_linear_color_trbf_c_act_vis,
+        )
+
+        return test_ours_lite_xyz_linear_color_trbf_c_act_vis, GaussianRasterizationSettings, GaussianRasterizer
+
     elif option == "train_ours_lite_single_xyz_linear_color_trbf_center":
         from diff_gaussian_rasterization_ch1 import (
             GaussianRasterizationSettings,
@@ -489,6 +514,10 @@ def get_model(model="ours_full"):
         from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color import (
             GaussianModel,
         )
+    elif model == "ours_simple_xyz_linear_color_trbf_c_act":
+        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color_trbf_c_act import (
+            GaussianModel,
+        )
     elif model == "ours_simple_xyz_linear_color_source":
         from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color_source import (
             GaussianModel,
@@ -613,7 +642,14 @@ def control_gaussians(
     clone=True,
     split=True,
 ):
+    if iteration < opt.densify_until_iter:
+        gaussians.max_radii2D[visibility_filter] = torch.max(
+            gaussians.max_radii2D[visibility_filter], radii[visibility_filter]
+        )
+        gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
+
     if densify == 0:  # raw gaussian splatting
+
         if iteration < opt.densify_until_iter:
 
             if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:

@@ -108,6 +108,7 @@ class Scene:
                 test_all_views=test_all_views,
                 source_init=args.source_init,
                 img_offset=args.img_offset,
+                init_region_type=args.init_region_type,
             )
 
         else:

@@ -1,10 +1,10 @@
 # Copyright (C) 2020, Inria
 # GRAPHDECO research group, https://team.inria.fr/graphdeco
 # All rights reserved.
-# 
-# This software is free for non-commercial, research and evaluation use 
+#
+# This software is free for non-commercial, research and evaluation use
 # under the terms of the LICENSE.md file.
-# 
+#
 # For inquiries contact sibr@inria.fr and/or George.Drettakis@inria.fr
 
 
@@ -25,19 +25,22 @@ Usage: python wedge_to_vertex_uvs.py -inputMesh <the mesh to convert>
 
 """
 
-import os, sys
 import argparse
-from utils.commands import runCommand, getMeshlabServer
+import os
+import sys
+
+from utils.commands import getMeshlabServer, runCommand
 from utils.paths import getMeshlabPath
 
-def convertUVs(inputMesh, outputMesh, meshlabPath = getMeshlabPath()):
-    mlxFile = os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'meshlab/wedge_to_vertex_uvs.mlx'))
 
-    ret = runCommand(getMeshlabServer(meshlabPath), ['-i', inputMesh,
-                                                     '-o', outputMesh,
-                                                     '-m', 'vt',
-                                                     '-s', mlxFile])
+def convertUVs(inputMesh, outputMesh, meshlabPath=getMeshlabPath()):
+    mlxFile = os.path.abspath(
+        os.path.join(os.path.abspath(os.path.dirname(__file__)), "meshlab/wedge_to_vertex_uvs.mlx")
+    )
+
+    ret = runCommand(getMeshlabServer(meshlabPath), ["-i", inputMesh, "-o", outputMesh, "-m", "vt", "-s", mlxFile])
     return ret
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -49,12 +52,13 @@ def main():
 
     args = vars(parser.parse_args())
 
-    ret = convertUVs(args['inputMesh'], args['outputMesh'], args['meshlabPath'])
-    if( ret.returncode != 0 ):
+    ret = convertUVs(args["inputMesh"], args["outputMesh"], args["meshlabPath"])
+    if ret.returncode != 0:
         print("SIBR_ERROR meshlab error in converting UVs")
         sys.exit(1)
 
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
