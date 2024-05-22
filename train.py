@@ -162,12 +162,12 @@ def train(
     scene.record_points(0, "start training")
 
     flag_ems = 0
-    ems_cnt = 0
+    # ems_cnt = 0
     loss_dict = {}
     ssim_dict = {}
     depth_dict = {}
     valid_depth_dict = {}
-    ems_start_from_iterations = optim_args.ems_start  # guided sampling start from iteration
+    # ems_start_from_iterations = optim_args.ems_start  # guided sampling start from iteration
 
     with torch.no_grad():
         time_index = 0
@@ -214,8 +214,8 @@ def train(
     #     gaussians.prune_points(z_mask)
     #     torch.cuda.empty_cache()
 
-    selected_length = 2
-    laster_ems = 0
+    # selected_length = 2
+    # laster_ems = 0
     # lpips_criteria = lpips.LPIPS(net="alex", verbose=False).cuda()
 
     for iteration in range(first_iter, optim_args.iterations + 1):
@@ -330,14 +330,34 @@ def train(
 
             l1_loss_value = l1_loss(image, gt_image)
             ssim_loss_value = 1.0 - ssim(image, gt_image)
-
             weight_loss = (1.0 - optim_args.lambda_dssim) * l1_loss_value + optim_args.lambda_dssim * ssim_loss_value
             loss = weight_loss
+
+            if optim_args.lambda_velocity > 0:
+                velocities3D = render_pkg["velocities3D"]
+                loss_velocity_x = torch.abs(velocities3D[:, 0]).mean()
+                loss_velocity_y = torch.abs(velocities3D[:, 1]).mean()
+                loss_velocity_z = torch.abs(velocities3D[:, 2]).mean()
+                # less regularization on y
+                loss_velocity = loss_velocity_x + 0.5 * loss_velocity_y + loss_velocity_z
+                velocity_loss = optim_args.lambda_velocity * loss_velocity
+                loss += velocity_loss
+
+            if optim_args.lambda_opacity_vel > 0:
+                opacity_vel = render_pkg["opacity_vel"]
+                opacity_vel = torch.abs(opacity_vel)
+                loss_opacity_velocity = opacity_vel.mean()
+                opacity_velocity_loss = optim_args.lambda_opacity_vel * loss_opacity_velocity
+                loss += opacity_velocity_loss
 
             tb_writer.add_scalar(f"train_loss_all/l1_loss_{view_name}", l1_loss_value.item(), iteration)
             tb_writer.add_scalar(f"train_loss_all/ssim_loss_{view_name}", ssim_loss_value.item(), iteration)
             tb_writer.add_scalar(f"train_loss_all/w_loss_{view_name}", weight_loss.item(), iteration)
             tb_writer.add_scalar(f"train_loss_all/total_loss_{view_name}", loss.item(), iteration)
+            if optim_args.lambda_velocity > 0:
+                tb_writer.add_scalar(f"train_loss_all/velocity_loss_{view_name}", velocity_loss.item(), iteration)
+            if optim_args.lambda_opacity_vel > 0:
+                tb_writer.add_scalar(f"train_loss_all/opacity_velocity_loss_{view_name}", opacity_velocity_loss.item(), iteration)
 
             if flag_ems == 1:
                 if viewpoint_cam.image_name not in loss_dict:
@@ -704,21 +724,21 @@ def training_report(
                         f"test_render_{view_name}",
                         f"{iteration:05d}.png",
                         os.path.join(scene.model_path, f"training_test_render_{view_name}_{iteration:05d}.mp4"),
-                        fps=25,
+                        fps=30,
                     )
                     images_to_video(
                         os.path.join(scene.model_path, "training_render"),
                         f"test_gt_{view_name}",
                         f"{iteration:05d}.png",
                         os.path.join(scene.model_path, f"training_test_gt_{view_name}_{iteration:05d}.mp4"),
-                        fps=25,
+                        fps=30,
                     )
                     images_to_video(
                         os.path.join(scene.model_path, "training_render"),
                         f"test_gt_real_{view_name}",
                         f"{iteration:05d}.png",
                         os.path.join(scene.model_path, f"training_test_gt_real_{view_name}_{iteration:05d}.mp4"),
-                        fps=25,
+                        fps=30,
                     )
 
                 psnr_test /= len(config["cameras"])

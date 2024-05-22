@@ -301,6 +301,30 @@ def get_render_pipe(option="train_ours_full"):
 
         return test_ours_lite_xyz_linear_color_trbf_c_act_vis, GaussianRasterizationSettings, GaussianRasterizer
 
+    elif option == "train_ours_lite_single_xyz_linear_color_trbf_c_act_xyz":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import (
+            train_ours_lite_xyz_linear_color_trbf_c_act_xyz,
+        )
+
+        return train_ours_lite_xyz_linear_color_trbf_c_act_xyz, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_single_xyz_linear_color_trbf_c_act_xyz_vis":
+        from forward_lite_single_xyz_linear_color_trbf_c_act import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import (
+            test_ours_lite_xyz_linear_color_trbf_c_act_xyz_vis,
+        )
+
+        return test_ours_lite_xyz_linear_color_trbf_c_act_xyz_vis, GaussianRasterizationSettings, GaussianRasterizer
+
     elif option == "train_ours_lite_single_xyz_linear_color_trbf_center":
         from diff_gaussian_rasterization_ch1 import (
             GaussianRasterizationSettings,

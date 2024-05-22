@@ -107,8 +107,8 @@ class Scene:
                 use_best_fake=args.use_best_fake,
                 test_all_views=test_all_views,
                 source_init=args.source_init,
-                img_offset=args.img_offset,
                 init_region_type=args.init_region_type,
+                img_offset=args.img_offset,
             )
 
         else:

@@ -1460,8 +1460,8 @@ def read_nerf_synthetic_info_hyfluid(
     use_best_fake=False,
     test_all_views=False,
     source_init=False,
-    img_offset=False,
     init_region_type="large",
+    img_offset=False,
     **kwargs,
 ):
     print("Reading Training Transforms...")
@@ -1635,6 +1635,7 @@ def read_nerf_synthetic_info_hyfluid_valid(
     train_views_fake=None,
     use_best_fake=False,
     test_all_views=False,
+    img_offset=False,
     **kwargs,
 ):
 
@@ -1655,6 +1656,7 @@ def read_nerf_synthetic_info_hyfluid_valid(
         train_views,
         train_views_fake,
         use_best_fake,
+        img_offset,
     )
 
     nerf_normalization = get_nerf_pp_norm(test_cam_infos)

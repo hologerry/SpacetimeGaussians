@@ -8,7 +8,7 @@ from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color_trbf_c_act
 )
 
 
-def train_ours_lite_xyz_linear_color_trbf_c_act(
+def train_ours_lite_xyz_linear_color_trbf_c_act_xyz(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -68,10 +68,13 @@ def train_ours_lite_xyz_linear_color_trbf_c_act(
     trbf_distance = trbf_distance_offset / torch.exp(trbf_scale)
     trbf_output = basic_function(trbf_distance)
 
-    opacity = point_opacity * trbf_output * time_coefficient
+    opacity = point_opacity * trbf_output
+
+    opacity_vel = - 2. * point_opacity * trbf_output * trbf_scale * trbf_distance_offset
+
     gm.trbf_output = trbf_output
 
-    scales = gm.get_scaling * time_coefficient
+    scales = gm.get_scaling
 
     tforpoly = trbf_distance_offset.detach()
     means3D = (
@@ -80,9 +83,10 @@ def train_ours_lite_xyz_linear_color_trbf_c_act(
         # + gm._motion[:, 3:6] * tforpoly * tforpoly
         # + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
+    velocities3D = gm._motion[:, 0:3] * time_coefficient
 
-    rotations = gm.get_rotation(tforpoly) * time_coefficient
-    colors_precomp = gm.get_features(tforpoly) * time_coefficient
+    rotations = gm.get_rotation(tforpoly)
+    colors_precomp = gm.get_features(tforpoly)
 
     cov3D_precomp = None
 
@@ -105,11 +109,13 @@ def train_ours_lite_xyz_linear_color_trbf_c_act(
         "visibility_filter": radii > 0,
         "radii": radii,
         "opacity": opacity,
+        "opacity_vel": opacity_vel,
+        "velocities3D": velocities3D,
         "depth": depth,
     }
 
 
-def test_ours_lite_xyz_linear_color_trbf_c_act_vis(
+def test_ours_lite_xyz_linear_color_trbf_c_act_xyz_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -150,8 +156,8 @@ def test_ours_lite_xyz_linear_color_trbf_c_act_vis(
 
     time_coefficient = gm.t_activation(tforpoly)
 
-    rotations = gm.get_rotation(tforpoly) * time_coefficient
-    colors_precomp = gm.get_features(tforpoly) * time_coefficient
+    rotations = gm.get_rotation(tforpoly)
+    colors_precomp = gm.get_features(tforpoly)
 
     motion = gm._motion
 
@@ -187,15 +193,15 @@ def test_ours_lite_xyz_linear_color_trbf_c_act_vis(
     trbf_distance = tforpoly / torch.exp(trbf_scale)
     trbf_output = basic_function(trbf_distance)
 
-    opacity = point_opacity * trbf_output * time_coefficient  # - 0.5
+    opacity = point_opacity * trbf_output
 
     opacity_timed = opacity[time_coefficient_idx]
     opacity_zeroed = opacity.clone()
     opacity_zeroed[~time_coefficient_idx] = 0.0
 
     # computed_opacity is not blend with timestamp
-    computed_opacity = gm.computed_opacity * time_coefficient
-    scales = gm.computed_scales * time_coefficient
+    computed_opacity = gm.computed_opacity
+    scales = gm.computed_scales
 
     means2D = screen_space_points
 

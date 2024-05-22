@@ -192,16 +192,23 @@ def render_set(
             means3D_no_t_path = os.path.join(quantities_out_path, f"means3D_no_t_{cur_view_time_idx:05d}.npy")
             np.save(means3D_no_t_path, means3D_no_t)
 
+
+            means3D = rendering_pkg["means3D"]
+            means3D = means3D.detach().cpu().numpy()
+            means3D_path = os.path.join(quantities_out_path, f"means3D_{cur_view_time_idx:05d}.npy")
+            np.save(means3D_path, means3D)
+
             if "means3D_timed" in rendering_pkg:
                 means3D_timed = rendering_pkg["means3D_timed"]
                 means3D_timed = means3D_timed.detach().cpu().numpy()
                 means3D_timed_path = os.path.join(quantities_out_path, f"means3D_timed_{cur_view_time_idx:05d}.npy")
                 np.save(means3D_timed_path, means3D_timed)
 
-            means3D = rendering_pkg["means3D"]
-            means3D = means3D.detach().cpu().numpy()
-            means3D_path = os.path.join(quantities_out_path, f"means3D_{cur_view_time_idx:05d}.npy")
-            np.save(means3D_path, means3D)
+            if "means3D_zeroed" in rendering_pkg:
+                means3D_zeroed = rendering_pkg["means3D_zeroed"]
+                means3D_zeroed = means3D_zeroed.detach().cpu().numpy()
+                means3D_zeroed_path = os.path.join(quantities_out_path, f"means3D_zeroed_{cur_view_time_idx:05d}.npy")
+                np.save(means3D_zeroed_path, means3D_zeroed)
 
             trbf_center = rendering_pkg["trbf_center"]
             trbf_center = trbf_center.detach().cpu().numpy()
@@ -219,6 +226,12 @@ def render_set(
                 velocities3D_timed_path = os.path.join(quantities_out_path, f"velocities3D_timed_{cur_view_time_idx:05d}.npy")
                 np.save(velocities3D_timed_path, velocities3D_timed)
 
+            if "velocities3D_zeroed" in rendering_pkg:
+                velocities3D_zeroed = rendering_pkg["velocities3D_zeroed"]
+                velocities3D_zeroed = velocities3D_zeroed.detach().cpu().numpy()
+                velocities3D_zeroed_path = os.path.join(quantities_out_path, f"velocities3D_zeroed_{cur_view_time_idx:05d}.npy")
+                np.save(velocities3D_zeroed_path, velocities3D_zeroed)
+
             opacity = rendering_pkg["opacity"]
             opacity = opacity.detach().cpu().numpy()
             opacity_path = os.path.join(quantities_out_path, f"opacity_{cur_view_time_idx:05d}.npy")
@@ -229,6 +242,12 @@ def render_set(
                 opacity_timed = opacity_timed.detach().cpu().numpy()
                 opacity_timed_path = os.path.join(quantities_out_path, f"opacity_timed_{cur_view_time_idx:05d}.npy")
                 np.save(opacity_timed_path, opacity_timed)
+
+            if "opacity_zeroed" in rendering_pkg:
+                opacity_zeroed = rendering_pkg["opacity_zeroed"]
+                opacity_zeroed = opacity_zeroed.detach().cpu().numpy()
+                opacity_zeroed_path = os.path.join(quantities_out_path, f"opacity_zeroed_{cur_view_time_idx:05d}.npy")
+                np.save(opacity_zeroed_path, opacity_zeroed)
 
             visibility_filter = rendering_pkg["visibility_filter"]
             visibility_filter = visibility_filter.detach().cpu().numpy()
@@ -277,8 +296,8 @@ def render_set(
         gt_frame_path = os.path.join(gts_path, view_name)
         render_out_mp4_path = os.path.join(model_path, name + f"_render_{view_name}_{iteration}{post_str}.mp4")
         gt_out_mp4_path = os.path.join(model_path, name + f"_gt_{view_name}_{iteration}{post_str}.mp4")
-        images_to_video(render_frame_path, "", ".png", render_out_mp4_path, fps=25)
-        images_to_video(gt_frame_path, "", ".png", gt_out_mp4_path, fps=25)
+        images_to_video(render_frame_path, "", ".png", render_out_mp4_path, fps=30)
+        images_to_video(gt_frame_path, "", ".png", gt_out_mp4_path, fps=30)
         mp4_to_gif(render_out_mp4_path, render_out_mp4_path.replace(".mp4", ".gif"))
         mp4_to_gif(gt_out_mp4_path, gt_out_mp4_path.replace(".mp4", ".gif"))
 

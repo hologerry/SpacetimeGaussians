@@ -46,6 +46,10 @@ from .simple_xyz_linear_color_trbf_c_act import (
     test_ours_lite_xyz_linear_color_trbf_c_act_vis,
     train_ours_lite_xyz_linear_color_trbf_c_act,
 )
+from .simple_xyz_linear_color_trbf_c_act_xyz import (
+    test_ours_lite_xyz_linear_color_trbf_c_act_xyz_vis,
+    train_ours_lite_xyz_linear_color_trbf_c_act_xyz,
+)
 from .simple_xyz_linear_color_trbf_center import (
     test_ours_lite_xyz_linear_color_trbf_center_vis,
     train_ours_lite_xyz_linear_color_trbf_center,

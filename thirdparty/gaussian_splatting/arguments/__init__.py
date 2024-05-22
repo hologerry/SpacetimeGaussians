@@ -167,6 +167,9 @@ class OptimizationParams(ParamGroup):
         self.iterations_per_time = 250
         self.iterations_per_time_post = 12
 
+        self.lambda_velocity = 0.0 # 1e-2
+        self.lambda_opacity_vel = 0.0 # 1e-2
+
         super().__init__(parser, "Optimization Parameters")
 
 
