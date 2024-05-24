@@ -311,12 +311,13 @@ def render_set(
         mean_metrics_per_view_dict[view_name]["lpips_vgg"] = float(np.mean(full_metrics_dict[view_name]["lpips_vgg"]))
         mean_metrics_per_view_dict[view_name]["ssim_v2"] = float(np.mean(full_metrics_dict[view_name]["ssim_v2"]))
 
-    train_view_names = ["train00", "train01", "train03", "train04"]
-    train_mean_metrics = {}
-    for metric in ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]:
-        train_mean_metrics[metric] = float(
-            np.mean([np.mean(full_metrics_dict[view_name][metric]) for view_name in train_view_names])
-        )
+
+    # train_view_names = ["train00", "train01", "train03", "train04"]
+    # train_mean_metrics = {}
+    # for metric in ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]:
+    #     train_mean_metrics[metric] = float(
+    #         np.mean([np.mean(full_metrics_dict[view_name][metric]) for view_name in train_view_names])
+    #     )
 
     test_view_names = ["train02"]
     test_mean_metrics = {}
@@ -349,17 +350,17 @@ def render_set(
 
     # print("mean time for rendering", np.mean(np.array(times)))
 
-    with open(model_path + "/" + str(iteration) + "_train_views.json", "w") as fp:
-        print("Saving train views results")
-        json.dump(train_mean_metrics, fp, indent=True)
+    # with open(model_path + "/" + str(iteration) + "_train_views.json", "w") as fp:
+    #     print("Saving train views results")
+    #     json.dump(train_mean_metrics, fp, indent=True)
 
     with open(model_path + "/" + str(iteration) + "_test_views.json", "w") as fp:
         print("Saving test views results")
         json.dump(test_mean_metrics, fp, indent=True)
 
-    with open(model_path + "/" + str(iteration) + "_per_view.json", "w") as fp:
-        print("Saving per view results")
-        json.dump(mean_metrics_per_view_dict, fp, indent=True)
+    # with open(model_path + "/" + str(iteration) + "_per_view.json", "w") as fp:
+    #     print("Saving per view results")
+    #     json.dump(mean_metrics_per_view_dict, fp, indent=True)
 
 
 # render free view
@@ -433,7 +434,7 @@ def run_test(
         duration=duration,
         time_step=time_step,
         grey_image=model_args.grey_image,
-        test_all_views=True,
+        # test_all_views=True,
     )
     if "opacity_exp_linear" in rd_pipe:
         print("Using opacity_exp_linear TRBF for opacity")

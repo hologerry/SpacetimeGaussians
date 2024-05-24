@@ -542,6 +542,10 @@ def get_model(model="ours_full"):
         from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color_trbf_c_act import (
             GaussianModel,
         )
+    elif model == "ours_simple_fix_xyz_linear_color_trbf_c_act":
+        from thirdparty.gaussian_splatting.scene.ours_simple_fix_xyz_linear_color_trbf_c_act import (
+            GaussianModel,
+        )
     elif model == "ours_simple_xyz_linear_color_source":
         from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color_source import (
             GaussianModel,

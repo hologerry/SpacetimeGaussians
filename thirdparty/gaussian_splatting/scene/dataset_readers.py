@@ -1510,9 +1510,6 @@ def read_nerf_synthetic_info_hyfluid(
     if os.path.exists(total_ply_path):
         os.remove(total_ply_path)
 
-    total_xyz = []
-    total_rgb = []
-    total_time = []
     img_channel = 1 if grey_image else 3
 
     if init_region_type == "large":
@@ -1562,12 +1559,18 @@ def read_nerf_synthetic_info_hyfluid(
         time = np.zeros((xyz.shape[0], 1))
 
     else:
+        # if the render pipeline is time-based activation and the init_region_type is large, the number of points should be larger
         num_pts = 3000
+        total_xyz = []
+        total_rgb = []
+        total_time = []
         print(f"Init {num_pts} points per time with {init_region_type} region type with time-based mode.")
         for i in range(start_time, start_time + duration, time_step):
             if init_region_type == "adaptive":
                 y_max = y_max_range[0] + (y_max_range[1] - y_max_range[0]) * (i - start_time) / duration
-                radius_max = radius_max_range[0] + (radius_max_range[1] - radius_max_range[0]) * (i - start_time) / duration
+                radius_max = (
+                    radius_max_range[0] + (radius_max_range[1] - radius_max_range[0]) * (i - start_time) / duration
+                )
 
             y = np.random.uniform(y_min, y_max, (num_pts, 1))
 
@@ -1585,6 +1588,7 @@ def read_nerf_synthetic_info_hyfluid(
             # shs = np.random.random((num_pts, img_channel)) / 255.0
             # rgb = np.random.random((num_pts, 3)) * 255.0
             # rgb = sh2rgb(shs) * 255
+
             # 0.6 does not matter, the init value in Gaussian Model is used
             rgb = np.ones((num_pts, img_channel)) * 0.6 * 255.0
 
@@ -1593,7 +1597,8 @@ def read_nerf_synthetic_info_hyfluid(
             total_rgb.append(rgb)
             # print(f"init time {(i - start_time) / duration}")
             # when using our adding source, the time is not directly used
-            total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration)
+            # total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration)
+            total_time.append(np.zeros((xyz.shape[0], 1)))
 
         xyz = np.concatenate(total_xyz, axis=0)
         rgb = np.concatenate(total_rgb, axis=0)

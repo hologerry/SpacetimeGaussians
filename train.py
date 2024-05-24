@@ -201,13 +201,14 @@ def train(
             print(f"Cam {viewpoint_cam.image_name} initial depth: {depth}")
             select_mask = depth != 15.0
             select_mask_sum = torch.sum(select_mask)
+
+            initial_image = render_pkg["render"]
+
+            # valid_depth_dict[viewpoint_cam.image_name] = torch.median(depth[select_mask]).item()
+            # depth_dict[viewpoint_cam.image_name] = torch.amax(depth[select_mask]).item()
+            save_image(initial_image, os.path.join(scene.model_path, f"initial_render_{viewpoint_cam.image_name}.png"))
+
             assert select_mask_sum > 0, f"No valid depth for {viewpoint_cam.image_name}"
-
-            # initial_image = render_pkg["render"]
-
-            valid_depth_dict[viewpoint_cam.image_name] = torch.median(depth[select_mask]).item()
-            depth_dict[viewpoint_cam.image_name] = torch.amax(depth[select_mask]).item()
-            # save_image(initial_image, os.path.join(scene.model_path, f"initial_render_{viewpoint_cam.image_name}.png"))
 
     # if densify == 1 or densify == 2:
     #     z_mask = gaussians._xyz[:, 2] < 4.5
