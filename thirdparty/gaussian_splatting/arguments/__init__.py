@@ -88,6 +88,9 @@ class ModelParams(ParamGroup):
         self.new_pts = 10_000
         self.img_offset = False
         self.init_region_type = "large"
+        self.clone = True
+        self.split = True
+        self.prune = True
 
         super().__init__(parser, "Loading Parameters", sentinel)
 

@@ -147,6 +147,26 @@ def get_render_pipe(option="train_ours_full"):
 
         return test_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
 
+    elif option == "train_ours_lite_act_single":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_act
+
+        return train_ours_lite_act, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_ours_lite_act_single_vis":
+        from forward_lite_single import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from thirdparty.gaussian_splatting.renderer import test_ours_lite_act_vis
+
+        return test_ours_lite_act_vis, GaussianRasterizationSettings, GaussianRasterizer
+
     elif option == "train_ours_lite_single_all":
         from diff_gaussian_rasterization_ch1 import (
             GaussianRasterizationSettings,
@@ -514,6 +534,10 @@ def get_model(model="ours_full"):
         )
     elif model == "ours_simple_color":
         from thirdparty.gaussian_splatting.scene.ours_simple_color import GaussianModel
+    elif model == "ours_simple_color_scale_rotation":
+        from thirdparty.gaussian_splatting.scene.ours_simple_color_scale_rotation import GaussianModel
+    elif model == "ours_simple_color_scale_rotation_act":
+        from thirdparty.gaussian_splatting.scene.ours_simple_color_scale_rotation_act import GaussianModel
     elif model == "ours_simple_opacity_no_t":
         from thirdparty.gaussian_splatting.scene.ours_simple_opacity_no_t import (
             GaussianModel,
@@ -669,6 +693,7 @@ def control_gaussians(
     white_background=False,
     clone=True,
     split=True,
+    prune=True,
 ):
     if iteration < opt.densify_until_iter:
         gaussians.max_radii2D[visibility_filter] = torch.max(
@@ -682,7 +707,7 @@ def control_gaussians(
 
             if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                 size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold, clone=clone, split=split)
+                gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold, clone=clone, split=split, prune=prune)
 
             if iteration % opt.opacity_reset_interval == 0 or (
                 white_background and iteration == opt.densify_from_iter

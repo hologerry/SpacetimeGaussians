@@ -219,6 +219,10 @@ def train(
     # laster_ems = 0
     # lpips_criteria = lpips.LPIPS(net="alex", verbose=False).cuda()
 
+    print(f"clone {model_args.clone}")
+    print(f"split {model_args.split}")
+    print(f"prune {model_args.prune}")
+
     for iteration in range(first_iter, optim_args.iterations + 1):
         if args.loader != "hyfluid" and iteration == optim_args.ems_start:
             flag_ems = 1  # start ems
@@ -443,6 +447,9 @@ def train(
                 max_bounds=max_bounds,
                 min_bounds=min_bounds,
                 white_background=model_args.white_background,
+                clone=model_args.clone,
+                split=model_args.split,
+                prune=model_args.prune,
             )
 
             # # guided sampling step

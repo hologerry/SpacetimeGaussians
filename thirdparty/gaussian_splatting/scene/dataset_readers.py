@@ -1560,7 +1560,7 @@ def read_nerf_synthetic_info_hyfluid(
 
     else:
         # if the render pipeline is time-based activation and the init_region_type is large, the number of points should be larger
-        num_pts = 3000
+        num_pts = 50000
         total_xyz = []
         total_rgb = []
         total_time = []

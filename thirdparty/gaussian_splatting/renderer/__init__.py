@@ -17,6 +17,7 @@
 
 from .ours_full import test_ours_full, train_ours_full
 from .ours_lite import test_ours_lite_vis, train_ours_lite
+from .simple_color_scale_rotation_act import test_ours_lite_act_vis, train_ours_lite_act
 from .simple_opacity_exp_linear import (
     test_ours_lite_opacity_exp_linear_vis,
     train_ours_lite_opacity_exp_linear,
