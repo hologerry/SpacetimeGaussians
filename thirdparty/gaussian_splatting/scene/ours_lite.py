@@ -227,6 +227,8 @@ class GaussianModel:
 
         N, _ = fused_color.shape
 
+        scales = torch.zeros((fused_point_cloud.shape[0], 3), device="cuda") - 5.0 # 6.2
+
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         print(f"self._scaling inited {self._scaling}")
 
@@ -1442,7 +1444,7 @@ class GaussianModel:
         optimizable_tensors = self.replace_tensor_to_optimizer(opacity_old, "opacity")
         self._opacity = optimizable_tensors["opacity"]
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size):
+    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, **kwargs):
         ## raw method from 3dgs debugging hyfluid
         grads = self.xyz_gradient_accum / self.denom
         grads[grads.isnan()] = 0.0

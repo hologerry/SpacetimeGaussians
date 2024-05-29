@@ -1543,7 +1543,7 @@ def read_nerf_synthetic_info_hyfluid(
         print(f"Generating source_init random point cloud ({num_pts})...")
         y = np.random.uniform(y_min, y_max, (num_pts, 1))  # [-0.05, 0.15] [-0.05, 0.7]
 
-        radius = np.random.random((num_pts, 1)) * radius  # * 0.03 # 0.18
+        radius = np.random.random((num_pts, 1)) * radius_max  # * 0.03 # 0.18
         theta = np.random.random((num_pts, 1)) * 2 * np.pi
         x = radius * np.cos(theta) + x_mid
         z = radius * np.sin(theta) + z_mid
@@ -1662,6 +1662,243 @@ def read_nerf_synthetic_info_hyfluid_valid(
         train_views_fake,
         use_best_fake,
         img_offset,
+    )
+
+    nerf_normalization = get_nerf_pp_norm(test_cam_infos)
+
+    total_ply_path = os.path.join(path, "points3d_total.ply")
+    pcd = fetch_ply(total_ply_path, grey_image)
+
+    assert pcd is not None, "Point cloud could not be loaded!"
+
+    scene_info = SceneInfo(
+        point_cloud=pcd,
+        train_cameras=test_cam_infos,
+        test_cameras=test_cam_infos,
+        nerf_normalization=nerf_normalization,
+        ply_path=total_ply_path,
+        bbox_model=bbox_model,
+    )
+    return scene_info
+
+
+def read_nerf_synthetic_info_syn_particle(
+    path,
+    white_background,
+    eval,
+    extension=".png",
+    start_time=50,
+    duration=50,
+    time_step=1,
+    grey_image=False,
+    train_views="0134",
+    train_views_fake=None,
+    use_best_fake=False,
+    test_all_views=False,
+    **kwargs,
+):
+    print("Reading Training Transforms...")
+    train_json = "transforms_train_hyfluid.json"
+    if train_views != "0134" and train_views_fake is None:
+        # in this mode, just using some real views, no fake views for fitting
+        train_json = f"transforms_train_{train_views}_hyfluid.json"
+    train_cam_infos, bbox_model = read_cameras_from_transforms_hyfluid(
+        path,
+        train_json,
+        white_background,
+        extension,
+        start_time,
+        duration,
+        time_step,
+        grey_image,
+        train_views,
+        train_views_fake,
+        use_best_fake,
+        img_offset=False,
+    )
+
+    print("Reading Test Transforms...")
+    test_json = "transforms_test_hyfluid.json"
+    if test_all_views:
+        print("Using all views for testing")
+        test_json = f"transforms_train_test_hyfluid.json"
+    test_cam_infos, _ = read_cameras_from_transforms_hyfluid(
+        path,
+        test_json,
+        white_background,
+        extension,
+        start_time,
+        duration,
+        time_step,
+        grey_image,
+        train_views,
+        train_views_fake,
+        use_best_fake,
+        img_offset=False,
+    )
+
+    nerf_normalization = get_nerf_pp_norm(train_cam_infos)
+
+    total_ply_path = os.path.join(path, "points3d_total.ply")
+    if os.path.exists(total_ply_path):
+        os.remove(total_ply_path)
+
+    img_channel = 1 if grey_image else 3
+
+    init_region_type = "small"
+
+    if init_region_type == "large":
+        radius_max = 0.18  # default value 0.18  source region 0.026
+        x_mid = 0.34  # default value 0.34 source region 0.34
+        y_min = -0.01  # default value -0.01  source region -0.01
+        y_max = 0.7  # default value 0.7  source region 0.05
+        z_mid = -0.225  # default value -0.225  source region -0.225
+
+    elif init_region_type == "small":
+        radius_max = 0.026  # default value 0.18  source region 0.026
+        x_mid = 0.34  # default value 0.34 source region 0.34
+        y_min = -0.01  # default value -0.01  source region -0.01
+        y_max = 0.03  # default value 0.7  source region 0.05
+        z_mid = -0.225  # default value -0.225  source region -0.225
+
+    elif init_region_type == "adaptive":
+        radius_max_range = [0.026, 0.18]
+        x_mid = 0.34
+        z_mid = -0.225
+        y_min = -0.01
+        y_max_range = [0.03, 0.7]
+
+    else:
+        raise ValueError(f"Unknown init_region_type: {init_region_type}")
+
+    if False:
+        num_pts = 2000
+        print(f"Init {num_pts} points with {init_region_type} region type with source_init mode.")
+        assert init_region_type in ["small", "large"], f"In source_init mode, init_region_type must be small or large."
+        print(f"Generating source_init random point cloud ({num_pts})...")
+        y = np.random.uniform(y_min, y_max, (num_pts, 1))  # [-0.05, 0.15] [-0.05, 0.7]
+
+        radius = np.random.random((num_pts, 1)) * radius_max  # * 0.03 # 0.18
+        theta = np.random.random((num_pts, 1)) * 2 * np.pi
+        x = radius * np.cos(theta) + x_mid
+        z = radius * np.sin(theta) + z_mid
+
+        xyz = np.concatenate((x, y, z), axis=1)
+
+        shs = np.random.random((num_pts, img_channel)) / 255.0
+        # rgb = np.random.random((num_pts, 3)) * 255.0
+        rgb = sh2rgb(shs) * 255
+
+        # print(f"init time {(i - start_time) / duration}")
+        # when using our adding source, the time is not directly used
+        time = np.zeros((xyz.shape[0], 1))
+
+    else:
+        # if the render pipeline is time-based activation and the init_region_type is large, the number of points should be larger
+        num_pts = 1
+        total_xyz = []
+        total_rgb = []
+        total_time = []
+        print(f"Init {num_pts} points per time with {init_region_type} region type with time-based mode.")
+        for i in range(start_time, start_time + duration, time_step):
+            if i >= 10:
+                break
+            if init_region_type == "adaptive":
+                y_max = y_max_range[0] + (y_max_range[1] - y_max_range[0]) * (i - start_time) / duration
+                radius_max = (
+                    radius_max_range[0] + (radius_max_range[1] - radius_max_range[0]) * (i - start_time) / duration
+                )
+
+            y = np.random.uniform(y_min, y_max, (num_pts, 1))
+
+            radius = np.random.random((num_pts, 1)) * radius_max
+            theta = np.random.random((num_pts, 1)) * 2 * np.pi
+            x = radius * np.cos(theta) + x_mid
+            z = radius * np.sin(theta) + z_mid
+
+            # print(f"Points init x: {x.min()}, {x.max()}")
+            # print(f"Points init y: {y.min()}, {y.max()}")
+            # print(f"Points init z: {z.min()}, {z.max()}")
+
+            xyz = np.concatenate((x, y, z), axis=1)
+
+            # shs = np.random.random((num_pts, img_channel)) / 255.0
+            # rgb = np.random.random((num_pts, 3)) * 255.0
+            # rgb = sh2rgb(shs) * 255
+
+            # 0.6 does not matter, the init value in Gaussian Model is used
+            rgb = np.ones((num_pts, img_channel)) * 0.6 * 255.0
+
+            total_xyz.append(xyz)
+            # rgb is not used for fixed color
+            total_rgb.append(rgb)
+            # print(f"init time {(i - start_time) / duration}")
+            # when using our adding source, the time is not directly used
+            # total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration)
+            total_time.append(np.zeros((xyz.shape[0], 1)))
+
+        xyz = np.concatenate(total_xyz, axis=0)
+        rgb = np.concatenate(total_rgb, axis=0)
+        time = np.concatenate(total_time, axis=0)
+
+    assert xyz.shape[0] == rgb.shape[0]
+
+    xyzt = np.concatenate((xyz, time), axis=1)
+    store_ply(total_ply_path, xyzt, rgb, grey_image)
+
+    try:
+        pcd = fetch_ply(total_ply_path, grey_image)
+    except:
+        pcd = None
+
+    assert pcd is not None, "Point cloud could not be loaded!"
+
+    scene_info = SceneInfo(
+        point_cloud=pcd,
+        train_cameras=train_cam_infos,
+        test_cameras=test_cam_infos,
+        nerf_normalization=nerf_normalization,
+        ply_path=total_ply_path,
+        bbox_model=bbox_model,
+    )
+    return scene_info
+
+
+def read_nerf_synthetic_info_syn_particle_valid(
+    path,
+    white_background,
+    eval,
+    extension=".png",
+    start_time=50,
+    duration=50,
+    time_step=1,
+    grey_image=False,
+    train_views="0134",
+    train_views_fake=None,
+    use_best_fake=False,
+    test_all_views=False,
+    img_offset=False,
+    **kwargs,
+):
+
+    print("Reading Test Transforms...")
+    test_json = "transforms_test_hyfluid.json"
+    if test_all_views:
+        print("Using all views for testing")
+        test_json = f"transforms_train_test_hyfluid.json"
+    test_cam_infos, bbox_model = read_cameras_from_transforms_hyfluid(
+        path,
+        test_json,
+        white_background,
+        extension,
+        start_time,
+        duration,
+        time_step,
+        grey_image,
+        train_views,
+        train_views_fake,
+        use_best_fake,
+        img_offset=False,
     )
 
     nerf_normalization = get_nerf_pp_norm(test_cam_infos)
@@ -1941,4 +2178,6 @@ scene_load_type_callbacks = {
     # "technicolor": read_colmap_scene_info_technicolor,
     "hyfluid": read_nerf_synthetic_info_hyfluid,
     "hyfluid_valid": read_nerf_synthetic_info_hyfluid_valid,
+    "synthetic_particle": read_nerf_synthetic_info_syn_particle,
+    "synthetic_particle_valid": read_nerf_synthetic_info_syn_particle_valid,
 }

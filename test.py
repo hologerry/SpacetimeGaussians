@@ -437,7 +437,7 @@ def run_test(
         duration=duration,
         time_step=time_step,
         grey_image=model_args.grey_image,
-        test_all_views=True,
+        # test_all_views=True,
     )
     if "opacity_exp_linear" in rd_pipe:
         print("Using opacity_exp_linear TRBF for opacity")

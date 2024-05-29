@@ -183,7 +183,7 @@ class GaussianModel:
         rots[:, 0] = 1.0
 
         opacities = inverse_sigmoid(
-            0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda")
+            0.9 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda")
         )
 
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
@@ -192,13 +192,13 @@ class GaussianModel:
         # features9channel = fused_color
         # lite just use the base color
 
-        fused_color_fix = torch.zeros_like(fused_color) + 0.6
+        fused_color_fix = torch.zeros_like(fused_color) + 1.0 # + 0.6
         self._features_dc = nn.Parameter(fused_color_fix.contiguous().requires_grad_(True))
         print(f"self._features_dc inited {self._features_dc}")
 
         N, _ = fused_color.shape
 
-        scales = torch.zeros((fused_point_cloud.shape[0], 3), device="cuda") - 6.2
+        scales = torch.zeros((fused_point_cloud.shape[0], 3), device="cuda") - 4.0 # 6.2
 
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         print(f"self._scaling inited {self._scaling}")

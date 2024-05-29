@@ -198,13 +198,14 @@ def train(
             print(f"Cam {viewpoint_cam.image_name} initial depth: {depth}")
             select_mask = depth != 15.0
             select_mask_sum = torch.sum(select_mask)
+            initial_image = render_pkg["render"]
+            gt_image = viewpoint_cam.original_image.float().cuda()
+            # valid_depth_dict[viewpoint_cam.image_name] = torch.median(depth[select_mask]).item()
+            # depth_dict[viewpoint_cam.image_name] = torch.amax(depth[select_mask]).item()
+            save_image(initial_image, os.path.join(scene.model_path, f"initial_render_{viewpoint_cam.image_name}.png"))
+            save_image(gt_image, os.path.join(scene.model_path, f"initial_gt_{viewpoint_cam.image_name}.png"))
+
             assert select_mask_sum > 0, f"No valid depth for {viewpoint_cam.image_name}"
-
-            # initial_image = render_pkg["render"]
-
-            valid_depth_dict[viewpoint_cam.image_name] = torch.median(depth[select_mask]).item()
-            depth_dict[viewpoint_cam.image_name] = torch.amax(depth[select_mask]).item()
-            # save_image(initial_image, os.path.join(scene.model_path, f"initial_render_{viewpoint_cam.image_name}.png"))
 
     # lpips_criteria = lpips.LPIPS(net="alex", verbose=False).cuda()
 
@@ -236,12 +237,12 @@ def train(
             if gaussians.rgb_decoder is not None:
                 gaussians.rgb_decoder.train()
 
-            if cur_max_time_index > 0 and iteration == 1:
-                # we add new points to the gaussians
-                gaussians.add_gaussians(current_time_stamp, args.new_pts)
+            # if cur_max_time_index > 0 and iteration == 1:
+            #     # we add new points to the gaussians
+            #     gaussians.add_gaussians(current_time_stamp, args.new_pts)
 
             gaussians.zero_gradient_cache()
-            if iteration <= optim_args.iterations_per_time:
+            if iteration <= 10: # optim_args.iterations_per_time:
                 # fitting current time first
                 time_index = cur_max_time_index
             else:
@@ -403,13 +404,6 @@ def train(
                 )
 
                 # Densification and pruning here
-
-                if iteration < optim_args.densify_until_iter:
-                    gaussians.max_radii2D[visibility_filter] = torch.max(
-                        gaussians.max_radii2D[visibility_filter], radii[visibility_filter]
-                    )
-                    gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
-
                 flag = control_gaussians(
                     optim_args,
                     gaussians,
@@ -424,6 +418,9 @@ def train(
                     max_bounds=max_bounds,
                     min_bounds=min_bounds,
                     white_background=model_args.white_background,
+                    clone=model_args.clone,
+                    split=model_args.split,
+                    prune=model_args.prune,
                 )
 
                 # Optimizer step

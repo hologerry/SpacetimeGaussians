@@ -93,7 +93,7 @@ class Scene:
         #     )
 
         # el
-        if loader == "hyfluid" or loader == "hyfluid_valid":
+        if loader in ["hyfluid", "hyfluid_valid", "synthetic_particle", "synthetic_particle_valid"]:
             scene_info = scene_load_type_callbacks[loader](
                 args.source_path,
                 args.white_background,
@@ -130,10 +130,10 @@ class Scene:
             with open(os.path.join(self.model_path, "cameras.json"), "w") as file:
                 json.dump(json_cams, file, indent=2)
 
-        if shuffle and "hyfluid" not in loader:
-            random.shuffle(scene_info.train_cameras)  # Multi-res consistent random shuffling
-            random.shuffle(scene_info.test_cameras)  # Multi-res consistent random shuffling
-            # shuffle will cause the uid change
+        # if shuffle and "hyfluid" not in loader:
+        #     random.shuffle(scene_info.train_cameras)  # Multi-res consistent random shuffling
+        #     random.shuffle(scene_info.test_cameras)  # Multi-res consistent random shuffling
+        #     # shuffle will cause the uid change
 
         self.cameras_extent = scene_info.nerf_normalization["radius"]
         self.bbox_model = scene_info.bbox_model
@@ -148,6 +148,7 @@ class Scene:
                 #     "immersive_valid_ss",
                 #     "imv2valid",
                 "hyfluid_valid",
+                "synthetic_particle_valid"
             ]:
                 self.train_cameras[resolution_scale] = []  # no training data
 
@@ -173,6 +174,8 @@ class Scene:
                 # "imv2valid",
                 "hyfluid",
                 "hyfluid_valid",
+                "synthetic_particle",
+                "synthetic_particle_valid",
             ]:
                 # we need gt for metrics
                 self.test_cameras[resolution_scale] = camera_list_from_cam_infos_v2(

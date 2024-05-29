@@ -203,10 +203,11 @@ def train(
             select_mask_sum = torch.sum(select_mask)
 
             initial_image = render_pkg["render"]
-
+            gt_image = viewpoint_cam.original_image.float().cuda()
             # valid_depth_dict[viewpoint_cam.image_name] = torch.median(depth[select_mask]).item()
             # depth_dict[viewpoint_cam.image_name] = torch.amax(depth[select_mask]).item()
             save_image(initial_image, os.path.join(scene.model_path, f"initial_render_{viewpoint_cam.image_name}.png"))
+            save_image(gt_image, os.path.join(scene.model_path, f"initial_gt_{viewpoint_cam.image_name}.png"))
 
             assert select_mask_sum > 0, f"No valid depth for {viewpoint_cam.image_name}"
 
@@ -295,14 +296,14 @@ def train(
                         f"gt_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
                     ),
                 )
-                save_image(
-                    gt_image_real,
-                    os.path.join(
-                        scene.model_path,
-                        "training_render",
-                        f"gt_real_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
-                    ),
-                )
+                # save_image(
+                #     gt_image_real,
+                #     os.path.join(
+                #         scene.model_path,
+                #         "training_render",
+                #         f"gt_real_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
+                #     ),
+                # )
                 current_xyz = gaussians.get_xyz
                 # xyz_min = torch.min(current_xyz, dim=0).values
                 # xyz_max = torch.max(current_xyz, dim=0).values
@@ -429,7 +430,7 @@ def train(
                 GRsetting,
                 GRzer,
                 rd_pipe,
-                test_all_train_views=True,
+                # test_all_train_views=True,
             )
 
             # Densification and pruning here
@@ -698,14 +699,14 @@ def training_report(
                             f"test_gt_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
                         ),
                     )
-                    save_image(
-                        gt_image_real,
-                        os.path.join(
-                            scene.model_path,
-                            "training_render",
-                            f"test_gt_real_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
-                        ),
-                    )
+                    # save_image(
+                    #     gt_image_real,
+                    #     os.path.join(
+                    #         scene.model_path,
+                    #         "training_render",
+                    #         f"test_gt_real_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
+                    #     ),
+                    # )
                     if tb_writer and (idx < 5):
                         tb_writer.add_images(
                             config["name"] + "_view_{}/render".format(viewpoint.image_name),
@@ -718,11 +719,11 @@ def training_report(
                                 gt_image[None],
                                 global_step=iteration,
                             )
-                            tb_writer.add_images(
-                                config["name"] + "_view_{}/ground_truth_real".format(viewpoint.image_name),
-                                gt_image_real[None],
-                                global_step=iteration,
-                            )
+                            # tb_writer.add_images(
+                            #     config["name"] + "_view_{}/ground_truth_real".format(viewpoint.image_name),
+                            #     gt_image_real[None],
+                            #     global_step=iteration,
+                            # )
                     l1_test += l1_loss(image, gt_image_real).mean().double()
                     psnr_test += psnr(image, gt_image_real).mean().double()
 
@@ -741,13 +742,13 @@ def training_report(
                         os.path.join(scene.model_path, f"training_test_gt_{view_name}_{iteration:05d}.mp4"),
                         fps=30,
                     )
-                    images_to_video(
-                        os.path.join(scene.model_path, "training_render"),
-                        f"test_gt_real_{view_name}",
-                        f"{iteration:05d}.png",
-                        os.path.join(scene.model_path, f"training_test_gt_real_{view_name}_{iteration:05d}.mp4"),
-                        fps=30,
-                    )
+                    # images_to_video(
+                    #     os.path.join(scene.model_path, "training_render"),
+                    #     f"test_gt_real_{view_name}",
+                    #     f"{iteration:05d}.png",
+                    #     os.path.join(scene.model_path, f"training_test_gt_real_{view_name}_{iteration:05d}.mp4"),
+                    #     fps=30,
+                    # )
 
                 psnr_test /= len(config["cameras"])
                 l1_test /= len(config["cameras"])
