@@ -23,22 +23,17 @@
 import argparse
 import glob
 import os
-import pickle
-
 import shutil
-import struct
-
 
 import cv2
-import natsort
 import numpy as np
 import tqdm
 
 from scipy.spatial.transform import Rotation
 
-from thirdparty.colmap.pre_colmap import *
-from thirdparty.gaussian_splatting.helper3dg import get_colmap_single_im_undistort
-from thirdparty.gaussian_splatting.utils.my_utils import rot_mat_2_qvec
+from gaussian_splatting.helper3dg import get_colmap_single_im_undistort
+from gaussian_splatting.utils.my_utils import rot_mat_2_qvec
+from gaussian_splatting.utils.pre_colmap import *
 
 
 SCALE_DICT = {}
@@ -98,7 +93,6 @@ def extract_frames_x1(video_path):
     return
 
 
-
 def convert_model_to_db_files(path, offset=0, scale=1.0):
     project_folder = os.path.join(path, "colmap_" + str(offset))
     # sparse_folder = os.path.join(project_folder, "sparse/0")
@@ -117,14 +111,11 @@ def convert_model_to_db_files(path, offset=0, scale=1.0):
     if os.path.exists(os.path.join(project_folder, "input.db")):
         os.remove(os.path.join(project_folder, "input.db"))
 
-
     db = COLMAPDatabase.connect(os.path.join(project_folder, "input.db"))
-
 
     db.create_tables()
 
     import json
-
 
     with open(os.path.join(video + "models.json"), "r") as f:
 
@@ -247,7 +238,6 @@ def image_undistort(video, offset_list=[0], focal_scale=1.0, fix_focal=None):
     with open(os.path.join(video + "models.json"), "r") as f:
         meta = json.load(f)
 
-
     for idx, camera in enumerate(meta):
         folder = camera["name"]  # camera_0001
         view = camera
@@ -295,7 +285,6 @@ def image_undistort(video, offset_list=[0], focal_scale=1.0, fix_focal=None):
             undistorted_image = undistorted_image.clip(0, 255.0).astype(np.uint8)
 
             cv2.imwrite(image_save_path, undistorted_image)
-
 
 
 def soft_link_dataset(original_path, path, src_scene, scene):
@@ -348,15 +337,12 @@ if __name__ == "__main__":
         print("Please check if the scene name is correct")
         quit()
 
-
     if "04_Trucks" in video_path:
         print("04_Trucks")
         if end_frame > 150:
             end_frame = 150
 
-
     postfix = "_undist"  # undistorted cameras
-
 
     scene = src_scene + postfix
     original_path = video_path  #
@@ -365,11 +351,9 @@ if __name__ == "__main__":
     video = original_path  # 43 1
     scale = immersive_scale_dict[scene]
 
-
     videos_list = glob.glob(original_video + "*.mp4")
     for v in tqdm.tqdm(videos_list):
         extract_frames_x1(v)
-
 
     soft_link_dataset(original_path, path, src_scene, scene)
 
@@ -391,4 +375,3 @@ if __name__ == "__main__":
 
     for offset in range(0, 50):
         get_colmap_single_im_undistort(video, offset=offset)
-

@@ -27,13 +27,11 @@ import cv2
 import natsort
 import numpy as np
 
-# import sys
-# sys.path.append(".")
-from thirdparty.colmap.pre_colmap import *
-from thirdparty.gaussian_splatting.colmap_loader import (
+from gaussian_splatting.colmap_loader import (
     read_extrinsics_binary,
     read_intrinsics_binary,
 )
+from gaussian_splatting.utils.pre_colmap import *
 
 
 def compare_spatial_temporal():

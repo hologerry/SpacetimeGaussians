@@ -41,6 +41,11 @@ import torchvision
 from torchvision.utils import save_image
 from tqdm import tqdm
 
+from gaussian_splatting.helper3dg import get_parser, get_render_parts
+from gaussian_splatting.scene import Scene
+from gaussian_splatting.utils.graphics_utils import get_world_2_view2
+from gaussian_splatting.utils.image_utils import psnr
+from gaussian_splatting.utils.loss_utils import l1_loss, l2_loss, relative_loss, ssim
 from helper_train import (
     control_gaussians,
     get_loss,
@@ -52,16 +57,6 @@ from helper_train import (
     trb_function,
 )
 from image_video_io import images_to_video
-from thirdparty.gaussian_splatting.helper3dg import get_parser, get_render_parts
-from thirdparty.gaussian_splatting.scene import Scene
-from thirdparty.gaussian_splatting.utils.graphics_utils import get_world_2_view2
-from thirdparty.gaussian_splatting.utils.image_utils import psnr
-from thirdparty.gaussian_splatting.utils.loss_utils import (
-    l1_loss,
-    l2_loss,
-    relative_loss,
-    ssim,
-)
 
 
 def train(
@@ -114,8 +109,8 @@ def train(
     )
 
     current_xyz = gaussians._xyz
-    # os.makedirs("cam_vis", exist_ok=True)
-    # np.save(os.path.join("cam_vis", "input_xyz.npy"), current_xyz.detach().cpu().numpy())
+    # os.makedirs("vis_cam", exist_ok=True)
+    # np.save(os.path.join("vis_cam", "input_xyz.npy"), current_xyz.detach().cpu().numpy())
     # z wrong... # ???
     max_x, max_y, max_z = torch.amax(current_xyz[:, 0]), torch.amax(current_xyz[:, 1]), torch.amax(current_xyz[:, 2])
     min_x, min_y, min_z = torch.amin(current_xyz[:, 0]), torch.amin(current_xyz[:, 1]), torch.amin(current_xyz[:, 2])
@@ -187,8 +182,8 @@ def train(
             w2c = get_world_2_view2(viewpoint_cam.R, viewpoint_cam.T)
             c2w = np.linalg.inv(w2c)
             c2w[:3, 1:3] *= -1
-            # os.makedirs("cam_vis", exist_ok=True)
-            # np.save(f"cam_vis/cam_{viewpoint_cam.image_name}_pose.npy", c2w)
+            # os.makedirs("vis_cam", exist_ok=True)
+            # np.save(f"vis_cam/cam_{viewpoint_cam.image_name}_pose.npy", c2w)
 
             # _, depthH, depthW = render_pkg["depth"].shape
             # border_H = int(depthH / 2)
@@ -269,7 +264,7 @@ def train(
             # print(f"viewpoint_cam {viewpoint_cam.image_name} {viewpoint_cam.is_fake_view}")
 
             gt_image = viewpoint_cam.original_image.float().cuda()
-            gt_image_real = viewpoint_cam.original_image_real.float().cuda()
+            # gt_image_real = viewpoint_cam.original_image_real.float().cuda()
 
             if iteration % 500 == 0:
                 save_image(
@@ -356,21 +351,23 @@ def train(
                 opacity_velocity_loss = optim_args.lambda_opacity_vel * loss_opacity_velocity
                 loss += opacity_velocity_loss
 
-            tb_writer.add_scalar(f"train_loss_all/l1_loss_{view_name}", l1_loss_value.item(), iteration)
-            tb_writer.add_scalar(f"train_loss_all/ssim_loss_{view_name}", ssim_loss_value.item(), iteration)
-            tb_writer.add_scalar(f"train_loss_all/w_loss_{view_name}", weight_loss.item(), iteration)
-            tb_writer.add_scalar(f"train_loss_all/total_loss_{view_name}", loss.item(), iteration)
+            tb_writer.add_scalar(f"train_loss/l1_loss_{view_name}", l1_loss_value.item(), iteration)
+            tb_writer.add_scalar(f"train_loss/ssim_loss_{view_name}", ssim_loss_value.item(), iteration)
+            tb_writer.add_scalar(f"train_loss/w_loss_{view_name}", weight_loss.item(), iteration)
+            tb_writer.add_scalar(f"train_loss/total_loss_{view_name}", loss.item(), iteration)
             if optim_args.lambda_velocity > 0:
-                tb_writer.add_scalar(f"train_loss_all/velocity_loss_{view_name}", velocity_loss.item(), iteration)
+                tb_writer.add_scalar(f"train_loss/vel_loss_{view_name}", velocity_loss.item(), iteration)
             if optim_args.lambda_opacity_vel > 0:
-                tb_writer.add_scalar(f"train_loss_all/opacity_velocity_loss_{view_name}", opacity_velocity_loss.item(), iteration)
+                tb_writer.add_scalar(
+                    f"train_loss/opacity_vel_loss_{view_name}", opacity_velocity_loss.item(), iteration
+                )
 
-            if flag_ems == 1:
-                if viewpoint_cam.image_name not in loss_dict:
-                    loss_dict[viewpoint_cam.image_name] = loss.item()
-                    ssim_dict[viewpoint_cam.image_name] = ssim(
-                        image.clone().detach(), gt_image.clone().detach()
-                    ).item()
+            # if flag_ems == 1:
+            #     if viewpoint_cam.image_name not in loss_dict:
+            #         loss_dict[viewpoint_cam.image_name] = loss.item()
+            #         ssim_dict[viewpoint_cam.image_name] = ssim(
+            #             image.clone().detach(), gt_image.clone().detach()
+            #         ).item()
 
             loss.backward()
             gaussians.cache_gradient()

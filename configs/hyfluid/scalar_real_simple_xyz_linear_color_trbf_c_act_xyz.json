@@ -11,7 +11,7 @@
   "duration": 120,
   "time_step": 1,
   "rd_pipe": "train_ours_lite_single_xyz_linear_color_trbf_c_act_xyz",
-  "rgb_function": "sandwich",
+  "rgb_function": "none",
   "batch": 4,
   "densify": 0,
   "densify_from_iter": 0,

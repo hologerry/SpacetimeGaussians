@@ -21,29 +21,20 @@
 # SOFTWARE.
 
 import argparse
-
 import glob
 import os
-import pickle
 import shutil
-import struct
 
 import cv2
-import natsort
 import numpy as np
 import tqdm
 
 from scipy.spatial.transform import Rotation
 
+from gaussian_splatting.helper3dg import get_colmap_single_im_distort
+from gaussian_splatting.utils.my_utils import rot_mat_2_qvec
+from gaussian_splatting.utils.pre_colmap import COLMAPDatabase
 from script.pre_n3d import extract_frames
-from thirdparty.colmap.pre_colmap import COLMAPDatabase
-from thirdparty.gaussian_splatting.helper3dg import get_colmap_single_im_distort
-from thirdparty.gaussian_splatting.utils.graphics_utils import focal2fov, fov2focal
-from thirdparty.gaussian_splatting.utils.my_utils import (
-    pose_to_w2c_matrixes,
-    qvec_2_rot_mat,
-    rot_mat_2_qvec,
-)
 
 
 SCALE_DICT = {}
@@ -64,7 +55,6 @@ for scene in immersive_seven:
     immersive_scale_dict[scene + "_dist"] = immersive_scale_dict[scene]
     SCALE_DICT[scene + "_dist"] = immersive_scale_dict[scene]
     # immersive_scale_dict[scene]  # to be checked with large scale
-
 
 
 def convert_model_to_db_files(path, offset=0, scale=1.0, remove_everything_except_input=False):
@@ -285,10 +275,8 @@ def image_undistort(video, offset_list=[0], focal_scale=1.0, fix_focal=None):
     import cv2
     import numpy as np
 
-
     with open(os.path.join(video + "models.json"), "r") as f:
         meta = json.load(f)
-
 
     for idx, camera in enumerate(meta):
         folder = camera["name"]  # camera_0001
@@ -345,13 +333,11 @@ def image_undistort(video, offset_list=[0], focal_scale=1.0, fix_focal=None):
                 np.save(os.path.join(video, folder + ".npy"), distorting_flow)
 
 
-
 def soft_link_dataset(original_path, path, src_scene, scene):
     video_folder_list = glob.glob(original_path + "camera_*/")
 
     if not os.path.exists(path):
         os.makedirs(path)
-
 
     for video_folder in video_folder_list:
         new_link = os.path.join(path, video_folder.split("/")[-2])
@@ -405,9 +391,7 @@ if __name__ == "__main__":
         if end_frame > 150:
             end_frame = 150
 
-
     postfix = "_dist"  # distorted model
-
 
     scene = src_scene + postfix
     original_path = video_path  # "
@@ -442,4 +426,3 @@ if __name__ == "__main__":
         quit()
     for offset in range(start_frame, end_frame):
         get_colmap_single_im_distort(video, offset=offset)
-

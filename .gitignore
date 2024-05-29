@@ -187,4 +187,6 @@ thirdparty/gaussian_splatting/submodules/simple-knn/*egg-info
 
 generatecode.py
 getconfig.py
-cam_vis
+
+vis_cam
+

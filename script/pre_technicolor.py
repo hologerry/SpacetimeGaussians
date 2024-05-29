@@ -23,22 +23,14 @@
 import argparse
 import csv
 import glob
-import json
 import os
-import pickle
 import shutil
-import struct
-import sys
 
-import cv2
-import natsort
 import numpy as np
 import tqdm
 
-from PIL import Image
-
-from thirdparty.colmap.pre_colmap import COLMAPDatabase
-from thirdparty.gaussian_splatting.helper3dg import get_colmap_single_techni
+from gaussian_splatting.helper3dg import get_colmap_single_techni
+from gaussian_splatting.utils.pre_colmap import COLMAPDatabase
 
 
 def convert_model_to_db_files(path, offset=0):

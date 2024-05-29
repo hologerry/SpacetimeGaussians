@@ -89,7 +89,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_full
+        from gaussian_splatting.renderer import train_ours_full
 
         return train_ours_full, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -99,7 +99,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_full
+        from gaussian_splatting.renderer import test_ours_full
 
         return test_ours_full, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -109,21 +109,21 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite
+        from gaussian_splatting.renderer import train_ours_lite
 
         return train_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
 
     elif option == "test_ours_lite":
         from forward_lite import GaussianRasterizationSettings, GaussianRasterizer
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite
+        from gaussian_splatting.renderer import test_ours_lite
 
         return test_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
 
     elif option == "test_ours_lite_vis":
         from forward_lite import GaussianRasterizationSettings, GaussianRasterizer
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_vis
+        from gaussian_splatting.renderer import test_ours_lite_vis
 
         return test_ours_lite_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -133,7 +133,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite
+        from gaussian_splatting.renderer import train_ours_lite
 
         return train_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -143,7 +143,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite
+        from gaussian_splatting.renderer import test_ours_lite
 
         return test_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -153,7 +153,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite_act
+        from gaussian_splatting.renderer import train_ours_lite_act
 
         return train_ours_lite_act, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -163,7 +163,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_act_vis
+        from gaussian_splatting.renderer import test_ours_lite_act_vis
 
         return test_ours_lite_act_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -173,7 +173,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite_all
+        from gaussian_splatting.renderer import train_ours_lite_all
 
         return train_ours_lite_all, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -183,7 +183,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_all_vis
+        from gaussian_splatting.renderer import test_ours_lite_all_vis
 
         return test_ours_lite_all_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -193,7 +193,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite_trbf_center
+        from gaussian_splatting.renderer import train_ours_lite_trbf_center
 
         return train_ours_lite_trbf_center, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -203,7 +203,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_trbf_center_vis
+        from gaussian_splatting.renderer import test_ours_lite_trbf_center_vis
 
         return test_ours_lite_trbf_center_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -213,7 +213,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite_xyz_quadric
+        from gaussian_splatting.renderer import train_ours_lite_xyz_quadric
 
         return train_ours_lite_xyz_quadric, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -223,12 +223,9 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
-            test_ours_lite_xyz_quadric_vis,
-        )
+        from gaussian_splatting.renderer import test_ours_lite_xyz_quadric_vis
 
         return test_ours_lite_xyz_quadric_vis, GaussianRasterizationSettings, GaussianRasterizer
-
 
     elif option == "train_ours_lite_single_xyz_quadric_trbf_center":
         from diff_gaussian_rasterization_ch1 import (
@@ -236,7 +233,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite_xyz_quadric_trbf_center
+        from gaussian_splatting.renderer import train_ours_lite_xyz_quadric_trbf_center
 
         return train_ours_lite_xyz_quadric_trbf_center, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -246,7 +243,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
+        from gaussian_splatting.renderer import (
             test_ours_lite_xyz_quadric_trbf_center_vis,
         )
 
@@ -258,7 +255,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite_xyz_linear
+        from gaussian_splatting.renderer import train_ours_lite_xyz_linear
 
         return train_ours_lite_xyz_linear, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -268,7 +265,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_xyz_linear_vis
+        from gaussian_splatting.renderer import test_ours_lite_xyz_linear_vis
 
         return test_ours_lite_xyz_linear_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -278,9 +275,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
-            train_ours_lite_xyz_linear_color,
-        )
+        from gaussian_splatting.renderer import train_ours_lite_xyz_linear_color
 
         return train_ours_lite_xyz_linear_color, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -290,12 +285,9 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
-            test_ours_lite_xyz_linear_color_vis,
-        )
+        from gaussian_splatting.renderer import test_ours_lite_xyz_linear_color_vis
 
         return test_ours_lite_xyz_linear_color_vis, GaussianRasterizationSettings, GaussianRasterizer
-
 
     elif option == "train_ours_lite_single_xyz_linear_color_trbf_c_act":
         from diff_gaussian_rasterization_ch1 import (
@@ -303,7 +295,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
+        from gaussian_splatting.renderer import (
             train_ours_lite_xyz_linear_color_trbf_c_act,
         )
 
@@ -315,7 +307,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
+        from gaussian_splatting.renderer import (
             test_ours_lite_xyz_linear_color_trbf_c_act_vis,
         )
 
@@ -327,7 +319,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
+        from gaussian_splatting.renderer import (
             train_ours_lite_xyz_linear_color_trbf_c_act_xyz,
         )
 
@@ -339,7 +331,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
+        from gaussian_splatting.renderer import (
             test_ours_lite_xyz_linear_color_trbf_c_act_xyz_vis,
         )
 
@@ -351,7 +343,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
+        from gaussian_splatting.renderer import (
             train_ours_lite_xyz_linear_color_trbf_center,
         )
 
@@ -363,7 +355,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
+        from gaussian_splatting.renderer import (
             test_ours_lite_xyz_linear_color_trbf_center_vis,
         )
 
@@ -375,9 +367,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
-            train_ours_lite_xyz_linear_color_source,
-        )
+        from gaussian_splatting.renderer import train_ours_lite_xyz_linear_color_source
 
         return train_ours_lite_xyz_linear_color_source, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -387,7 +377,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
+        from gaussian_splatting.renderer import (
             test_ours_lite_xyz_linear_color_source_vis,
         )
 
@@ -399,7 +389,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import train_ours_lite_opacity_no_t
+        from gaussian_splatting.renderer import train_ours_lite_opacity_no_t
 
         return train_ours_lite_opacity_no_t, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -409,9 +399,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
-            test_ours_lite_opacity_no_t_vis,
-        )
+        from gaussian_splatting.renderer import test_ours_lite_opacity_no_t_vis
 
         return test_ours_lite_opacity_no_t_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -421,9 +409,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
-            train_ours_lite_opacity_exp_linear,
-        )
+        from gaussian_splatting.renderer import train_ours_lite_opacity_exp_linear
 
         return train_ours_lite_opacity_exp_linear, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -433,9 +419,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
-            test_ours_lite_opacity_exp_linear_vis,
-        )
+        from gaussian_splatting.renderer import test_ours_lite_opacity_exp_linear_vis
 
         return test_ours_lite_opacity_exp_linear_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -445,9 +429,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
-            train_ours_lite_opacity_linear,
-        )
+        from gaussian_splatting.renderer import train_ours_lite_opacity_linear
 
         return train_ours_lite_opacity_linear, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -457,9 +439,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import (
-            test_ours_lite_opacity_linear_vis,
-        )
+        from gaussian_splatting.renderer import test_ours_lite_opacity_linear_vis
 
         return test_ours_lite_opacity_linear_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -469,7 +449,7 @@ def get_render_pipe(option="train_ours_full"):
             GaussianRasterizer,
         )
 
-        from thirdparty.gaussian_splatting.renderer import test_ours_lite_vis
+        from gaussian_splatting.renderer import test_ours_lite_vis
 
         return test_ours_lite_vis, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -479,7 +459,7 @@ def get_render_pipe(option="train_ours_full"):
     #         GaussianRasterizer,
     #     )
 
-    #     from thirdparty.gaussian_splatting.renderer import train_ours_full_ss
+    #     from gaussian_splatting.renderer import train_ours_full_ss
 
     #     return train_ours_full_ss, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -489,14 +469,14 @@ def get_render_pipe(option="train_ours_full"):
     #         GaussianRasterizer,
     #     )
 
-    #     from thirdparty.gaussian_splatting.renderer import test_ours_full_ss
+    #     from gaussian_splatting.renderer import test_ours_full_ss
 
     #     return test_ours_full_ss, GaussianRasterizationSettings, GaussianRasterizer
 
     # elif option == "test_ours_full_ss_fused":  # fused mlp in rendering
     #     from forward_full import GaussianRasterizationSettings, GaussianRasterizer
 
-    #     from thirdparty.gaussian_splatting.renderer import test_ours_full_ss_fused
+    #     from gaussian_splatting.renderer import test_ours_full_ss_fused
 
     #     return test_ours_full_ss_fused, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -506,14 +486,14 @@ def get_render_pipe(option="train_ours_full"):
     #         GaussianRasterizer,
     #     )
 
-    #     from thirdparty.gaussian_splatting.renderer import train_ours_lite_ss
+    #     from gaussian_splatting.renderer import train_ours_lite_ss
 
     #     return train_ours_lite_ss, GaussianRasterizationSettings, GaussianRasterizer
 
     # elif option == "test_ours_lite_ss":
     #     from forward_lite import GaussianRasterizationSettings, GaussianRasterizer
 
-    #     from thirdparty.gaussian_splatting.renderer import test_ours_lite_ss
+    #     from gaussian_splatting.renderer import test_ours_lite_ss
 
     #     return test_ours_lite_ss, GaussianRasterizationSettings, GaussianRasterizer
 
@@ -523,71 +503,59 @@ def get_render_pipe(option="train_ours_full"):
 
 def get_model(model="ours_full"):
     if model == "ours_full":
-        from thirdparty.gaussian_splatting.scene.ours_full import GaussianModel
+        from gaussian_splatting.scene.ours_full import GaussianModel
     elif model == "ours_lite":
-        from thirdparty.gaussian_splatting.scene.ours_lite import GaussianModel
+        from gaussian_splatting.scene.ours_lite import GaussianModel
     elif model == "ours_simple_scale":
-        from thirdparty.gaussian_splatting.scene.ours_simple_scale import GaussianModel
+        from gaussian_splatting.scene.ours_simple_scale import GaussianModel
     elif model == "ours_simple_rotation":
-        from thirdparty.gaussian_splatting.scene.ours_simple_rotation import (
-            GaussianModel,
-        )
+        from gaussian_splatting.scene.ours_simple_rotation import GaussianModel
     elif model == "ours_simple_color":
-        from thirdparty.gaussian_splatting.scene.ours_simple_color import GaussianModel
+        from gaussian_splatting.scene.ours_simple_color import GaussianModel
     elif model == "ours_simple_color_scale_rotation":
-        from thirdparty.gaussian_splatting.scene.ours_simple_color_scale_rotation import GaussianModel
+        from gaussian_splatting.scene.ours_simple_color_scale_rotation import (
+            GaussianModel,
+        )
     elif model == "ours_simple_color_scale_rotation_act":
-        from thirdparty.gaussian_splatting.scene.ours_simple_color_scale_rotation_act import GaussianModel
+        from gaussian_splatting.scene.ours_simple_color_scale_rotation_act import (
+            GaussianModel,
+        )
     elif model == "ours_simple_opacity_no_t":
-        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_no_t import (
-            GaussianModel,
-        )
+        from gaussian_splatting.scene.ours_simple_opacity_no_t import GaussianModel
     elif model == "ours_simple_opacity_linear":
-        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_linear import (
-            GaussianModel,
-        )
+        from gaussian_splatting.scene.ours_simple_opacity_linear import GaussianModel
     elif model == "ours_simple_opacity_w_t":
-        from thirdparty.gaussian_splatting.scene.ours_simple_opacity_w_t import (
-            GaussianModel,
-        )
+        from gaussian_splatting.scene.ours_simple_opacity_w_t import GaussianModel
     elif model == "ours_simple_xyz_quadric":
-        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_quadric import (
-            GaussianModel,
-        )
+        from gaussian_splatting.scene.ours_simple_xyz_quadric import GaussianModel
     elif model == "ours_simple_xyz_linear":
-        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear import (
-            GaussianModel,
-        )
+        from gaussian_splatting.scene.ours_simple_xyz_linear import GaussianModel
     elif model == "ours_simple_xyz_linear_color":
-        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color import (
-            GaussianModel,
-        )
+        from gaussian_splatting.scene.ours_simple_xyz_linear_color import GaussianModel
     elif model == "ours_simple_xyz_linear_color_trbf_c_act":
-        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color_trbf_c_act import (
+        from gaussian_splatting.scene.ours_simple_xyz_linear_color_trbf_c_act import (
             GaussianModel,
         )
     elif model == "ours_simple_fix_xyz_linear_color_trbf_c_act":
-        from thirdparty.gaussian_splatting.scene.ours_simple_fix_xyz_linear_color_trbf_c_act import (
+        from gaussian_splatting.scene.ours_simple_fix_xyz_linear_color_trbf_c_act import (
             GaussianModel,
         )
     elif model == "ours_simple_xyz_linear_color_source":
-        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color_source import (
+        from gaussian_splatting.scene.ours_simple_xyz_linear_color_source import (
             GaussianModel,
         )
     elif model == "ours_simple_xyz_linear_color_trbf_center":
-        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_linear_color_trbf_center import (
+        from gaussian_splatting.scene.ours_simple_xyz_linear_color_trbf_center import (
             GaussianModel,
         )
     elif model == "ours_simple_trbf_center":
-        from thirdparty.gaussian_splatting.scene.ours_simple_trbf_center import (
-            GaussianModel,
-        )
+        from gaussian_splatting.scene.ours_simple_trbf_center import GaussianModel
     elif model == "ours_simple_xyz_quadric_trbf_center":
-        from thirdparty.gaussian_splatting.scene.ours_simple_xyz_quadric_trbf_center import (
+        from gaussian_splatting.scene.ours_simple_xyz_quadric_trbf_center import (
             GaussianModel,
         )
     elif model == "ours_simple_all":
-        from thirdparty.gaussian_splatting.scene.ours_simple_all import GaussianModel
+        from gaussian_splatting.scene.ours_simple_all import GaussianModel
     else:
         raise NotImplementedError("model {} not implemented".format(model))
     return GaussianModel
@@ -707,7 +675,15 @@ def control_gaussians(
 
             if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                 size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold, clone=clone, split=split, prune=prune)
+                gaussians.densify_and_prune(
+                    opt.densify_grad_threshold,
+                    0.005,
+                    scene.cameras_extent,
+                    size_threshold,
+                    clone=clone,
+                    split=split,
+                    prune=prune,
+                )
 
             if iteration % opt.opacity_reset_interval == 0 or (
                 white_background and iteration == opt.densify_from_iter

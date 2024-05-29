@@ -27,7 +27,7 @@ import torch.nn as nn
 from mmcv.ops import knn
 from simple_knn._C import distCUDA2
 
-from thirdparty.gaussian_splatting.utils.graphics_utils import BasicPointCloud
+from gaussian_splatting.utils.graphics_utils import BasicPointCloud
 
 
 class Sandwich(nn.Module):

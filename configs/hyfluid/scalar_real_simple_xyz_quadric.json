@@ -8,7 +8,7 @@
   "duration": 120,
   "time_step": 1,
   "rd_pipe": "train_ours_lite_single_xyz_quadric",
-  "rgb_function": "sandwich",
+  "rgb_function": "none",
   "batch": 1,
   "densify": 0,
   "densify_from_iter": 0,

@@ -51,14 +51,19 @@ from skimage.metrics import structural_similarity as sk_ssim
 from torchvision.utils import save_image
 from tqdm import tqdm
 
-from helper_train import get_model, get_render_pipe, trb_function, trb_exp_linear_function
+from gaussian_splatting.arguments import ModelParams, PipelineParams
+from gaussian_splatting.helper3dg import get_test_parser
+from gaussian_splatting.lpipsPyTorch import lpips as lpips_func
+from gaussian_splatting.scene import Scene
+from gaussian_splatting.utils.image_utils import psnr as psnr_func
+from gaussian_splatting.utils.loss_utils import ssim as ssim_func
+from helper_train import (
+    get_model,
+    get_render_pipe,
+    trb_exp_linear_function,
+    trb_function,
+)
 from image_video_io import images_to_video, mp4_to_gif
-from thirdparty.gaussian_splatting.arguments import ModelParams, PipelineParams
-from thirdparty.gaussian_splatting.helper3dg import get_test_parser
-from thirdparty.gaussian_splatting.lpipsPyTorch import lpips as lpips_func
-from thirdparty.gaussian_splatting.scene import Scene
-from thirdparty.gaussian_splatting.utils.image_utils import psnr as psnr_func
-from thirdparty.gaussian_splatting.utils.loss_utils import ssim as ssim_func
 
 
 warnings.filterwarnings("ignore")
@@ -192,7 +197,6 @@ def render_set(
             means3D_no_t_path = os.path.join(quantities_out_path, f"means3D_no_t_{cur_view_time_idx:05d}.npy")
             np.save(means3D_no_t_path, means3D_no_t)
 
-
             means3D = rendering_pkg["means3D"]
             means3D = means3D.detach().cpu().numpy()
             means3D_path = os.path.join(quantities_out_path, f"means3D_{cur_view_time_idx:05d}.npy")
@@ -223,13 +227,17 @@ def render_set(
             if "velocities3D_timed" in rendering_pkg:
                 velocities3D_timed = rendering_pkg["velocities3D_timed"]
                 velocities3D_timed = velocities3D_timed.detach().cpu().numpy()
-                velocities3D_timed_path = os.path.join(quantities_out_path, f"velocities3D_timed_{cur_view_time_idx:05d}.npy")
+                velocities3D_timed_path = os.path.join(
+                    quantities_out_path, f"velocities3D_timed_{cur_view_time_idx:05d}.npy"
+                )
                 np.save(velocities3D_timed_path, velocities3D_timed)
 
             if "velocities3D_zeroed" in rendering_pkg:
                 velocities3D_zeroed = rendering_pkg["velocities3D_zeroed"]
                 velocities3D_zeroed = velocities3D_zeroed.detach().cpu().numpy()
-                velocities3D_zeroed_path = os.path.join(quantities_out_path, f"velocities3D_zeroed_{cur_view_time_idx:05d}.npy")
+                velocities3D_zeroed_path = os.path.join(
+                    quantities_out_path, f"velocities3D_zeroed_{cur_view_time_idx:05d}.npy"
+                )
                 np.save(velocities3D_zeroed_path, velocities3D_zeroed)
 
             opacity = rendering_pkg["opacity"]
@@ -310,7 +318,6 @@ def render_set(
         mean_metrics_per_view_dict[view_name]["lpips"] = float(np.mean(full_metrics_dict[view_name]["lpips"]))
         mean_metrics_per_view_dict[view_name]["lpips_vgg"] = float(np.mean(full_metrics_dict[view_name]["lpips_vgg"]))
         mean_metrics_per_view_dict[view_name]["ssim_v2"] = float(np.mean(full_metrics_dict[view_name]["ssim_v2"]))
-
 
     if "train00" in all_view_names:
         train_view_names = ["train00", "train01", "train03", "train04"]

@@ -41,6 +41,11 @@ import torchvision
 from torchvision.utils import save_image
 from tqdm import tqdm
 
+from gaussian_splatting.helper3dg import get_parser, get_render_parts
+from gaussian_splatting.scene import Scene
+from gaussian_splatting.utils.graphics_utils import get_world_2_view2
+from gaussian_splatting.utils.image_utils import psnr
+from gaussian_splatting.utils.loss_utils import l1_loss, l2_loss, relative_loss, ssim
 from helper_train import (
     control_gaussians,
     get_loss,
@@ -52,16 +57,6 @@ from helper_train import (
     trb_function,
 )
 from image_video_io import images_to_video
-from thirdparty.gaussian_splatting.helper3dg import get_parser, get_render_parts
-from thirdparty.gaussian_splatting.scene import Scene
-from thirdparty.gaussian_splatting.utils.graphics_utils import get_world_2_view2
-from thirdparty.gaussian_splatting.utils.image_utils import psnr
-from thirdparty.gaussian_splatting.utils.loss_utils import (
-    l1_loss,
-    l2_loss,
-    relative_loss,
-    ssim,
-)
 
 
 def train(
@@ -217,9 +212,11 @@ def train(
         first_iter = 0
 
         current_time_stamp = unique_timestamps[cur_max_time_index]
-        current_time_iterations = optim_args.iterations_per_time + int(optim_args.iterations_per_time_post * cur_max_time_index)
-        saving_iterations = [1, current_time_iterations//2, current_time_iterations]
-        testing_iterations = [1, current_time_iterations//2, current_time_iterations]
+        current_time_iterations = optim_args.iterations_per_time + int(
+            optim_args.iterations_per_time_post * cur_max_time_index
+        )
+        saving_iterations = [1, current_time_iterations // 2, current_time_iterations]
+        testing_iterations = [1, current_time_iterations // 2, current_time_iterations]
 
         progress_bar = tqdm(range(first_iter, current_time_iterations), desc=f"Training progress {cur_max_time_index}")
         first_iter += 1
@@ -242,7 +239,7 @@ def train(
             #     gaussians.add_gaussians(current_time_stamp, args.new_pts)
 
             gaussians.zero_gradient_cache()
-            if iteration <= 10: # optim_args.iterations_per_time:
+            if iteration <= 10:  # optim_args.iterations_per_time:
                 # fitting current time first
                 time_index = cur_max_time_index
             else:
@@ -457,10 +454,10 @@ def training_report(
     if iteration in testing_iterations:
         # aggregate all current and previous time views
         train_cams = []
-        for i in range(0, cur_time_idx+1):
+        for i in range(0, cur_time_idx + 1):
             train_cams += train_cam_dict[i]
         test_cams = []
-        for i in range(0, cur_time_idx+1):
+        for i in range(0, cur_time_idx + 1):
             test_cams += test_cam_dict[i]
         torch.cuda.empty_cache()
         if not test_all_train_views:
@@ -471,7 +468,9 @@ def training_report(
             {"name": "test", "cameras": test_cams},
             {"name": "train", "cameras": train_cams},
         )
-        print(f"Testing time {cur_time_idx:03d} iteration {iteration} with {len(train_cams)} train views and {len(test_cams)} test views")
+        print(
+            f"Testing time {cur_time_idx:03d} iteration {iteration} with {len(train_cams)} train views and {len(test_cams)} test views"
+        )
 
         for config in validation_configs:
             if config["cameras"] and len(config["cameras"]) > 0:

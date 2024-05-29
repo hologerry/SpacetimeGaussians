@@ -6,20 +6,20 @@ conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit
 
 
 # Install for Gaussian Rasterization (Ch9) - Ours-Full
-pip install thirdparty/gaussian_splatting/submodules/gaussian_rasterization_ch9
+pip install gaussian_splatting/submodules/gaussian_rasterization_ch9
 
 # Install for Gaussian Rasterization (Ch3) - Ours-Lite
-pip install thirdparty/gaussian_splatting/submodules/gaussian_rasterization_ch3
+pip install gaussian_splatting/submodules/gaussian_rasterization_ch3
 
 # Install for Forward Full - Ours-Full (speed up testing, mlp fused, no sigmoid)
-pip install thirdparty/gaussian_splatting/submodules/forward_full
+pip install gaussian_splatting/submodules/forward_full
 
 # Install for Forward Lite - Ours-Lite (speed up testing)
-pip install thirdparty/gaussian_splatting/submodules/forward_lite
+pip install gaussian_splatting/submodules/forward_lite
 
 
 # install simpleknn
-pip install thirdparty/gaussian_splatting/submodules/simple-knn
+pip install gaussian_splatting/submodules/simple-knn
 
 # install opencv-python-headless, to work with colmap on server
 pip install opencv-python
@@ -61,8 +61,8 @@ conda activate feature_splatting
 # ```
 # after ```cmake -Bbuild .```, it will automaticly donwload third party libraries provided by Inria (takes several minutes for the first time). </br>
 # We need to update two default folders (```CudaRasterizer```, ```projects```) with our provided codes.
-# Just, update everthing except .git in ```extlibs/CudaRasterizer``` with our ```thirdparty/gaussian_splatting/realtimedemo/extlibs/CudaRasterizer```
-# And, update everthing except .git in  ```src/projects``` with our ```thirdparty/gaussian_splatting/realtimedemo/projects```
+# Just, update everthing except .git in ```extlibs/CudaRasterizer``` with our ```gaussian_splatting/realtimedemo/extlibs/CudaRasterizer```
+# And, update everthing except .git in  ```src/projects``` with our ```gaussian_splatting/realtimedemo/projects```
 # during replaceing, please keep the orginal .git dirtory. only replace the code
 # after manually update the two folders, you can rebuild the projects
 # ```

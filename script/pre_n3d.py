@@ -23,21 +23,16 @@
 import argparse
 import glob
 import os
-import pickle
 import shutil
-import sys
 
 import cv2
 import numpy as np
 
 from tqdm import tqdm, trange
 
-from thirdparty.colmap.pre_colmap import COLMAPDatabase
-from thirdparty.gaussian_splatting.helper3dg import get_colmap_single_n3d
-from thirdparty.gaussian_splatting.utils.my_utils import (
-    pose_to_w2c_matrixes,
-    rot_mat_2_qvec,
-)
+from gaussian_splatting.helper3dg import get_colmap_single_n3d
+from gaussian_splatting.utils.my_utils import pose_to_w2c_matrixes, rot_mat_2_qvec
+from gaussian_splatting.utils.pre_colmap import COLMAPDatabase
 
 
 def extract_frames(video_path):
