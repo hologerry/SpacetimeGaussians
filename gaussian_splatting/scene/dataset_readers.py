@@ -1588,9 +1588,9 @@ def read_nerf_synthetic_info_hyfluid(
 
             xyz = np.concatenate((x, y, z), axis=1)
 
-            if init_trbf_c_fix is not None and isinstance(init_trbf_c_fix, float):
+            if init_color_fix_value is not None and isinstance(init_color_fix_value, float):
                 # 0.6 does not matter, the init value in Gaussian Model is used
-                rgb = np.ones((num_pts, img_channel)) * init_trbf_c_fix * 255.0
+                rgb = np.ones((num_pts, img_channel)) * init_color_fix_value * 255.0
             else:
                 shs = np.random.random((num_pts, img_channel)) / 255.0
                 rgb = np.random.random((num_pts, 3)) * 255.0
@@ -1601,7 +1601,7 @@ def read_nerf_synthetic_info_hyfluid(
             total_rgb.append(rgb)
             # print(f"init time {(i - start_time) / duration}")
             # when using our adding source, the time is not directly used
-            if init_color_fix_value:
+            if init_trbf_c_fix:
                 total_time.append(np.zeros((xyz.shape[0], 1)))
             else:
                 total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration)

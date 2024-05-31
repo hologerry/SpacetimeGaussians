@@ -57,12 +57,9 @@ from gaussian_splatting.lpipsPyTorch import lpips as lpips_func
 from gaussian_splatting.scene import Scene
 from gaussian_splatting.utils.image_utils import psnr as psnr_func
 from gaussian_splatting.utils.loss_utils import ssim as ssim_func
-from helper_train import (
-    get_model,
-    get_render_pipe,
-    trb_exp_linear_function,
-    trb_function,
-)
+from helper_gaussian_model import get_model
+from helper_pipe import get_render_pipe
+from helper_train import trb_exp_linear_function, trb_function
 from image_video_io import images_to_video, mp4_to_gif
 
 
@@ -192,15 +189,15 @@ def render_set(
 
         if cur_view_name == "train02":
 
-            means3D_no_t = rendering_pkg["means3D_no_t"]
-            means3D_no_t = means3D_no_t.detach().cpu().numpy()
-            means3D_no_t_path = os.path.join(quantities_out_path, f"means3D_no_t_{cur_view_time_idx:05d}.npy")
-            np.save(means3D_no_t_path, means3D_no_t)
-
             means3D = rendering_pkg["means3D"]
             means3D = means3D.detach().cpu().numpy()
             means3D_path = os.path.join(quantities_out_path, f"means3D_{cur_view_time_idx:05d}.npy")
             np.save(means3D_path, means3D)
+
+            means3D_no_t = rendering_pkg["means3D_no_t"]
+            means3D_no_t = means3D_no_t.detach().cpu().numpy()
+            means3D_no_t_path = os.path.join(quantities_out_path, f"means3D_no_t_{cur_view_time_idx:05d}.npy")
+            np.save(means3D_no_t_path, means3D_no_t)
 
             if "means3D_timed" in rendering_pkg:
                 means3D_timed = rendering_pkg["means3D_timed"]
@@ -427,10 +424,10 @@ def run_test(
     time_step=1,
 ):
 
-    print("use model {}".format(model_args.model))
-    GaussianModel = get_model(model_args.model)  # default, g_model, we are testing
+    print(f"Model: {model_args.model}")
+    GaussianModel = get_model(model_args.model)
 
-    print(f"iteration {iteration}")
+    print(f"Iteration: {iteration}")
     gaussians = GaussianModel(model_args.sh_degree, rgb_function)
 
     scene = Scene(
@@ -444,7 +441,7 @@ def run_test(
         duration=duration,
         time_step=time_step,
         grey_image=model_args.grey_image,
-        # test_all_views=True,
+        test_all_views=True,
     )
     if "opacity_exp_linear" in rd_pipe:
         print("Using opacity_exp_linear TRBF for opacity")

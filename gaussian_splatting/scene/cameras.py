@@ -23,7 +23,7 @@ from gaussian_splatting.utils.graphics_utils import (
     get_projection_matrix_cv,
     get_world_2_view2,
 )
-from helper_model import pix2ndc
+from helper_color_model import pix2ndc
 
 
 class Camera(nn.Module):

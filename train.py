@@ -20,23 +20,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import json
 import os
 import random
-import sys
-import time
-import uuid
 
 from argparse import Namespace
 from random import randint
 
-import cv2
 import lovely_tensors as lt
-import lpips
 import numpy as np
 import torch
-import torch.nn.functional as F
-import torchvision
 
 from torchvision.utils import save_image
 from tqdm import tqdm
@@ -45,12 +37,11 @@ from gaussian_splatting.helper3dg import get_parser, get_render_parts
 from gaussian_splatting.scene import Scene
 from gaussian_splatting.utils.graphics_utils import get_world_2_view2
 from gaussian_splatting.utils.image_utils import psnr
-from gaussian_splatting.utils.loss_utils import l1_loss, l2_loss, relative_loss, ssim
+from gaussian_splatting.utils.loss_utils import l1_loss, ssim
+from helper_gaussian_model import get_model
+from helper_pipe import get_render_pipe
 from helper_train import (
     control_gaussians,
-    get_loss,
-    get_model,
-    get_render_pipe,
     prepare_output_and_logger,
     reload_helper,
     trb_exp_linear_function,
@@ -220,8 +211,8 @@ def train(
     print(f"prune {model_args.prune}")
 
     for iteration in range(first_iter, optim_args.iterations + 1):
-        if args.loader != "hyfluid" and iteration == optim_args.ems_start:
-            flag_ems = 1  # start ems
+        # if args.loader != "hyfluid" and iteration == optim_args.ems_start:
+        #     flag_ems = 1  # start ems
 
         iter_start.record()
         gaussians.update_learning_rate(iteration)

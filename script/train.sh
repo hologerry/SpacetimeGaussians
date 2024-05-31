@@ -3,8 +3,8 @@
 python train.py \
     --eval \
     --source_path /dev/shm/ScalarReal \
-    --config configs/hyfluid/scalar_real_simple_color_scale_rotation_act.json \
-    --model_path log/hyfluid_scalar_real/simple_pillar_small_imgoffset_grey_color_scale_rotation_act_trbfcInit0_no_prune_N120x5e4 \
+    --config configs/hyfluid/scalar_real_lite_act.json \
+    --model_path log/hyfluid_scalar_real/baseline_pillar_small_imgoffset_grey_act_trbfcInit0_N120x5000_no-clone-split-prune \
     --loader hyfluid
 exit
 }
