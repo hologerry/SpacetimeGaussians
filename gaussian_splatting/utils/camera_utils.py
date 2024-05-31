@@ -14,7 +14,7 @@ import os
 import numpy as np
 import torch
 
-from gaussian_splatting.scene.cameras import Camera_ss  # ass
+from gaussian_splatting.scene.cameras import Camera_ss
 from gaussian_splatting.scene.cameras import Camera
 from gaussian_splatting.utils.general_utils import pil_to_torch
 from gaussian_splatting.utils.graphics_utils import fov2focal

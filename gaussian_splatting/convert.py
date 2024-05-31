@@ -34,7 +34,7 @@ if not args.skip_matching:
     os.makedirs(args.source_path + "/distorted/sparse", exist_ok=True)
 
     ## Feature extraction
-    feat_extracton_cmd = (
+    feat_extraction_cmd = (
         colmap_command + " feature_extractor "
         "--database_path "
         + args.source_path
@@ -49,7 +49,7 @@ if not args.skip_matching:
         --SiftExtraction.use_gpu "
         + str(use_gpu)
     )
-    exit_code = os.system(feat_extracton_cmd)
+    exit_code = os.system(feat_extraction_cmd)
     if exit_code != 0:
         logging.error(f"Feature extraction failed with code {exit_code}. Exiting.")
         exit(exit_code)
@@ -91,7 +91,7 @@ if not args.skip_matching:
         logging.error(f"Mapper failed with code {exit_code}. Exiting.")
         exit(exit_code)
 
-### Image undistortion
+### Image un-distortion
 ## We need to undistort our images into ideal pinhole intrinsics.
 img_undist_cmd = (
     colmap_command

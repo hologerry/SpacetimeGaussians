@@ -20,37 +20,29 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import json
 import os
 import random
-import sys
-import time
-import uuid
 
 from argparse import Namespace
 from random import randint
 
-import cv2
 import lovely_tensors as lt
-import lpips
 import numpy as np
 import torch
-import torch.nn.functional as F
-import torchvision
 
 from torchvision.utils import save_image
 from tqdm import tqdm
 
-from gaussian_splatting.helper3dg import get_parser, get_render_parts
+from gaussian_splatting.helper3dg import get_render_parts
 from gaussian_splatting.scene import Scene
 from gaussian_splatting.utils.graphics_utils import get_world_2_view2
 from gaussian_splatting.utils.image_utils import psnr
-from gaussian_splatting.utils.loss_utils import l1_loss, l2_loss, relative_loss, ssim
+from gaussian_splatting.utils.loss_utils import l1_loss, ssim
+from helper_gaussian_model import get_model
+from helper_parser import get_parser
+from helper_pipe import get_render_pipe
 from helper_train import (
     control_gaussians,
-    get_loss,
-    get_model,
-    get_render_pipe,
     prepare_output_and_logger,
     reload_helper,
     trb_exp_linear_function,
@@ -60,6 +52,7 @@ from image_video_io import images_to_video
 
 
 def train(
+        args,
     model_args,
     optim_args,
     pipe_args,
@@ -67,32 +60,26 @@ def train(
     saving_iterations,
     checkpoint_iterations,
     debug_from,
-    densify=0,
-    duration=50,
-    rgb_function="rgbv1",
-    rd_pipe="v2",
-    start_time=0,
-    time_step=1,
 ):
     with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
 
     tb_writer = prepare_output_and_logger(model_args)
     first_iter = 0
-    render_func, GRsetting, GRzer = get_render_pipe(rd_pipe)
+    render_func, GRsetting, GRzer = get_render_pipe(model_args.rd_pipe)
 
     print(f"Model: {model_args.model}")
-    GaussianModel = get_model(model_args.model)  # g_model, g_model_rgb_only
+    GaussianModel = get_model(model_args.model)
 
     # trbf means Temporal Radial Basis Function in the paper
     # the trbf_center µ^τ_i is the temporal center, trbf_scale s^τ_i is temporal scaling factor
-    gaussians = GaussianModel(model_args.sh_degree, rgb_function)
+    gaussians = GaussianModel(model_args.sh_degree, model_args.rgb_function)
     gaussians.trbf_scale_init = -1 * optim_args.trbf_scale_init
     gaussians.preprocess_points = optim_args.preprocess_points
     gaussians.add_sph_points_scale = optim_args.add_sph_points_scale
     gaussians.ray_start = optim_args.ray_start
 
-    if "opacity_exp_linear" in rd_pipe:
+    if "opacity_exp_linear" in model_args.rd_pipe:
         print("Using opacity_exp_linear TRBF for opacity")
         trbf_base_function = trb_exp_linear_function
     else:
@@ -102,10 +89,6 @@ def train(
         model_args,
         gaussians,
         loader=model_args.loader,
-        start_time=start_time,
-        duration=duration,
-        time_step=time_step,
-        grey_image=model_args.grey_image,
     )
 
     current_xyz = gaussians._xyz
@@ -394,7 +377,7 @@ def train(
                     trbf_base_function,
                     GRsetting,
                     GRzer,
-                    rd_pipe,
+                    model_args.rd_pipe,
                     train_cam_dict,
                     test_cam_dict,
                     # test_all_train_views=True,
@@ -404,7 +387,7 @@ def train(
                 flag = control_gaussians(
                     optim_args,
                     gaussians,
-                    densify,
+                    model_args.densify,
                     iteration,
                     scene,
                     visibility_filter,
@@ -597,6 +580,7 @@ if __name__ == "__main__":
     lt.monkey_patch()
     args, mp_extract, op_extract, pp_extract = get_parser()
     train(
+        args,
         mp_extract,
         op_extract,
         pp_extract,
@@ -604,12 +588,6 @@ if __name__ == "__main__":
         args.save_iterations,
         args.checkpoint_iterations,
         args.debug_from,
-        densify=args.densify,
-        rgb_function=args.rgb_function,
-        rd_pipe=args.rd_pipe,
-        start_time=args.start_time,
-        duration=args.duration,
-        time_step=args.time_step,
     )
 
     # All done

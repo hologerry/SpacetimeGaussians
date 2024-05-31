@@ -11,23 +11,18 @@
 
 import json
 import os
-import random
 
 import torch
-
-from PIL import Image
 
 from gaussian_splatting.arguments import ModelParams
 from gaussian_splatting.scene.dataset_readers import scene_load_type_callbacks
 from gaussian_splatting.scene.ours_full import GaussianModel
 from gaussian_splatting.utils.camera_utils import (
-    camera_list_from_cam_infos,
     camera_list_from_cam_infos_v2,
-    camera_list_from_cam_infos_v2_no_gt,
     camera_to_json,
 )
 from gaussian_splatting.utils.system_utils import search_for_max_iteration
-from helper_train import get_fish_eye_mapper, record_points_helper
+from helper_train import record_points_helper
 
 
 class Scene:
@@ -40,11 +35,7 @@ class Scene:
         shuffle=True,
         resolution_scales=[1.0],
         multi_view=False,
-        duration=50,
         loader="colmap",
-        start_time=50,
-        time_step=1,
-        grey_image=False,
         test_all_views=False,
     ):
         """b
@@ -60,7 +51,7 @@ class Scene:
                 self.loaded_iter = search_for_max_iteration(os.path.join(self.model_path, "point_cloud"))
             else:
                 self.loaded_iter = load_iteration
-            print("Loading trained model at iteration {}".format(self.loaded_iter))
+            print(f"Loading trained model at iteration {self.loaded_iter}")
 
         self.train_cameras = {}
         self.test_cameras = {}
@@ -96,10 +87,10 @@ class Scene:
                 args.source_path,
                 args.white_background,
                 args.eval,
-                start_time=start_time,
-                duration=duration,
-                time_step=time_step,
-                grey_image=grey_image,
+                start_time=args.start_time,
+                duration=args.duration,
+                time_step=args.time_step,
+                grey_image=args.grey_image,
                 train_views=args.train_views,
                 train_views_fake=args.train_views_fake,
                 use_best_fake=args.use_best_fake,

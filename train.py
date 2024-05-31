@@ -33,12 +33,13 @@ import torch
 from torchvision.utils import save_image
 from tqdm import tqdm
 
-from gaussian_splatting.helper3dg import get_parser, get_render_parts
+from gaussian_splatting.helper3dg import get_render_parts
 from gaussian_splatting.scene import Scene
 from gaussian_splatting.utils.graphics_utils import get_world_2_view2
 from gaussian_splatting.utils.image_utils import psnr
 from gaussian_splatting.utils.loss_utils import l1_loss, ssim
 from helper_gaussian_model import get_model
+from helper_parser import get_parser
 from helper_pipe import get_render_pipe
 from helper_train import (
     control_gaussians,
@@ -51,6 +52,7 @@ from image_video_io import images_to_video
 
 
 def train(
+    args,
     model_args,
     optim_args,
     pipe_args,
@@ -58,32 +60,26 @@ def train(
     saving_iterations,
     checkpoint_iterations,
     debug_from,
-    densify=0,
-    duration=50,
-    rgb_function="rgbv1",
-    rd_pipe="v2",
-    start_time=0,
-    time_step=1,
 ):
     with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
 
     tb_writer = prepare_output_and_logger(model_args)
     first_iter = 0
-    render_func, GRsetting, GRzer = get_render_pipe(rd_pipe)
+    render_func, GRsetting, GRzer = get_render_pipe(pipe_args.rd_pipe)
 
     print(f"Model: {model_args.model}")
-    GaussianModel = get_model(model_args.model)  # g_model, g_model_rgb_only
+    GaussianModel = get_model(model_args.model)
 
     # trbf means Temporal Radial Basis Function in the paper
     # the trbf_center µ^τ_i is the temporal center, trbf_scale s^τ_i is temporal scaling factor
-    gaussians = GaussianModel(model_args.sh_degree, rgb_function)
+    gaussians = GaussianModel(model_args.sh_degree, model_args.rgb_function)
     gaussians.trbf_scale_init = -1 * optim_args.trbf_scale_init
     gaussians.preprocess_points = optim_args.preprocess_points
     gaussians.add_sph_points_scale = optim_args.add_sph_points_scale
     gaussians.ray_start = optim_args.ray_start
 
-    if "opacity_exp_linear" in rd_pipe:
+    if "opacity_exp_linear" in pipe_args.rd_pipe:
         print("Using opacity_exp_linear TRBF for opacity")
         trbf_base_function = trb_exp_linear_function
     else:
@@ -93,10 +89,6 @@ def train(
         model_args,
         gaussians,
         loader=model_args.loader,
-        start_time=start_time,
-        duration=duration,
-        time_step=time_step,
-        grey_image=model_args.grey_image,
     )
 
     current_xyz = gaussians._xyz
@@ -115,7 +107,7 @@ def train(
 
     gaussians.training_setup(optim_args)
 
-    num_channel = 9
+    num_channel = 3 if model_args.grey_image else 1
 
     bg_color = [1, 1, 1] if model_args.white_background else [0 for i in range(num_channel)]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -417,7 +409,7 @@ def train(
                 trbf_base_function,
                 GRsetting,
                 GRzer,
-                rd_pipe,
+                pipe_args.rd_pipe,
                 # test_all_train_views=True,
             )
 
@@ -425,7 +417,7 @@ def train(
             flag = control_gaussians(
                 optim_args,
                 gaussians,
-                densify,
+                model_args.densify,
                 iteration,
                 scene,
                 visibility_filter,
@@ -610,9 +602,9 @@ def train(
                 gaussians.optimizer.step()
                 gaussians.optimizer.zero_grad(set_to_none=True)
 
-            if iteration in checkpoint_iterations:
-                print(f"\n[ITER {iteration}] Saving Checkpoint")
-                torch.save((gaussians.capture(), iteration), scene.model_path + f"/ckp" + str(iteration) + ".pth")
+            # if iteration in checkpoint_iterations:
+            #     print(f"\n[ITER {iteration}] Saving Checkpoint")
+            #     torch.save((gaussians.capture(), iteration), scene.model_path + f"/ckp" + str(iteration) + ".pth")
 
 
 def training_report(
@@ -648,103 +640,102 @@ def training_report(
         )
 
         for config in validation_configs:
-            if config["cameras"] and len(config["cameras"]) > 0:
-                l1_test = 0.0
-                psnr_test = 0.0
-                all_view_names = set()
-                for idx, viewpoint in enumerate(config["cameras"]):
-                    rendered = render_func(
-                        viewpoint,
-                        scene.gaussians,
-                        *render_args,
-                        override_color=None,
-                        basic_function=trbf_base_function,
-                        GRsetting=GRsetting,
-                        GRzer=GRzer,
+            l1_test = 0.0
+            psnr_test = 0.0
+            all_view_names = set()
+            for idx, viewpoint in enumerate(config["cameras"]):
+                rendered = render_func(
+                    viewpoint,
+                    scene.gaussians,
+                    *render_args,
+                    override_color=None,
+                    basic_function=trbf_base_function,
+                    GRsetting=GRsetting,
+                    GRzer=GRzer,
+                )
+                all_view_names.add(viewpoint.image_name)
+                image = torch.clamp(rendered["render"], 0.0, 1.0)
+                gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
+                # testing view it is no difference
+                # training view real is the real gt, no real is the fake gt
+                gt_image_real = torch.clamp(viewpoint.original_image_real.to("cuda"), 0.0, 1.0)
+                # if hasattr(viewpoint, "original_image_real"):
+                #     # since we using fake view images, we need to compare with real images
+                #     gt_image = torch.clamp(viewpoint.original_image_real.to("cuda"), 0.0, 1.0)
+                save_image(
+                    image,
+                    os.path.join(
+                        scene.model_path,
+                        "training_render",
+                        f"test_render_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
+                    ),
+                )
+                save_image(
+                    gt_image,
+                    os.path.join(
+                        scene.model_path,
+                        "training_render",
+                        f"test_gt_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
+                    ),
+                )
+                # save_image(
+                #     gt_image_real,
+                #     os.path.join(
+                #         scene.model_path,
+                #         "training_render",
+                #         f"test_gt_real_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
+                #     ),
+                # )
+                if tb_writer and (idx < 5):
+                    tb_writer.add_images(
+                        config["name"] + "_view_{}/render".format(viewpoint.image_name),
+                        image[None],
+                        global_step=iteration,
                     )
-                    all_view_names.add(viewpoint.image_name)
-                    image = torch.clamp(rendered["render"], 0.0, 1.0)
-                    gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
-                    # testing view it is no difference
-                    # training view real is the real gt, no real is the fake gt
-                    gt_image_real = torch.clamp(viewpoint.original_image_real.to("cuda"), 0.0, 1.0)
-                    # if hasattr(viewpoint, "original_image_real"):
-                    #     # since we using fake view images, we need to compare with real images
-                    #     gt_image = torch.clamp(viewpoint.original_image_real.to("cuda"), 0.0, 1.0)
-                    save_image(
-                        image,
-                        os.path.join(
-                            scene.model_path,
-                            "training_render",
-                            f"test_render_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
-                        ),
-                    )
-                    save_image(
-                        gt_image,
-                        os.path.join(
-                            scene.model_path,
-                            "training_render",
-                            f"test_gt_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
-                        ),
-                    )
-                    # save_image(
-                    #     gt_image_real,
-                    #     os.path.join(
-                    #         scene.model_path,
-                    #         "training_render",
-                    #         f"test_gt_real_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
-                    #     ),
-                    # )
-                    if tb_writer and (idx < 5):
+                    if iteration == testing_iterations[0]:
                         tb_writer.add_images(
-                            config["name"] + "_view_{}/render".format(viewpoint.image_name),
-                            image[None],
+                            config["name"] + "_view_{}/ground_truth".format(viewpoint.image_name),
+                            gt_image[None],
                             global_step=iteration,
                         )
-                        if iteration == testing_iterations[0]:
-                            tb_writer.add_images(
-                                config["name"] + "_view_{}/ground_truth".format(viewpoint.image_name),
-                                gt_image[None],
-                                global_step=iteration,
-                            )
-                            # tb_writer.add_images(
-                            #     config["name"] + "_view_{}/ground_truth_real".format(viewpoint.image_name),
-                            #     gt_image_real[None],
-                            #     global_step=iteration,
-                            # )
-                    l1_test += l1_loss(image, gt_image_real).mean().double()
-                    psnr_test += psnr(image, gt_image_real).mean().double()
+                        # tb_writer.add_images(
+                        #     config["name"] + "_view_{}/ground_truth_real".format(viewpoint.image_name),
+                        #     gt_image_real[None],
+                        #     global_step=iteration,
+                        # )
+                l1_test += l1_loss(image, gt_image_real).mean().double()
+                psnr_test += psnr(image, gt_image_real).mean().double()
 
-                for view_name in list(all_view_names):
-                    images_to_video(
-                        os.path.join(scene.model_path, "training_render"),
-                        f"test_render_{view_name}",
-                        f"{iteration:05d}.png",
-                        os.path.join(scene.model_path, f"training_test_render_{view_name}_{iteration:05d}.mp4"),
-                        fps=30,
-                    )
-                    images_to_video(
-                        os.path.join(scene.model_path, "training_render"),
-                        f"test_gt_{view_name}",
-                        f"{iteration:05d}.png",
-                        os.path.join(scene.model_path, f"training_test_gt_{view_name}_{iteration:05d}.mp4"),
-                        fps=30,
-                    )
-                    # images_to_video(
-                    #     os.path.join(scene.model_path, "training_render"),
-                    #     f"test_gt_real_{view_name}",
-                    #     f"{iteration:05d}.png",
-                    #     os.path.join(scene.model_path, f"training_test_gt_real_{view_name}_{iteration:05d}.mp4"),
-                    #     fps=30,
-                    # )
+            for view_name in list(all_view_names):
+                images_to_video(
+                    os.path.join(scene.model_path, "training_render"),
+                    f"test_render_{view_name}",
+                    f"{iteration:05d}.png",
+                    os.path.join(scene.model_path, f"training_test_render_{view_name}_{iteration:05d}.mp4"),
+                    fps=30,
+                )
+                images_to_video(
+                    os.path.join(scene.model_path, "training_render"),
+                    f"test_gt_{view_name}",
+                    f"{iteration:05d}.png",
+                    os.path.join(scene.model_path, f"training_test_gt_{view_name}_{iteration:05d}.mp4"),
+                    fps=30,
+                )
+                # images_to_video(
+                #     os.path.join(scene.model_path, "training_render"),
+                #     f"test_gt_real_{view_name}",
+                #     f"{iteration:05d}.png",
+                #     os.path.join(scene.model_path, f"training_test_gt_real_{view_name}_{iteration:05d}.mp4"),
+                #     fps=30,
+                # )
 
-                psnr_test /= len(config["cameras"])
-                l1_test /= len(config["cameras"])
-                print(f"[ITER {iteration}] Evaluating {config['name']}: L1 {l1_test} PSNR {psnr_test}")
+            psnr_test /= len(config["cameras"])
+            l1_test /= len(config["cameras"])
+            print(f"[ITER {iteration}] Evaluating {config['name']}: L1 {l1_test} PSNR {psnr_test}")
 
-                if tb_writer:
-                    tb_writer.add_scalar(config["name"] + "/loss_viewpoint - l1_loss", l1_test, iteration)
-                    tb_writer.add_scalar(config["name"] + "/loss_viewpoint - psnr", psnr_test, iteration)
+            if tb_writer:
+                tb_writer.add_scalar(config["name"] + "/loss_viewpoint - l1_loss", l1_test, iteration)
+                tb_writer.add_scalar(config["name"] + "/loss_viewpoint - psnr", psnr_test, iteration)
 
         if tb_writer:
             if "opacity_linear" in rd_pipe:
@@ -760,6 +751,7 @@ if __name__ == "__main__":
     lt.monkey_patch()
     args, mp_extract, op_extract, pp_extract = get_parser()
     train(
+        args,
         mp_extract,
         op_extract,
         pp_extract,
@@ -767,13 +759,7 @@ if __name__ == "__main__":
         args.save_iterations,
         args.checkpoint_iterations,
         args.debug_from,
-        densify=args.densify,
-        rgb_function=args.rgb_function,
-        rd_pipe=args.rd_pipe,
-        start_time=args.start_time,
-        duration=args.duration,
-        time_step=args.time_step,
     )
 
     # All done
-    print("\nTraining complete.")
+    print("Training complete.")

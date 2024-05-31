@@ -87,11 +87,11 @@ def evaluate(model_paths):
                     error = renders[idx] - gts[idx]
                     error = error.abs().mean(dim=1, keepdim=True).squeeze().cpu().numpy()
                     norm = plt.Normalize(vmin=zmin, vmax=zmax)
-                    errorimage = cmap(norm(error))
-                    errorimage_path = os.path.join(method_dir, "error", image_names[idx])
-                    if not os.path.exists(os.path.dirname(errorimage_path)):
-                        os.makedirs(os.path.dirname(errorimage_path))
-                    plt.imsave(errorimage_path, errorimage)
+                    error_image = cmap(norm(error))
+                    error_image_path = os.path.join(method_dir, "error", image_names[idx])
+                    if not os.path.exists(os.path.dirname(error_image_path)):
+                        os.makedirs(os.path.dirname(error_image_path))
+                    plt.imsave(error_image_path, error_image)
 
                 print("  SSIM : {:>12.7f}".format(torch.tensor(ssims).mean(), ".5"))
                 print("  PSNR : {:>12.7f}".format(torch.tensor(psnrs).mean(), ".5"))

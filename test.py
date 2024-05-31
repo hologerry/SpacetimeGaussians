@@ -33,31 +33,26 @@
 
 import json
 import os
-import sys
-import time
 import warnings
 
 from os import makedirs
 
 import lovely_tensors as lt
 import numpy as np
-import scipy
 import torch
 import torch.nn.functional as F
-import torchvision
 
-from imageio import mimsave
 from skimage.metrics import structural_similarity as sk_ssim
 from torchvision.utils import save_image
 from tqdm import tqdm
 
 from gaussian_splatting.arguments import ModelParams, PipelineParams
-from gaussian_splatting.helper3dg import get_test_parser
 from gaussian_splatting.lpipsPyTorch import lpips as lpips_func
 from gaussian_splatting.scene import Scene
 from gaussian_splatting.utils.image_utils import psnr as psnr_func
 from gaussian_splatting.utils.loss_utils import ssim as ssim_func
 from helper_gaussian_model import get_model
+from helper_parser import get_test_parser
 from helper_pipe import get_render_pipe
 from helper_train import trb_exp_linear_function, trb_function
 from image_video_io import images_to_video, mp4_to_gif
@@ -66,24 +61,52 @@ from image_video_io import images_to_video, mp4_to_gif
 warnings.filterwarnings("ignore")
 
 
-# modified from https://github.com/graphdeco-inria/gaussian-splatting/blob/main/render.py
-# and https://github.com/graphdeco-inria/gaussian-splatting/blob/main/metrics.py
-def render_set(
-    model_path,
-    name,
-    iteration,
-    views,
-    gaussians,
-    pipe_args,
-    background,
-    trbf_base_function,
-    rd_pipe,
-    grey_image=False,
-):
+def save_quantities(rendering_pkg, cur_view_time_idx, out_path):
+    for k, v in rendering_pkg.items():
+        if isinstance(v, torch.Tensor):
+            quantity = v.detach().cpu().numpy()
+        elif isinstance(v, np.ndarray):
+            quantity = v
+        save_path = os.path.join(out_path, f"{k}_{cur_view_time_idx}.npy")
+        np.save(save_path, quantity)
 
-    if "velocity" in rd_pipe:
+
+@torch.no_grad()
+def run_test(args, model_args: ModelParams, pipe_args: PipelineParams, iteration: int):
+
+    model_path = model_args.model_path
+    name = "test"
+
+    print(f"Model: {model_args.model}")
+    GaussianModel = get_model(model_args.model)
+
+    print(f"Iteration: {iteration}")
+    gaussians = GaussianModel(model_args.sh_degree, args.rgb_function)
+
+    scene = Scene(
+        model_args,
+        gaussians,
+        load_iteration=iteration,
+        shuffle=False,
+        multi_view=False,
+        loader=args.loader,
+        test_all_views=True,
+    )
+
+    trbf_base_function = trb_function
+
+    if "opacity_exp_linear" in args.rd_pipe:
+        print("Using opacity_exp_linear TRBF for opacity")
+        trbf_base_function = trb_exp_linear_function
+
+    if gaussians.ts is None:
+        camera_list = scene.get_test_cameras()
+        H, W = camera_list[0].image_height, camera_list[0].image_width
+        gaussians.ts = torch.ones(1, 1, H, W).cuda()
+
+    if "velocity" in args.rd_pipe:
         post_str = "_vel"
-    elif "vis" in rd_pipe:
+    elif "vis" in args.rd_pipe:
         post_str = "_vis"
     else:
         post_str = ""
@@ -101,38 +124,42 @@ def render_set(
         gaussians.rgb_decoder.cuda()
         gaussians.rgb_decoder.eval()
 
-    stats_dict = {}
+    # stats_dict = {}
 
-    scales = gaussians.get_scaling
+    # scales = gaussians.get_scaling
 
-    scales_max = torch.amax(scales).item()
-    scales_mean = torch.mean(scales).item()
+    # scales_max = torch.amax(scales).item()
+    # scales_mean = torch.mean(scales).item()
 
-    stats_dict["scales_max"] = scales_max
-    stats_dict["scales_mean"] = scales_mean
+    # stats_dict["scales_max"] = scales_max
+    # stats_dict["scales_mean"] = scales_mean
 
-    if "opacity_linear" not in rd_pipe:
-        op = gaussians.get_opacity
-        op_max = torch.amax(op).item()
-        op_mean = torch.mean(op).item()
-        stats_dict["op_max"] = op_max
-        stats_dict["op_mean"] = op_mean
+    # if "opacity_linear" not in rd_pipe:
+    #     op = gaussians.get_opacity
+    #     op_max = torch.amax(op).item()
+    #     op_mean = torch.mean(op).item()
+    #     stats_dict["op_max"] = op_max
+    #     stats_dict["op_mean"] = op_mean
 
-    stats_path = os.path.join(model_path, "stat_" + str(iteration) + ".json")
-    with open(stats_path, "w") as fp:
-        json.dump(stats_dict, fp, indent=True)
+    # stats_path = os.path.join(model_path, "stat_" + str(iteration) + ".json")
+    # with open(stats_path, "w") as fp:
+    #     json.dump(stats_dict, fp, indent=True)
 
-    test_rd_pipe = rd_pipe.replace("train", "test")
-    test_rd_pipe = test_rd_pipe.replace("_full_ss", "_full_ss_fused")
+    test_rd_pipe = args.rd_pipe.replace("train", "test")
     test_rd_pipe += "_vis"
     render, GRsetting, GRzer = get_render_pipe(test_rd_pipe)
 
-    img_channel = 1 if grey_image else 3
+    img_channel = 1 if model_args.grey_image else 3
 
+    bg_color = [0 for _ in range(img_channel)]
+    background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
+
+    metric_names = ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]
     full_metrics_dict = {}
 
     all_view_names = []
 
+    views = scene.get_test_cameras()
     for idx, view in enumerate(tqdm(views, desc="Rendering and metric progress")):
         rendering_pkg = render(
             view,
@@ -150,12 +177,8 @@ def render_set(
         if cur_view_name not in full_metrics_dict:
             all_view_names.append(cur_view_name)
             full_metrics_dict[cur_view_name] = {}
-            full_metrics_dict[cur_view_name]["l1"] = []
-            full_metrics_dict[cur_view_name]["ssim"] = []
-            full_metrics_dict[cur_view_name]["psnr"] = []
-            full_metrics_dict[cur_view_name]["lpips"] = []
-            full_metrics_dict[cur_view_name]["lpips_vgg"] = []
-            full_metrics_dict[cur_view_name]["ssim_v2"] = []
+            for l_name in metric_names:
+                full_metrics_dict[cur_view_name][l_name] = []
 
         rendering = torch.clamp(rendering, 0, 1.0)
         gt = view.original_image[0:img_channel, :, :].cuda().float()
@@ -169,7 +192,11 @@ def render_set(
         render_numpy = rendering.permute(1, 2, 0).detach().cpu().numpy()
         gt_numpy = gt.permute(1, 2, 0).detach().cpu().numpy()
         ssim_v2 = sk_ssim(
-            render_numpy, gt_numpy, channel_axis=-1, multichannel=True, data_range=gt_numpy.max() - gt_numpy.min()
+            render_numpy,
+            gt_numpy,
+            channel_axis=-1,
+            multichannel=True,
+            data_range=gt_numpy.max() - gt_numpy.min(),
         )
 
         full_metrics_dict[cur_view_name]["l1"].append(l1)
@@ -188,112 +215,7 @@ def render_set(
         save_image(gt, gt_image_save_path)
 
         if cur_view_name == "train02":
-
-            means3D = rendering_pkg["means3D"]
-            means3D = means3D.detach().cpu().numpy()
-            means3D_path = os.path.join(quantities_out_path, f"means3D_{cur_view_time_idx:05d}.npy")
-            np.save(means3D_path, means3D)
-
-            means3D_no_t = rendering_pkg["means3D_no_t"]
-            means3D_no_t = means3D_no_t.detach().cpu().numpy()
-            means3D_no_t_path = os.path.join(quantities_out_path, f"means3D_no_t_{cur_view_time_idx:05d}.npy")
-            np.save(means3D_no_t_path, means3D_no_t)
-
-            if "means3D_timed" in rendering_pkg:
-                means3D_timed = rendering_pkg["means3D_timed"]
-                means3D_timed = means3D_timed.detach().cpu().numpy()
-                means3D_timed_path = os.path.join(quantities_out_path, f"means3D_timed_{cur_view_time_idx:05d}.npy")
-                np.save(means3D_timed_path, means3D_timed)
-
-            if "means3D_zeroed" in rendering_pkg:
-                means3D_zeroed = rendering_pkg["means3D_zeroed"]
-                means3D_zeroed = means3D_zeroed.detach().cpu().numpy()
-                means3D_zeroed_path = os.path.join(quantities_out_path, f"means3D_zeroed_{cur_view_time_idx:05d}.npy")
-                np.save(means3D_zeroed_path, means3D_zeroed)
-
-            trbf_center = rendering_pkg["trbf_center"]
-            trbf_center = trbf_center.detach().cpu().numpy()
-            trbf_center_path = os.path.join(quantities_out_path, f"trbf_center_{cur_view_time_idx:05d}.npy")
-            np.save(trbf_center_path, trbf_center)
-
-            velocities3D = rendering_pkg["velocities3D"]
-            velocities3D = velocities3D.detach().cpu().numpy()
-            velocities3D_path = os.path.join(quantities_out_path, f"velocities3D_{cur_view_time_idx:05d}.npy")
-            np.save(velocities3D_path, velocities3D)
-
-            if "velocities3D_timed" in rendering_pkg:
-                velocities3D_timed = rendering_pkg["velocities3D_timed"]
-                velocities3D_timed = velocities3D_timed.detach().cpu().numpy()
-                velocities3D_timed_path = os.path.join(
-                    quantities_out_path, f"velocities3D_timed_{cur_view_time_idx:05d}.npy"
-                )
-                np.save(velocities3D_timed_path, velocities3D_timed)
-
-            if "velocities3D_zeroed" in rendering_pkg:
-                velocities3D_zeroed = rendering_pkg["velocities3D_zeroed"]
-                velocities3D_zeroed = velocities3D_zeroed.detach().cpu().numpy()
-                velocities3D_zeroed_path = os.path.join(
-                    quantities_out_path, f"velocities3D_zeroed_{cur_view_time_idx:05d}.npy"
-                )
-                np.save(velocities3D_zeroed_path, velocities3D_zeroed)
-
-            opacity = rendering_pkg["opacity"]
-            opacity = opacity.detach().cpu().numpy()
-            opacity_path = os.path.join(quantities_out_path, f"opacity_{cur_view_time_idx:05d}.npy")
-            np.save(opacity_path, opacity)
-
-            if "opacity_timed" in rendering_pkg:
-                opacity_timed = rendering_pkg["opacity_timed"]
-                opacity_timed = opacity_timed.detach().cpu().numpy()
-                opacity_timed_path = os.path.join(quantities_out_path, f"opacity_timed_{cur_view_time_idx:05d}.npy")
-                np.save(opacity_timed_path, opacity_timed)
-
-            if "opacity_zeroed" in rendering_pkg:
-                opacity_zeroed = rendering_pkg["opacity_zeroed"]
-                opacity_zeroed = opacity_zeroed.detach().cpu().numpy()
-                opacity_zeroed_path = os.path.join(quantities_out_path, f"opacity_zeroed_{cur_view_time_idx:05d}.npy")
-                np.save(opacity_zeroed_path, opacity_zeroed)
-
-            visibility_filter = rendering_pkg["visibility_filter"]
-            visibility_filter = visibility_filter.detach().cpu().numpy()
-            visibility_filter_path = os.path.join(
-                quantities_out_path, f"visibility_filter_{cur_view_time_idx:05d}.npy"
-            )
-            np.save(visibility_filter_path, visibility_filter)
-
-            radii = rendering_pkg["radii"]
-            radii = radii.detach().cpu().numpy()
-            radii_path = os.path.join(quantities_out_path, f"radii_{cur_view_time_idx:05d}.npy")
-            np.save(radii_path, radii)
-
-            motion = rendering_pkg["motion"]
-            motion = motion.detach().cpu().numpy()
-            motion_path = os.path.join(quantities_out_path, f"motion_{cur_view_time_idx:05d}.npy")
-            np.save(motion_path, motion)
-
-            rotations = rendering_pkg["rotations"]
-            rotations = rotations.detach().cpu().numpy()
-            rotations_path = os.path.join(quantities_out_path, f"rotations_{cur_view_time_idx:05d}.npy")
-            np.save(rotations_path, rotations)
-
-            colors_precomp = rendering_pkg["colors_precomp"]
-            colors_precomp = colors_precomp.detach().cpu().numpy()
-            colors_precomp_path = os.path.join(quantities_out_path, f"colors_precomp_{cur_view_time_idx:05d}.npy")
-            np.save(colors_precomp_path, colors_precomp)
-
-            scales = rendering_pkg["scales"]
-            scales = scales.detach().cpu().numpy()
-            scales_path = os.path.join(quantities_out_path, f"scales_{cur_view_time_idx:05d}.npy")
-            np.save(scales_path, scales)
-
-            R_path = os.path.join(quantities_out_path, f"R_{cur_view_time_idx:05d}.npy")
-            T_path = os.path.join(quantities_out_path, f"T_{cur_view_time_idx:05d}.npy")
-            np.save(R_path, view.R)
-            np.save(T_path, view.T)
-
-            fov_path = os.path.join(quantities_out_path, f"fov_{cur_view_time_idx:05d}.npy")
-            fov = np.array([view.FoVx, view.FoVy])
-            np.save(fov_path, fov)
+            save_quantities(rendering_pkg, "means3D", cur_view_time_idx, quantities_out_path)
 
     print(f"all_view_names: {all_view_names}")
     for view_name in all_view_names:
@@ -309,24 +231,20 @@ def render_set(
     mean_metrics_per_view_dict = {}
     for view_name in all_view_names:
         mean_metrics_per_view_dict[view_name] = {}
-        mean_metrics_per_view_dict[view_name]["l1"] = float(np.mean(full_metrics_dict[view_name]["l1"]))
-        mean_metrics_per_view_dict[view_name]["ssim"] = float(np.mean(full_metrics_dict[view_name]["ssim"]))
-        mean_metrics_per_view_dict[view_name]["psnr"] = float(np.mean(full_metrics_dict[view_name]["psnr"]))
-        mean_metrics_per_view_dict[view_name]["lpips"] = float(np.mean(full_metrics_dict[view_name]["lpips"]))
-        mean_metrics_per_view_dict[view_name]["lpips_vgg"] = float(np.mean(full_metrics_dict[view_name]["lpips_vgg"]))
-        mean_metrics_per_view_dict[view_name]["ssim_v2"] = float(np.mean(full_metrics_dict[view_name]["ssim_v2"]))
+        for l_name in metric_names:
+            mean_metrics_per_view_dict[view_name][l_name] = float(np.mean(full_metrics_dict[view_name][l_name]))
 
     if "train00" in all_view_names:
         train_view_names = ["train00", "train01", "train03", "train04"]
         train_mean_metrics = {}
-        for metric in ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]:
+        for metric in metric_names:
             train_mean_metrics[metric] = float(
                 np.mean([np.mean(full_metrics_dict[view_name][metric]) for view_name in train_view_names])
             )
 
     test_view_names = ["train02"]
     test_mean_metrics = {}
-    for metric in ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]:
+    for metric in metric_names:
         test_mean_metrics[metric] = float(
             np.mean([np.mean(full_metrics_dict[view_name][metric]) for view_name in test_view_names])
         )
@@ -370,139 +288,8 @@ def render_set(
             json.dump(mean_metrics_per_view_dict, fp, indent=True)
 
 
-# render free view
-def render_set_no_gt(
-    model_path,
-    name,
-    iteration,
-    views,
-    gaussians,
-    pipe_args,
-    background,
-    trbf_base_function,
-    rd_pipe,
-    grey_image=False,
-):
-    render, GRsetting, GRzer = get_render_pipe(rd_pipe)
-    render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
-
-    makedirs(render_path, exist_ok=True)
-    if gaussians.rgb_decoder is not None:
-        gaussians.rgb_decoder.cuda()
-        gaussians.rgb_decoder.eval()
-
-    for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
-        # C x H x W
-        rendering = render(
-            view,
-            gaussians,
-            pipe_args,
-            background,
-            scaling_modifier=1.0,
-            basic_function=trbf_base_function,
-            GRsetting=GRsetting,
-            GRzer=GRzer,
-        )
-        rendered_image = rendering["render"]
-
-        save_image(rendered_image, os.path.join(render_path, "{0:05d}".format(idx) + ".png"))
-
-
-@torch.no_grad()
-def run_test(
-    model_args: ModelParams,
-    iteration: int,
-    pipe_args: PipelineParams,
-    skip_train: bool,
-    skip_test: bool,
-    multi_view: bool,
-    duration: int,
-    rgb_function="rgbv1",
-    rd_pipe="v2",
-    loader="colmap",
-    start_time=0,
-    time_step=1,
-):
-
-    print(f"Model: {model_args.model}")
-    GaussianModel = get_model(model_args.model)
-
-    print(f"Iteration: {iteration}")
-    gaussians = GaussianModel(model_args.sh_degree, rgb_function)
-
-    scene = Scene(
-        model_args,
-        gaussians,
-        load_iteration=iteration,
-        shuffle=False,
-        multi_view=multi_view,
-        loader=loader,
-        start_time=start_time,
-        duration=duration,
-        time_step=time_step,
-        grey_image=model_args.grey_image,
-        test_all_views=True,
-    )
-    if "opacity_exp_linear" in rd_pipe:
-        print("Using opacity_exp_linear TRBF for opacity")
-        trbf_base_function = trb_exp_linear_function
-    else:
-        trbf_base_function = trb_function
-
-    num_channels = 9
-    bg_color = [0 for _ in range(num_channels)]
-    background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
-
-    if gaussians.ts is None:
-        camera_list = scene.get_test_cameras()
-        H, W = camera_list[0].image_height, camera_list[0].image_width
-        gaussians.ts = torch.ones(1, 1, H, W).cuda()
-
-    if not skip_test and not multi_view:
-        print("rendering test set")
-        render_set(
-            model_args.model_path,
-            "test",
-            scene.loaded_iter,
-            scene.get_test_cameras(),
-            gaussians,
-            pipe_args,
-            background,
-            trbf_base_function,
-            rd_pipe,
-            grey_image=model_args.grey_image,
-        )
-    # if multi_view:
-    #     print("rendering multi-view set no gt")
-    #     render_set_no_gt(
-    #         model_args.model_path,
-    #         "mv",
-    #         scene.loaded_iter,
-    #         scene.get_test_cameras(),
-    #         gaussians,
-    #         pipe_args,
-    #         background,
-    #         trbf_base_function,
-    #         rd_pipe,
-    #         grey_image=model_args.grey_image,
-    #     )
-
-
 if __name__ == "__main__":
     lt.monkey_patch()
 
-    args, model_args, pipe_args, multi_view = get_test_parser()
-    run_test(
-        model_args,
-        args.test_iteration,
-        pipe_args,
-        args.skip_train,
-        args.skip_test,
-        multi_view,
-        rgb_function=args.rgb_function,
-        rd_pipe=args.rd_pipe,
-        loader=args.val_loader,
-        start_time=args.start_time,
-        duration=args.duration,
-        time_step=args.time_step,
-    )
+    args, model_args, pipe_args = get_test_parser()
+    run_test(args, model_args, pipe_args, args.test_iteration)

@@ -271,9 +271,8 @@ def padding_point(pcd, N=4):
 
             xyz_nn_points = knn(2, xyz_input, xyz_input, False)
 
-            nearest_neighbour_idx = xyz_nn_points[
-                0, 1
-            ].long()  # N x 1  skip the first one, we select the second closest one
+            # N x 1  skip the first one, we select the second closest one
+            nearest_neighbour_idx = xyz_nn_points[0, 1].long()
             spatial_distance = torch.norm(xyz_input - xyz_input[:, nearest_neighbour_idx, :], dim=2)  #  1 x N
             spatial_distance = spatial_distance.squeeze(0)
 

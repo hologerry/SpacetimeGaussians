@@ -77,6 +77,15 @@ class ModelParams(ParamGroup):
         self.model = "g_model"
         self.loader = "colmap"
 
+        self.basic_function = ""
+        self.densify = 0
+
+        self.rgb_function = "none"
+
+        self.start_time = 0
+        self.duration = 50
+        self.time_step = 1
+
         # GaussianFluid parameters
         self.grey_image = False
         # four training cameras, 00, 01, 03, 04
@@ -108,6 +117,7 @@ class PipelineParams(ParamGroup):
         self.convert_SHs_python = False
         self.compute_cov3D_python = False
         self.debug = False
+        self.rd_pipe = "v2"
         super().__init__(parser, "Pipeline Parameters")
 
 
@@ -123,15 +133,17 @@ class OptimizationParams(ParamGroup):
         self.opacity_lr = 0.05
         self.scaling_lr = 0.005
 
-        self.trbf_c_lr = 0.0001  #
+        self.trbf_c_lr = 0.0001
         self.trbf_s_lr = 0.03
-        self.trbf_scale_init = 0.0  #
+        self.trbf_scale_init = 0.0
+
         self.batch = 2
         self.move_lr = 3.5
 
         self.omega_lr = 0.0001
         self.beta_lr = 0.0001
         self.rotation_lr = 0.001
+
         self.percent_dense = 0.01
         self.lambda_dssim = 0.2
         self.densification_interval = 100
@@ -140,6 +152,7 @@ class OptimizationParams(ParamGroup):
         self.densify_from_iter = 500
         self.densify_until_iter = 9000
         self.densify_grad_threshold = 0.0002
+
         self.rgb_lr = 0.0001
         self.densify_cnt = 6
         self.reg = 0
@@ -148,10 +161,10 @@ class OptimizationParams(ParamGroup):
         self.random_feature = 0
         self.ems_type = 0
         self.radials = 10.0
-        self.new_ray_step = 2  #
+        self.new_ray_step = 2
         self.ems_start = 1600  # small for debug
         self.loss_tart = 200
-        self.save_emp_points = 0  #
+        self.save_emp_points = 0
         self.prune_by_size = 0
         self.ems_threshold = 0.6
         self.opacity_threshold = 0.005

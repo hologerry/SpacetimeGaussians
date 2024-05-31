@@ -1,15 +1,12 @@
 import os
 import subprocess
 
-from multiprocessing import Pool
-
 import cv2
 import imageio
 import numpy as np
 
 from moviepy.editor import VideoFileClip
 from rich import print
-from tqdm import tqdm
 
 
 def cmd_wrapper(program):
