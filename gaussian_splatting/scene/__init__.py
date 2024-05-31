@@ -85,11 +85,13 @@ class Scene:
         if loader in ["hyfluid", "hyfluid_valid", "synthetic_particle", "synthetic_particle_valid"]:
             scene_info = scene_load_type_callbacks[loader](
                 args.source_path,
+                args.model_path,
                 args.white_background,
                 args.eval,
                 start_time=args.start_time,
                 duration=args.duration,
                 time_step=args.time_step,
+                max_timestamp=args.max_timestamp,
                 grey_image=args.grey_image,
                 train_views=args.train_views,
                 train_views_fake=args.train_views_fake,

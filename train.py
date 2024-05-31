@@ -428,6 +428,7 @@ def train(
                 max_bounds=max_bounds,
                 min_bounds=min_bounds,
                 white_background=model_args.white_background,
+                max_timestamp=model_args.max_timestamp,
                 clone=model_args.clone,
                 split=model_args.split,
                 prune=model_args.prune,
@@ -667,7 +668,7 @@ def training_report(
                     os.path.join(
                         scene.model_path,
                         "training_render",
-                        f"test_render_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
+                        f"render_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
                     ),
                 )
                 save_image(
@@ -675,7 +676,7 @@ def training_report(
                     os.path.join(
                         scene.model_path,
                         "training_render",
-                        f"test_gt_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
+                        f"gt_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
                     ),
                 )
                 # save_image(
@@ -683,23 +684,23 @@ def training_report(
                 #     os.path.join(
                 #         scene.model_path,
                 #         "training_render",
-                #         f"test_gt_real_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
+                #         f"gt_real_{viewpoint.image_name}_{viewpoint.uid:03d}_{iteration:05d}.png",
                 #     ),
                 # )
                 if tb_writer and (idx < 5):
                     tb_writer.add_images(
-                        config["name"] + "_view_{}/render".format(viewpoint.image_name),
+                        config["name"] + f"_view_{viewpoint.image_name}/render",
                         image[None],
                         global_step=iteration,
                     )
                     if iteration == testing_iterations[0]:
                         tb_writer.add_images(
-                            config["name"] + "_view_{}/ground_truth".format(viewpoint.image_name),
+                            config["name"] + f"_view_{viewpoint.image_name}/ground_truth",
                             gt_image[None],
                             global_step=iteration,
                         )
                         # tb_writer.add_images(
-                        #     config["name"] + "_view_{}/ground_truth_real".format(viewpoint.image_name),
+                        #     config["name"] + f"_view_{viewpoint.image_name}/ground_truth_real",
                         #     gt_image_real[None],
                         #     global_step=iteration,
                         # )
@@ -711,21 +712,21 @@ def training_report(
                     os.path.join(scene.model_path, "training_render"),
                     f"test_render_{view_name}",
                     f"{iteration:05d}.png",
-                    os.path.join(scene.model_path, f"training_test_render_{view_name}_{iteration:05d}.mp4"),
+                    os.path.join(scene.model_path, f"training_render_{view_name}_{iteration:05d}.mp4"),
                     fps=30,
                 )
                 images_to_video(
                     os.path.join(scene.model_path, "training_render"),
                     f"test_gt_{view_name}",
                     f"{iteration:05d}.png",
-                    os.path.join(scene.model_path, f"training_test_gt_{view_name}_{iteration:05d}.mp4"),
+                    os.path.join(scene.model_path, f"training_gt_{view_name}_{iteration:05d}.mp4"),
                     fps=30,
                 )
                 # images_to_video(
                 #     os.path.join(scene.model_path, "training_render"),
                 #     f"test_gt_real_{view_name}",
                 #     f"{iteration:05d}.png",
-                #     os.path.join(scene.model_path, f"training_test_gt_real_{view_name}_{iteration:05d}.mp4"),
+                #     os.path.join(scene.model_path, f"training_gt_real_{view_name}_{iteration:05d}.mp4"),
                 #     fps=30,
                 # )
 

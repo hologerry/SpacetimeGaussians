@@ -31,6 +31,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+import copy
 import json
 import os
 import warnings
@@ -67,7 +68,7 @@ def save_quantities(rendering_pkg, cur_view_time_idx, out_path):
             quantity = v.detach().cpu().numpy()
         elif isinstance(v, np.ndarray):
             quantity = v
-        save_path = os.path.join(out_path, f"{k}_{cur_view_time_idx}.npy")
+        save_path = os.path.join(out_path, f"{k}_{cur_view_time_idx:05d}.npy")
         np.save(save_path, quantity)
 
 
@@ -89,7 +90,7 @@ def run_test(args, model_args: ModelParams, pipe_args: PipelineParams, iteration
         load_iteration=iteration,
         shuffle=False,
         multi_view=False,
-        loader=args.loader,
+        loader=args.val_loader,
         test_all_views=True,
     )
 
@@ -215,7 +216,7 @@ def run_test(args, model_args: ModelParams, pipe_args: PipelineParams, iteration
         save_image(gt, gt_image_save_path)
 
         if cur_view_name == "train02":
-            save_quantities(rendering_pkg, "means3D", cur_view_time_idx, quantities_out_path)
+            save_quantities(rendering_pkg, cur_view_time_idx, quantities_out_path)
 
     print(f"all_view_names: {all_view_names}")
     for view_name in all_view_names:
@@ -288,8 +289,165 @@ def run_test(args, model_args: ModelParams, pipe_args: PipelineParams, iteration
             json.dump(mean_metrics_per_view_dict, fp, indent=True)
 
 
+@torch.no_grad()
+def run_future(args, model_args: ModelParams, pipe_args: PipelineParams, iteration: int):
+
+    model_path = model_args.model_path
+    name = "future"
+
+    print(f"Model: {model_args.model}")
+    GaussianModel = get_model(model_args.model)
+
+    print(f"Iteration: {iteration}")
+    gaussians = GaussianModel(model_args.sh_degree, args.rgb_function)
+
+    scene = Scene(
+        model_args,
+        gaussians,
+        load_iteration=iteration,
+        shuffle=False,
+        multi_view=False,
+        loader=args.val_loader,
+        test_all_views=True,
+    )
+
+    trbf_base_function = trb_function
+
+    if "opacity_exp_linear" in args.rd_pipe:
+        print("Using opacity_exp_linear TRBF for opacity")
+        trbf_base_function = trb_exp_linear_function
+
+    if gaussians.ts is None:
+        camera_list = scene.get_test_cameras()
+        H, W = camera_list[0].image_height, camera_list[0].image_width
+        gaussians.ts = torch.ones(1, 1, H, W).cuda()
+
+    if "velocity" in args.rd_pipe:
+        post_str = "_vel"
+    elif "vis" in args.rd_pipe:
+        post_str = "_vis"
+    else:
+        post_str = ""
+    print(f"post_str {post_str}")
+
+    render_path = os.path.join(model_path, name, f"ours_{iteration}{post_str}", "renders")
+    gts_path = os.path.join(model_path, name, f"ours_{iteration}{post_str}", "gt")
+    quantities_out_path = os.path.join(model_path, name, f"ours_{iteration}{post_str}", "quantities")
+
+    makedirs(render_path, exist_ok=True)
+    makedirs(gts_path, exist_ok=True)
+    makedirs(quantities_out_path, exist_ok=True)
+
+    if gaussians.rgb_decoder is not None:
+        gaussians.rgb_decoder.cuda()
+        gaussians.rgb_decoder.eval()
+
+    test_rd_pipe = args.rd_pipe.replace("train", "test")
+    test_rd_pipe += "_vis"
+    render, GRsetting, GRzer = get_render_pipe(test_rd_pipe)
+
+    img_channel = 1 if model_args.grey_image else 3
+
+    bg_color = [0 for _ in range(img_channel)]
+    background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
+
+    metric_names = ["l1", "ssim", "psnr", "lpips", "lpips_vgg", "ssim_v2"]
+    full_metrics_dict = {}
+
+    all_view_names = []
+
+    views = scene.get_test_cameras()
+
+    future_view_start_idx = 0
+    for idx, view in enumerate(tqdm(views, desc="Rendering training progress")):
+        rendering_pkg = render(
+            view,
+            gaussians,
+            pipe_args,
+            background,
+            scaling_modifier=1.0,
+            basic_function=trbf_base_function,
+            GRsetting=GRsetting,
+            GRzer=GRzer,
+        )
+        rendering = rendering_pkg["render"]
+        cur_view_name = view.image_name
+        cur_view_time_idx = view.time_idx
+        if cur_view_name not in full_metrics_dict:
+            all_view_names.append(cur_view_name)
+            full_metrics_dict[cur_view_name] = {}
+            for l_name in metric_names:
+                full_metrics_dict[cur_view_name][l_name] = []
+
+        rendering = torch.clamp(rendering, 0, 1.0)
+        gt = view.original_image[0:img_channel, :, :].cuda().float()
+
+        os.makedirs(os.path.join(render_path, cur_view_name), exist_ok=True)
+        os.makedirs(os.path.join(gts_path, cur_view_name), exist_ok=True)
+
+        rendering_image_save_path = os.path.join(render_path, cur_view_name, f"{cur_view_time_idx:05d}.png")
+        gt_image_save_path = os.path.join(gts_path, cur_view_name, f"{cur_view_time_idx:05d}.png")
+        save_image(rendering, rendering_image_save_path)
+        save_image(gt, gt_image_save_path)
+
+        if cur_view_name == "train02":
+            save_quantities(rendering_pkg, cur_view_time_idx, quantities_out_path)
+
+        future_view_start_idx = max(future_view_start_idx, cur_view_time_idx)
+
+    print(f"Test on future views future_view_start_idx: {future_view_start_idx}, max_timestamp: {model_args.max_timestamp}")
+    future_views = copy.deepcopy(views)
+    for f_view in future_views:
+        f_view.time_idx += future_view_start_idx
+        f_view.timestamp += model_args.max_timestamp
+
+    for idx, f_view in enumerate(tqdm(future_views, desc="Rendering future progress")):
+        rendering_pkg = render(
+            f_view,
+            gaussians,
+            pipe_args,
+            background,
+            scaling_modifier=1.0,
+            basic_function=trbf_base_function,
+            GRsetting=GRsetting,
+            GRzer=GRzer,
+        )
+        rendering = rendering_pkg["render"]
+        cur_view_name = f_view.image_name
+        cur_view_time_idx = f_view.time_idx
+        if cur_view_name not in full_metrics_dict:
+            all_view_names.append(cur_view_name)
+            full_metrics_dict[cur_view_name] = {}
+            for l_name in metric_names:
+                full_metrics_dict[cur_view_name][l_name] = []
+
+        rendering = torch.clamp(rendering, 0, 1.0)
+
+        os.makedirs(os.path.join(render_path, cur_view_name), exist_ok=True)
+
+        rendering_image_save_path = os.path.join(render_path, cur_view_name, f"{cur_view_time_idx:05d}.png")
+        save_image(rendering, rendering_image_save_path)
+
+        if cur_view_name == "train02":
+            save_quantities(rendering_pkg, cur_view_time_idx, quantities_out_path)
+
+    print(f"all_view_names: {all_view_names}")
+    for view_name in all_view_names:
+        render_frame_path = os.path.join(render_path, view_name)
+        gt_frame_path = os.path.join(gts_path, view_name)
+        render_out_mp4_path = os.path.join(model_path, name + f"_render_{view_name}_{iteration}{post_str}.mp4")
+        gt_out_mp4_path = os.path.join(model_path, name + f"_gt_{view_name}_{iteration}{post_str}.mp4")
+        images_to_video(render_frame_path, "", ".png", render_out_mp4_path, fps=30)
+        images_to_video(gt_frame_path, "", ".png", gt_out_mp4_path, fps=30)
+        mp4_to_gif(render_out_mp4_path, render_out_mp4_path.replace(".mp4", ".gif"))
+        mp4_to_gif(gt_out_mp4_path, gt_out_mp4_path.replace(".mp4", ".gif"))
+
+
 if __name__ == "__main__":
     lt.monkey_patch()
 
     args, model_args, pipe_args = get_test_parser()
-    run_test(args, model_args, pipe_args, args.test_iteration)
+    if args.test:
+        run_test(args, model_args, pipe_args, args.test_iteration)
+    if args.future:
+        run_future(args, model_args, pipe_args, args.test_iteration)

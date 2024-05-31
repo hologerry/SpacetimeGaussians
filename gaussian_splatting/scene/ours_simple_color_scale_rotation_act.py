@@ -1065,7 +1065,7 @@ class GaussianModel:
     #     )
     #     self.prune_points(prune_filter)
 
-    def densify_and_split(self, grads, grad_threshold, scene_extent, N=2):
+    def densify_and_split(self, grads, grad_threshold, scene_extent, max_timestamp=1.0, N=2):
         n_init_points = self.get_xyz.shape[0]
         padded_grad = torch.zeros((n_init_points), device="cuda")
         padded_grad[: grads.shape[0]] = grads.squeeze()
@@ -1077,9 +1077,8 @@ class GaussianModel:
         means = torch.zeros((stds.size(0), 3), device="cuda")
         samples = torch.normal(mean=means, std=stds)
         rots = build_rotation(self._rotation[selected_pts_mask]).repeat(N, 1, 1)
-        numpy_tmp = (
-            rots.cpu().numpy() @ samples.unsqueeze(-1).cpu().numpy()
-        )  # numpy better than cublas..., cublas use stochastic for bmm
+        numpy_tmp = rots.cpu().numpy() @ samples.unsqueeze(-1).cpu().numpy()
+        # numpy better than cublas..., cublas use stochastic for bmm
         new_xyz = torch.from_numpy(numpy_tmp).cuda().squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1)
 
         new_scaling = self.scaling_inverse_activation(self.get_scaling[selected_pts_mask].repeat(N, 1) / (0.8 * N))
@@ -1088,6 +1087,7 @@ class GaussianModel:
         new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
         new_trbf_center = self._trbf_center[selected_pts_mask].repeat(N, 1)
         new_trbf_center = torch.rand_like(new_trbf_center)  # * 0.5
+        new_trbf_center = new_trbf_center * max_timestamp
         new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
         new_motion = self._motion[selected_pts_mask].repeat(N, 1)
         # new_omega = self._omega[selected_pts_mask].repeat(N, 1)
@@ -1130,7 +1130,7 @@ class GaussianModel:
 
     #     torch.cuda.empty_cache()
 
-    def densify_and_clone(self, grads, grad_threshold, scene_extent):
+    def densify_and_clone(self, grads, grad_threshold, scene_extent, max_timestamp=1.0):
         # Extract points that satisfy the gradient condition
         selected_pts_mask = torch.where(torch.norm(grads, dim=-1) >= grad_threshold, True, False)
 
@@ -1143,9 +1143,9 @@ class GaussianModel:
         new_opacities = self._opacity[selected_pts_mask]
         new_scaling = self._scaling[selected_pts_mask]
         new_rotation = self._rotation[selected_pts_mask]
-        new_trbf_center = torch.rand(
-            (self._trbf_center[selected_pts_mask].shape[0], 1), device="cuda"
-        )  # self._trbf_center[selected_pts_mask]
+        new_trbf_center = torch.rand((self._trbf_center[selected_pts_mask].shape[0], 1), device="cuda")
+        # self._trbf_center[selected_pts_mask]
+        new_trbf_center = new_trbf_center * max_timestamp
         new_trbf_scale = self._trbf_scale[selected_pts_mask]
         new_motion = self._motion[selected_pts_mask]
         # new_omega = self._omega[selected_pts_mask]
@@ -1211,27 +1211,27 @@ class GaussianModel:
 
     #     torch.cuda.empty_cache()
 
-    def densify_prune_clone(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
-        # print("before", torch.amax(self.get_scaling))
+    # def densify_prune_clone(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
+    #     # print("before", torch.amax(self.get_scaling))
 
-        grads = self.xyz_gradient_accum / self.denom
-        grads[grads.isnan()] = 0.0
+    #     grads = self.xyz_gradient_accum / self.denom
+    #     grads[grads.isnan()] = 0.0
 
-        print("before clone", self._xyz.shape[0])
-        self.densify_and_clone(grads, max_grad, extent)
-        print("after clone", self._xyz.shape[0])
+    #     print("before clone", self._xyz.shape[0])
+    #     self.densify_and_clone(grads, max_grad, extent)
+    #     print("after clone", self._xyz.shape[0])
 
-        self.densify_and_split_v2(grads, max_grad, extent, 2)
-        print("after split", self._xyz.shape[0])
+    #     self.densify_and_split_v2(grads, max_grad, extent, 2)
+    #     print("after split", self._xyz.shape[0])
 
-        prune_mask = (self.get_opacity < min_opacity).squeeze()
-        if max_screen_size:
-            big_points_vs = self.max_radii2D > max_screen_size
-            big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
+    #     prune_mask = (self.get_opacity < min_opacity).squeeze()
+    #     if max_screen_size:
+    #         big_points_vs = self.max_radii2D > max_screen_size
+    #         big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
 
-            prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+    #         prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
 
-        torch.cuda.empty_cache()
+    #     torch.cuda.empty_cache()
 
     def add_densification_stats(self, viewspace_point_tensor, update_filter):
         self.xyz_gradient_accum[update_filter] += torch.norm(
@@ -1416,16 +1416,26 @@ class GaussianModel:
     #     optimizable_tensors = self.replace_tensor_to_optimizer(opacity_old, "opacity")
     #     self._opacity = optimizable_tensors["opacity"]
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True, prune=True):
+    def densify_and_prune(
+        self,
+        max_grad,
+        min_opacity,
+        extent,
+        max_screen_size,
+        max_timestamp=1.0,
+        clone=True,
+        split=True,
+        prune=True,
+    ):
         ## raw method from 3dgs debugging hyfluid
         if clone or split:
             grads = self.xyz_gradient_accum / self.denom
             grads[grads.isnan()] = 0.0
 
         if clone:
-            self.densify_and_clone(grads, max_grad, extent)
+            self.densify_and_clone(grads, max_grad, extent, max_timestamp)
         if split:
-            self.densify_and_split(grads, max_grad, extent)
+            self.densify_and_split(grads, max_grad, extent, max_timestamp)
 
         if prune:
             prune_mask = (self.get_opacity < min_opacity).squeeze()

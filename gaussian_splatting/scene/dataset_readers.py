@@ -1287,6 +1287,7 @@ def read_cameras_from_transforms_hyfluid(
     start_time=50,
     duration=50,
     time_step=1,
+    max_timestamp=1.0,
     grey_image=False,
     train_views="0134",
     train_views_fake=None,
@@ -1361,7 +1362,7 @@ def read_cameras_from_transforms_hyfluid(
                         f"frame_{time_idx:06d}.png",
                     )
 
-            timestamp = (time_idx - start_time) / duration
+            timestamp = (time_idx - start_time) / duration * max_timestamp
 
             image_path = os.path.join(path, frame_name)
             real_image_path = os.path.join(path, real_frame_name)
@@ -1447,13 +1448,15 @@ def read_cameras_from_transforms_hyfluid(
 
 
 def read_nerf_synthetic_info_hyfluid(
-    path,
+    source_path,
+    model_path,
     white_background,
     eval,
     extension=".png",
     start_time=50,
     duration=50,
     time_step=1,
+    max_timestamp=1.0,
     grey_image=False,
     train_views="0134",
     train_views_fake=None,
@@ -1473,13 +1476,14 @@ def read_nerf_synthetic_info_hyfluid(
         # in this mode, just using some real views, no fake views for fitting
         train_json = f"transforms_train_{train_views}_hyfluid.json"
     train_cam_infos, bbox_model = read_cameras_from_transforms_hyfluid(
-        path,
+        source_path,
         train_json,
         white_background,
         extension,
         start_time,
         duration,
         time_step,
+        max_timestamp,
         grey_image,
         train_views,
         train_views_fake,
@@ -1493,13 +1497,14 @@ def read_nerf_synthetic_info_hyfluid(
         print("Using all views for testing")
         test_json = f"transforms_train_test_hyfluid.json"
     test_cam_infos, _ = read_cameras_from_transforms_hyfluid(
-        path,
+        source_path,
         test_json,
         white_background,
         extension,
         start_time,
         duration,
         time_step,
+        max_timestamp,
         grey_image,
         train_views,
         train_views_fake,
@@ -1509,7 +1514,7 @@ def read_nerf_synthetic_info_hyfluid(
 
     nerf_normalization = get_nerf_pp_norm(train_cam_infos)
 
-    total_ply_path = os.path.join(path, "points3d_total.ply")
+    total_ply_path = os.path.join(model_path, "points3d_total.ply")
     if os.path.exists(total_ply_path):
         os.remove(total_ply_path)
 
@@ -1604,7 +1609,7 @@ def read_nerf_synthetic_info_hyfluid(
             if init_trbf_c_fix:
                 total_time.append(np.zeros((xyz.shape[0], 1)))
             else:
-                total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration)
+                total_time.append(np.ones((xyz.shape[0], 1)) * (i - start_time) / duration * max_timestamp)
 
         xyz = np.concatenate(total_xyz, axis=0)
         rgb = np.concatenate(total_rgb, axis=0)
@@ -1634,13 +1639,15 @@ def read_nerf_synthetic_info_hyfluid(
 
 
 def read_nerf_synthetic_info_hyfluid_valid(
-    path,
+    source_path,
+    model_path,
     white_background,
     eval,
     extension=".png",
     start_time=50,
     duration=50,
     time_step=1,
+    max_timestamp=1.0,
     grey_image=False,
     train_views="0134",
     train_views_fake=None,
@@ -1656,13 +1663,14 @@ def read_nerf_synthetic_info_hyfluid_valid(
         print("Using all views for testing")
         test_json = f"transforms_train_test_hyfluid.json"
     test_cam_infos, bbox_model = read_cameras_from_transforms_hyfluid(
-        path,
+        source_path,
         test_json,
         white_background,
         extension,
         start_time,
         duration,
         time_step,
+        max_timestamp,
         grey_image,
         train_views,
         train_views_fake,
@@ -1672,7 +1680,7 @@ def read_nerf_synthetic_info_hyfluid_valid(
 
     nerf_normalization = get_nerf_pp_norm(test_cam_infos)
 
-    total_ply_path = os.path.join(path, "points3d_total.ply")
+    total_ply_path = os.path.join(model_path, "points3d_total.ply")
     pcd = fetch_ply(total_ply_path, grey_image)
 
     assert pcd is not None, "Point cloud could not be loaded!"
@@ -1689,13 +1697,15 @@ def read_nerf_synthetic_info_hyfluid_valid(
 
 
 def read_nerf_synthetic_info_syn_particle(
-    path,
+    source_path,
+    model_path,
     white_background,
     eval,
     extension=".png",
     start_time=50,
     duration=50,
     time_step=1,
+    max_timestamp=1.0,
     grey_image=False,
     train_views="0134",
     train_views_fake=None,
@@ -1709,13 +1719,14 @@ def read_nerf_synthetic_info_syn_particle(
         # in this mode, just using some real views, no fake views for fitting
         train_json = f"transforms_train_{train_views}_hyfluid.json"
     train_cam_infos, bbox_model = read_cameras_from_transforms_hyfluid(
-        path,
+        source_path,
         train_json,
         white_background,
         extension,
         start_time,
         duration,
         time_step,
+        max_timestamp,
         grey_image,
         train_views,
         train_views_fake,
@@ -1729,13 +1740,14 @@ def read_nerf_synthetic_info_syn_particle(
         print("Using all views for testing")
         test_json = f"transforms_train_test_hyfluid.json"
     test_cam_infos, _ = read_cameras_from_transforms_hyfluid(
-        path,
+        source_path,
         test_json,
         white_background,
         extension,
         start_time,
         duration,
         time_step,
+        max_timestamp,
         grey_image,
         train_views,
         train_views_fake,
@@ -1745,7 +1757,7 @@ def read_nerf_synthetic_info_syn_particle(
 
     nerf_normalization = get_nerf_pp_norm(train_cam_infos)
 
-    total_ply_path = os.path.join(path, "points3d_total.ply")
+    total_ply_path = os.path.join(model_path, "points3d_total.ply")
     if os.path.exists(total_ply_path):
         os.remove(total_ply_path)
 
@@ -1848,13 +1860,15 @@ def read_nerf_synthetic_info_syn_particle(
 
 
 def read_nerf_synthetic_info_syn_particle_valid(
-    path,
+    source_path,
+    model_path,
     white_background,
     eval,
     extension=".png",
     start_time=50,
     duration=50,
     time_step=1,
+    max_timestamp=1.0,
     grey_image=False,
     train_views="0134",
     train_views_fake=None,
@@ -1870,13 +1884,14 @@ def read_nerf_synthetic_info_syn_particle_valid(
         print("Using all views for testing")
         test_json = f"transforms_train_test_hyfluid.json"
     test_cam_infos, bbox_model = read_cameras_from_transforms_hyfluid(
-        path,
+        source_path,
         test_json,
         white_background,
         extension,
         start_time,
         duration,
         time_step,
+        max_timestamp,
         grey_image,
         train_views,
         train_views_fake,
@@ -1886,7 +1901,7 @@ def read_nerf_synthetic_info_syn_particle_valid(
 
     nerf_normalization = get_nerf_pp_norm(test_cam_infos)
 
-    total_ply_path = os.path.join(path, "points3d_total.ply")
+    total_ply_path = os.path.join(model_path, "points3d_total.ply")
     pcd = fetch_ply(total_ply_path, grey_image)
 
     assert pcd is not None, "Point cloud could not be loaded!"

@@ -85,6 +85,7 @@ class ModelParams(ParamGroup):
         self.start_time = 0
         self.duration = 50
         self.time_step = 1
+        self.max_timestamp = 1.0
 
         # GaussianFluid parameters
         self.grey_image = False
