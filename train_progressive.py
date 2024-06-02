@@ -38,7 +38,7 @@ from gaussian_splatting.scene import Scene
 from gaussian_splatting.utils.graphics_utils import get_world_2_view2
 from gaussian_splatting.utils.image_utils import psnr
 from gaussian_splatting.utils.loss_utils import l1_loss, ssim
-from helper_gaussian_model import get_model
+from helper_gaussian import get_model
 from helper_parser import get_parser
 from helper_pipe import get_render_pipe
 from helper_train import (

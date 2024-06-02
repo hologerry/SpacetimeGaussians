@@ -3,7 +3,7 @@ import time
 
 import torch
 
-from gaussian_splatting.scene.ours_simple_xyz_linear_color_trbf_c_act import (
+from gaussian_splatting.gaussian.ours_simple_xyz_linear_color_trbf_c_act import (
     GaussianModel,
 )
 

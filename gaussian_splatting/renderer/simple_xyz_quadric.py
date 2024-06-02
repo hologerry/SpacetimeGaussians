@@ -3,7 +3,7 @@ import time
 
 import torch
 
-from gaussian_splatting.scene.ours_simple_xyz_quadric import GaussianModel
+from gaussian_splatting.gaussian.ours_simple_xyz_quadric import GaussianModel
 
 
 def train_ours_lite_xyz_quadric(

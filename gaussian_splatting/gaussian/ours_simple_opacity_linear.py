@@ -26,10 +26,10 @@ from gaussian_splatting.utils.general_utils import (
     strip_symmetric,
     update_quaternion,
 )
-from gaussian_splatting.utils.graphics_utils import BasicPointCloud
+from gaussian_splatting.utils.graphics_utils import BasicPointCloud, pix2ndc
 from gaussian_splatting.utils.system_utils import mkdir_p
-from helper_color_model import get_color_model
-from helper_gaussian_model import (
+from helper_color import get_color_model
+from helper_gaussian import (
     interpolate_part_use,
     interpolate_point,
     interpolate_point_v3,
@@ -45,9 +45,6 @@ class GaussianModel:
             symm = strip_symmetric(actual_covariance)
             return symm
 
-        def step_function(delta_t):
-            return (delta_t >= 0).float()
-
         self.scaling_activation = torch.exp
         self.scaling_inverse_activation = torch.log
 
@@ -58,8 +55,6 @@ class GaussianModel:
 
         self.rotation_activation = torch.nn.functional.normalize
         # self.feature_act = torch.sigmoid
-
-        self.t_activation = step_function
 
     def __init__(self, sh_degree: int, rgb_function="rgbv1"):
         self.active_sh_degree = 0
@@ -78,11 +73,13 @@ class GaussianModel:
         self.percent_dense = 0
         self.spatial_lr_scale = 0
         self._omega = torch.empty(0)
+        self._beta = torch.empty(0)
 
         self.rgb_decoder = None  # get_color_model(rgb_function)
 
         self.setup_functions()
         self.delta_t = None
+        # self.delta_t = None
         self.omega_mask = None
         self.mask_for_ems = None
         self.distance_to_camera = None
@@ -150,16 +147,16 @@ class GaussianModel:
     def get_trbf_center(self):
         return self._trbf_center
 
-    @property
-    def get_trbf_scale(self):
-        return self._trbf_scale
+    # @property
+    # def get_trbf_scale(self):
+    #     return self._trbf_scale
 
     def get_features(self, delta_t):
         return self._features_dc
 
-    @property
-    def get_opacity(self):
-        return self.opacity_activation(self._opacity)
+    def get_opacity(self, delta_t):
+        opacity = self._opacity + delta_t * self._beta
+        return self.opacity_activation(opacity)
 
     def get_covariance(self, scaling_modifier=1):
         return self.covariance_activation(self.get_scaling, scaling_modifier, self._rotation)
@@ -169,6 +166,39 @@ class GaussianModel:
             self.active_sh_degree += 1
 
     def create_from_pcd(self, pcd: BasicPointCloud, spatial_lr_scale: float):
+
+        if self.preprocess_points == 3:
+            pcd = interpolate_point(pcd, 4)
+
+        elif self.preprocess_points == 4:
+            pcd = interpolate_point(pcd, 2)
+
+        elif self.preprocess_points == 5:
+            pcd = interpolate_point(pcd, 6)
+
+        elif self.preprocess_points == 6:
+            pcd = interpolate_point(pcd, 8)
+
+        elif self.preprocess_points == 7:
+            pcd = interpolate_point(pcd, 16)
+
+        elif self.preprocess_points == 8:
+            pcd = interpolate_point_v3(pcd, 4)
+
+        elif self.preprocess_points == 14:
+            pcd = interpolate_part_use(pcd, 2)
+
+        elif self.preprocess_points == 15:
+            pcd = interpolate_part_use(pcd, 4)
+
+        elif self.preprocess_points == 16:
+            pcd = interpolate_part_use(pcd, 8)
+
+        elif self.preprocess_points == 17:
+            pcd = interpolate_part_use(pcd, 16)
+
+        else:
+            pass
 
         self.spatial_lr_scale = spatial_lr_scale
         fused_point_cloud = torch.tensor(np.asarray(pcd.points)).float().cuda()
@@ -185,7 +215,7 @@ class GaussianModel:
         rots[:, 0] = 1
 
         opacities = inverse_sigmoid(
-            0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda")
+            0.01 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda")
         )
 
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
@@ -194,8 +224,7 @@ class GaussianModel:
         # features9channel = fused_color
         # lite just use the base color
 
-        fused_color_fix = torch.zeros_like(fused_color) + 0.6
-        self._features_dc = nn.Parameter(fused_color_fix.contiguous().requires_grad_(True))
+        self._features_dc = nn.Parameter(fused_color.contiguous().requires_grad_(True))
         print(f"self._features_dc inited {self._features_dc}")
 
         N, _ = fused_color.shape
@@ -210,10 +239,13 @@ class GaussianModel:
         self._omega = nn.Parameter(omega.requires_grad_(True))
         print(f"self._omega inited {self._omega}")
 
+        beta = torch.zeros((fused_point_cloud.shape[0], 1), device="cuda")
+        self._beta = nn.Parameter(beta.requires_grad_(True))
+
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
         print(f"self._opacity inited {self._opacity}")
 
-        motion = torch.zeros((fused_point_cloud.shape[0], 3), device="cuda")  # x1,x2,x3, y1,y2,y3, z1,z2,z3
+        motion = torch.zeros((fused_point_cloud.shape[0], 9), device="cuda")  # x1,x2,x3, y1,y2,y3, z1,z2,z3
         self._motion = nn.Parameter(motion.requires_grad_(True))
         print(f"self._motion inited {self._motion}")
 
@@ -221,17 +253,17 @@ class GaussianModel:
         print(f"self.max_radii2D inited {self.max_radii2D}")
 
         self._trbf_center = nn.Parameter(times.contiguous().requires_grad_(True))
-        self._trbf_scale = nn.Parameter(torch.ones((self.get_xyz.shape[0], 1), device="cuda").requires_grad_(True))
+        # self._trbf_scale = nn.Parameter(torch.ones((self.get_xyz.shape[0], 1), device="cuda").requires_grad_(True))
 
         print(f"self._trbf_center inited {self._trbf_center}")
-        print(f"self._trbf_scale inited {self._trbf_scale}")
+        # print(f"self._trbf_scale inited {self._trbf_scale}")
 
         ## store gradients
 
-        if self.trbf_scale_init is not None:
-            nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
-        else:
-            nn.init.constant_(self._trbf_scale, 0)  # too large ?
+        # if self.trbf_scale_init is not None:
+        #     nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
+        # else:
+        #     nn.init.constant_(self._trbf_scale, 0)  # too large ?
 
         nn.init.constant_(self._omega, 0)
         self.rgb_grd = {}
@@ -248,9 +280,10 @@ class GaussianModel:
         self._rotation_grd += self._rotation.grad.clone()
         self._opacity_grd += self._opacity.grad.clone()
         self._trbf_center_grd += self._trbf_center.grad.clone()
-        self._trbf_scale_grd += self._trbf_scale.grad.clone()
+        # self._trbf_scale_grd += self._trbf_scale.grad.clone()
         self._motion_grd += self._motion.grad.clone()
         self._omega_grd += self._omega.grad.clone()
+        self._beta_grad += self._beta.grad.clone()
 
         # for name, W in self.rgb_decoder.named_parameters():
         #     if 'weight' in name:
@@ -265,9 +298,10 @@ class GaussianModel:
         self._rotation_grd = torch.zeros_like(self._rotation, requires_grad=False)
         self._opacity_grd = torch.zeros_like(self._opacity, requires_grad=False)
         self._trbf_center_grd = torch.zeros_like(self._trbf_center, requires_grad=False)
-        self._trbf_scale_grd = torch.zeros_like(self._trbf_scale, requires_grad=False)
+        # self._trbf_scale_grd = torch.zeros_like(self._trbf_scale, requires_grad=False)
         self._motion_grd = torch.zeros_like(self._motion, requires_grad=False)
         self._omega_grd = torch.zeros_like(self._omega, requires_grad=False)
+        self._beta_grad = torch.zeros_like(self._beta, requires_grad=False)
 
         # for name in self.rgb_grd.keys():
         #     self.rgb_grd[name].zero_()
@@ -280,9 +314,10 @@ class GaussianModel:
         self._rotation.grad = self._rotation_grd * ratio
         self._opacity.grad = self._opacity_grd * ratio
         self._trbf_center.grad = self._trbf_center_grd * ratio
-        self._trbf_scale.grad = self._trbf_scale_grd * ratio
+        # self._trbf_scale.grad = self._trbf_scale_grd * ratio
         self._motion.grad = self._motion_grd * ratio
         self._omega.grad = self._omega_grd * ratio
+        self._beta.grad = self._beta_grad * ratio
 
         # for name, W in self.rgb_decoder.named_parameters():
         #     if 'weight' in name:
@@ -299,8 +334,9 @@ class GaussianModel:
             {"params": [self._scaling], "lr": training_args.scaling_lr, "name": "scaling"},
             {"params": [self._rotation], "lr": training_args.rotation_lr, "name": "rotation"},
             {"params": [self._omega], "lr": training_args.omega_lr, "name": "omega"},
+            {"params": [self._beta], "lr": training_args.beta_lr, "name": "beta"},
             {"params": [self._trbf_center], "lr": training_args.trbf_c_lr, "name": "trbf_center"},
-            {"params": [self._trbf_scale], "lr": training_args.trbf_s_lr, "name": "trbf_scale"},
+            # {"params": [self._trbf_scale], "lr": training_args.trbf_s_lr, "name": "trbf_scale"},
             {
                 "params": [self._motion],
                 "lr": training_args.position_lr_init * self.spatial_lr_scale * 0.5 * training_args.move_lr,
@@ -327,7 +363,8 @@ class GaussianModel:
                 return lr
 
     def construct_list_of_attributes(self):
-        l = ["x", "y", "z", "trbf_center", "trbf_scale", "nx", "ny", "nz"]
+        # l = ["x", "y", "z", "trbf_center", "trbf_scale", "nx", "ny", "nz"]
+        l = ["x", "y", "z", "trbf_center", "nx", "ny", "nz"]
         # All channels except the 3 DC
         # for i in range(self._features_dc.shape[1]*self._features_dc.shape[2]):
         #     l.append('f_dc_{}'.format(i))
@@ -347,6 +384,7 @@ class GaussianModel:
             l.append("rot_{}".format(i))
         for i in range(self._omega.shape[1]):
             l.append("omega_{}".format(i))
+        l.append("beta")
 
         return l
 
@@ -363,16 +401,21 @@ class GaussianModel:
 
         trbf_center = self._trbf_center.detach().cpu().numpy()
 
-        trbf_scale = self._trbf_scale.detach().cpu().numpy()
+        # trbf_scale = self._trbf_scale.detach().cpu().numpy()
         motion = self._motion.detach().cpu().numpy()
 
         omega = self._omega.detach().cpu().numpy()
 
+        beta = self._beta.detach().cpu().numpy()
+
         dtype_full = [(attribute, "f4") for attribute in self.construct_list_of_attributes()]
 
         elements = np.empty(xyz.shape[0], dtype=dtype_full)
+        # attributes = np.concatenate(
+        #     (xyz, trbf_center, trbf_scale, normals, motion, f_dc, opacities, scale, rotation, omega, beta), axis=1
+        # )
         attributes = np.concatenate(
-            (xyz, trbf_center, trbf_scale, normals, motion, f_dc, opacities, scale, rotation, omega), axis=1
+            (xyz, trbf_center, normals, motion, f_dc, opacities, scale, rotation, omega, beta), axis=1
         )
         elements[:] = list(map(tuple, attributes))
         el = PlyElement.describe(elements, "vertex")
@@ -386,7 +429,8 @@ class GaussianModel:
         np.savetxt(txt_fname, attributes, delimiter=",")
 
     def reset_opacity(self):
-        opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity) * 0.01))
+        cur_opacity = self.cur_opacity
+        opacities_new = inverse_sigmoid(torch.min(cur_opacity, torch.ones_like(cur_opacity) * 0.01))
         optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")
         self._opacity = optimizable_tensors["opacity"]
 
@@ -395,7 +439,7 @@ class GaussianModel:
     #     omega_mask = torch.sum(torch.abs(self._omega), dim=1) > threshold  # default
     #     scale_mask = torch.max(scales, dim=1).values.unsqueeze(1) > 0.2
     #     scale_mask_b = torch.max(scales, dim=1).values.unsqueeze(1) < 0.6
-    #     point_opacity = self.get_opacity
+    #     point_opacity = self.get_opacity(self.delta_t)
     #     opacity_mask = point_opacity > 0.7
 
     #     mask = torch.logical_and(
@@ -413,7 +457,7 @@ class GaussianModel:
     #     )  #  #torch.sum(torch.abs(self._omega), dim=1) > threshold # default
     #     scale_mask = torch.max(scales, dim=1).values.unsqueeze(1) > 0.2
     #     scale_mask_b = torch.max(scales, dim=1).values.unsqueeze(1) < 0.6
-    #     point_opacity = self.get_opacity
+    #     point_opacity = self.get_opacity(self.delta_t)
     #     opacity_mask = point_opacity > 0.7
 
     #     mask = torch.logical_and(
@@ -430,7 +474,7 @@ class GaussianModel:
     #     omega_mask = torch.sum(torch.abs(self._omega), dim=1) > threshold  # default
     #     scale_mask = torch.max(scales, dim=1).values.unsqueeze(1) > 0.2
     #     scale_mask_b = torch.max(scales, dim=1).values.unsqueeze(1) < 0.6
-    #     point_opacity = self.get_opacity
+    #     point_opacity = self.get_opacity(self.delta_t)
     #     opacity_mask = point_opacity > 0.7
 
     #     mask = torch.logical_and(
@@ -469,13 +513,14 @@ class GaussianModel:
     #         axis=1,
     #     )
     #     opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
-
+    #     #         {'params': [self._trbf_center], 'lr': training_args.trbf_c_lr, "name": "trbf_center"},
+    #     # {'params': [self._trbf_scale], 'lr': training_args.trbf_s_lr, "name": "trbf_scale"},
     #     trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
-    #     trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
+    #     # trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
 
     #     # motion = np.asarray(ply_data.elements[0]["motion"])
     #     motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
-    #     num_motion = 3
+    #     num_motion = 9
     #     motion = np.zeros((xyz.shape[0], num_motion))
     #     for i in range(num_motion):
     #         motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
@@ -538,9 +583,9 @@ class GaussianModel:
     #     self._trbf_center = nn.Parameter(
     #         torch.tensor(trbf_center[mask], dtype=torch.float, device="cuda").requires_grad_(True)
     #     )
-    #     self._trbf_scale = nn.Parameter(
-    #         torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda").requires_grad_(True)
-    #     )
+    #     # self._trbf_scale = nn.Parameter(
+    #     #     torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda").requires_grad_(True)
+    #     # )
     #     self._motion = nn.Parameter(torch.tensor(motion[mask], dtype=torch.float, device="cuda").requires_grad_(True))
     #     self._omega = nn.Parameter(torch.tensor(omegas[mask], dtype=torch.float, device="cuda").requires_grad_(True))
 
@@ -569,13 +614,14 @@ class GaussianModel:
     #         axis=1,
     #     )
     #     opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
-
+    #     #         {'params': [self._trbf_center], 'lr': training_args.trbf_c_lr, "name": "trbf_center"},
+    #     # {'params': [self._trbf_scale], 'lr': training_args.trbf_s_lr, "name": "trbf_scale"},
     #     trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
-    #     trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
+    #     # trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
 
     #     # motion = np.asarray(ply_data.elements[0]["motion"])
     #     motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
-    #     num_motion = 3
+    #     num_motion = 9
     #     motion = np.zeros((xyz.shape[0], num_motion))
     #     for i in range(num_motion):
     #         motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
@@ -638,9 +684,9 @@ class GaussianModel:
     #     self._trbf_center = nn.Parameter(
     #         torch.tensor(trbf_center[mask], dtype=torch.float, device="cuda").requires_grad_(True)
     #     )
-    #     self._trbf_scale = nn.Parameter(
-    #         torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda").requires_grad_(True)
-    #     )
+    #     # self._trbf_scale = nn.Parameter(
+    #     #     torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda").requires_grad_(True)
+    #     # )
     #     self._motion = nn.Parameter(torch.tensor(motion[mask], dtype=torch.float, device="cuda").requires_grad_(True))
     #     self._omega = nn.Parameter(torch.tensor(omegas[mask], dtype=torch.float, device="cuda").requires_grad_(True))
 
@@ -669,13 +715,14 @@ class GaussianModel:
     #         axis=1,
     #     )
     #     opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
-
+    #     #         {'params': [self._trbf_center], 'lr': training_args.trbf_c_lr, "name": "trbf_center"},
+    #     # {'params': [self._trbf_scale], 'lr': training_args.trbf_s_lr, "name": "trbf_scale"},
     #     trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
-    #     trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
+    #     # trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
 
     #     # motion = np.asarray(ply_data.elements[0]["motion"])
     #     motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
-    #     num_motion = 3
+    #     num_motion = 9
     #     motion = np.zeros((xyz.shape[0], num_motion))
     #     for i in range(num_motion):
     #         motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
@@ -727,9 +774,10 @@ class GaussianModel:
 
     #     unstable_points = np.sum(np.abs(motion[:, 0:3]), axis=1)
     #     moving_points = unstable_points > 0.03
-    #     trbf_mask = trbf_scale < 3  # temporal unstable points
+    #     # trbf_mask = trbf_scale < 3  # temporal unstable points
 
-    #     mask_st = np.logical_or(trbf_mask.squeeze(1), moving_points)
+    #     # mask_st = np.logical_or(trbf_mask.squeeze(1), moving_points)
+    #     mask_st = moving_points
 
     #     mask = np.logical_or(mask, mask_st)  # only use large t_scale points.
     #     # replace points with input ?
@@ -754,9 +802,9 @@ class GaussianModel:
     #     self._rotation = nn.Parameter(rots).requires_grad_(True)
     #     trbf_center = torch.cat((self._trbf_center, torch.tensor(trbf_center[mask], dtype=torch.float, device="cuda")))
     #     self._trbf_center = nn.Parameter(trbf_center).requires_grad_(True)
-    #     trbf_scale = torch.cat((self._trbf_scale, torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda")))
+    #     # trbf_scale = torch.cat((self._trbf_scale, torch.tensor(trbf_scale[mask], dtype=torch.float, device="cuda")))
 
-    #     self._trbf_scale = nn.Parameter(trbf_scale.requires_grad_(True))
+    #     # self._trbf_scale = nn.Parameter(trbf_scale.requires_grad_(True))
 
     #     motion = torch.cat((self._motion, torch.tensor(motion[mask], dtype=torch.float, device="cuda")))
 
@@ -782,11 +830,11 @@ class GaussianModel:
         opacities = np.asarray(ply_data.elements[0]["opacity"])[..., np.newaxis]
 
         trbf_center = np.asarray(ply_data.elements[0]["trbf_center"])[..., np.newaxis]
-        trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
+        # trbf_scale = np.asarray(ply_data.elements[0]["trbf_scale"])[..., np.newaxis]
 
         # motion = np.asarray(ply_data.elements[0]["motion"])
         motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
-        num_motion = 3
+        num_motion = 9
         motion = np.zeros((xyz.shape[0], num_motion))
         for i in range(num_motion):
             motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
@@ -816,10 +864,16 @@ class GaussianModel:
         for idx, attr_name in enumerate(rot_names):
             rots[:, idx] = np.asarray(ply_data.elements[0][attr_name])
 
-        omega_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("omega")]
+        omega_names = [
+            p.name
+            for p in ply_data.elements[0].properties
+            if p.name.startswith("omega") and not p.name.startswith("beta")
+        ]
         omegas = np.zeros((xyz.shape[0], len(omega_names)))
         for idx, attr_name in enumerate(omega_names):
             omegas[:, idx] = np.asarray(ply_data.elements[0][attr_name])
+
+        beta = np.asarray(ply_data.elements[0]["beta"])[..., np.newaxis]
 
         # ft_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("f_t")]
         # ft_omegas = np.zeros((xyz.shape[0], len(ft_names)))
@@ -837,14 +891,19 @@ class GaussianModel:
         self._trbf_center = nn.Parameter(
             torch.tensor(trbf_center, dtype=torch.float, device="cuda").requires_grad_(True)
         )
-        self._trbf_scale = nn.Parameter(
-            torch.tensor(trbf_scale, dtype=torch.float, device="cuda").requires_grad_(True)
-        )
+        # self._trbf_scale = nn.Parameter(
+        #     torch.tensor(trbf_scale, dtype=torch.float, device="cuda").requires_grad_(True)
+        # )
         self._motion = nn.Parameter(torch.tensor(motion, dtype=torch.float, device="cuda").requires_grad_(True))
         self._omega = nn.Parameter(torch.tensor(omegas, dtype=torch.float, device="cuda").requires_grad_(True))
 
+        self._beta = nn.Parameter(torch.tensor(beta, dtype=torch.float, device="cuda").requires_grad_(True))
+
         self.active_sh_degree = self.max_sh_degree
-        self.computed_trbf_scale = torch.exp(self._trbf_scale)  # precomputed
+        # self.computed_trbf_scale = torch.exp(self._trbf_scale)  # precomputed
+        self.computed_trbf_scale = torch.ones_like(
+            self._trbf_center
+        )  # with linear t, scale just set to ones, it's not used at all
         self.computed_opacity = self.opacity_activation(self._opacity)
         self.computed_scales = torch.exp(self._scaling)  # change not very large
 
@@ -895,9 +954,12 @@ class GaussianModel:
         self._scaling = optimizable_tensors["scaling"]
         self._rotation = optimizable_tensors["rotation"]
         self._trbf_center = optimizable_tensors["trbf_center"]
-        self._trbf_scale = optimizable_tensors["trbf_scale"]
+        # self._trbf_scale = optimizable_tensors["trbf_scale"]
         self._motion = optimizable_tensors["motion"]
         self._omega = optimizable_tensors["omega"]
+        self._beta = optimizable_tensors["beta"]
+
+        self.delta_t = self.delta_t[valid_points_mask]
 
         self.xyz_gradient_accum = self.xyz_gradient_accum[valid_points_mask]
 
@@ -944,9 +1006,11 @@ class GaussianModel:
         new_scaling,
         new_rotation,
         new_trbf_center,
-        new_trbf_scale,
+        # new_trbf_scale,
         new_motion,
         new_omega,
+        new_beta,
+        new_delta_t,
         dummy=None,
     ):
         d = {
@@ -956,9 +1020,10 @@ class GaussianModel:
             "scaling": new_scaling,
             "rotation": new_rotation,
             "trbf_center": new_trbf_center,
-            "trbf_scale": new_trbf_scale,
+            # "trbf_scale": new_trbf_scale,
             "motion": new_motion,
             "omega": new_omega,
+            "beta": new_beta,
         }
 
         optimizable_tensors = self.cat_tensors_to_optimizer(d)
@@ -969,13 +1034,16 @@ class GaussianModel:
         self._scaling = optimizable_tensors["scaling"]
         self._rotation = optimizable_tensors["rotation"]
         self._trbf_center = optimizable_tensors["trbf_center"]
-        self._trbf_scale = optimizable_tensors["trbf_scale"]
+        # self._trbf_scale = optimizable_tensors["trbf_scale"]
         self._motion = optimizable_tensors["motion"]
         self._omega = optimizable_tensors["omega"]
+        self._beta = optimizable_tensors["beta"]
 
         self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
         self.denom = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
+
+        self.delta_t = torch.cat((self.delta_t, new_delta_t), dim=0)
 
     # def densify_and_split_v2(self, grads, grad_threshold, scene_extent, N=2):
     #     n_init_points = self.get_xyz.shape[0]
@@ -1001,9 +1069,10 @@ class GaussianModel:
     #     new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
     #     new_trbf_center = self._trbf_center[selected_pts_mask].repeat(N, 1)
     #     new_trbf_center = torch.rand_like(new_trbf_center)  # * 0.5
-    #     new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
+    #     # new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
     #     new_motion = self._motion[selected_pts_mask].repeat(N, 1)
     #     new_omega = self._omega[selected_pts_mask].repeat(N, 1)
+    #     new_beta = self._beta[selected_pts_mask].repeat(N, 1)
 
     #     self.densification_postfix(
     #         new_xyz,
@@ -1012,9 +1081,10 @@ class GaussianModel:
     #         new_scaling,
     #         new_rotation,
     #         new_trbf_center,
-    #         new_trbf_scale,
+    #         # new_trbf_scale,
     #         new_motion,
     #         new_omega,
+    #         new_beta,
     #     )
 
     #     prune_filter = torch.cat(
@@ -1043,9 +1113,10 @@ class GaussianModel:
     #     new_features_dc = self._features_dc[selected_pts_mask].repeat(N, 1)  # n,1,1 to n1
     #     new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
     #     new_trbf_center = self._trbf_center[selected_pts_mask].repeat(N, 1)
-    #     new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
+    #     # new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
     #     new_motion = self._motion[selected_pts_mask].repeat(N, 1)
     #     new_omega = self._omega[selected_pts_mask].repeat(N, 1)
+    #     new_beta = self._beta[selected_pts_mask].repeat(N, 1)
 
     #     self.densification_postfix(
     #         new_xyz,
@@ -1054,9 +1125,10 @@ class GaussianModel:
     #         new_scaling,
     #         new_rotation,
     #         new_trbf_center,
-    #         new_trbf_scale,
+    #         # new_trbf_scale,
     #         new_motion,
     #         new_omega,
+    #         new_beta
     #     )
 
     #     prune_filter = torch.cat(
@@ -1087,9 +1159,11 @@ class GaussianModel:
         new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
         new_trbf_center = self._trbf_center[selected_pts_mask].repeat(N, 1)
         new_trbf_center = torch.rand_like(new_trbf_center)  # * 0.5
-        new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
+        # new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
         new_motion = self._motion[selected_pts_mask].repeat(N, 1)
         new_omega = self._omega[selected_pts_mask].repeat(N, 1)
+        new_beta = self._beta[selected_pts_mask].repeat(N, 1)
+        new_delta_t = self.delta_t[selected_pts_mask].repeat(N, 1)
 
         self.densification_postfix(
             new_xyz,
@@ -1098,9 +1172,11 @@ class GaussianModel:
             new_scaling,
             new_rotation,
             new_trbf_center,
-            new_trbf_scale,
+            # new_trbf_scale,
             new_motion,
             new_omega,
+            new_beta,
+            new_delta_t,
         )
 
         prune_filter = torch.cat(
@@ -1120,7 +1196,7 @@ class GaussianModel:
     #     self.densify_and_split(grads, max_grad, extent, 2)
     #     print("after split", self._xyz.shape[0])
 
-    #     prune_mask = (self.get_opacity < min_opacity).squeeze()
+    #     prune_mask = (self.get_opacity(self.delta_t) < min_opacity).squeeze()
     #     if max_screen_size:
     #         big_points_vs = self.max_radii2D > max_screen_size
     #         big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
@@ -1145,9 +1221,12 @@ class GaussianModel:
         new_trbf_center = torch.rand(
             (self._trbf_center[selected_pts_mask].shape[0], 1), device="cuda"
         )  # self._trbf_center[selected_pts_mask]
-        new_trbf_scale = self._trbf_scale[selected_pts_mask]
+        # new_trbf_scale = self._trbf_scale[selected_pts_mask]
         new_motion = self._motion[selected_pts_mask]
         new_omega = self._omega[selected_pts_mask]
+        new_beta = self._beta[selected_pts_mask]
+        new_delta_t = self.delta_t[selected_pts_mask]
+
         self.densification_postfix(
             new_xyz,
             new_features_dc,
@@ -1155,9 +1234,11 @@ class GaussianModel:
             new_scaling,
             new_rotation,
             new_trbf_center,
-            new_trbf_scale,
+            # new_trbf_scale,
             new_motion,
             new_omega,
+            new_beta,
+            new_delta_t,
         )
 
     # def densify_and_clone_im(self, grads, grad_threshold, scene_extent):
@@ -1174,9 +1255,11 @@ class GaussianModel:
     #     new_rotation = self._rotation[selected_pts_mask]
 
     #     new_trbf_center = self._trbf_center[selected_pts_mask]  #
-    #     new_trbf_scale = self._trbf_scale[selected_pts_mask]
+    #     # new_trbf_scale = self._trbf_scale[selected_pts_mask]
     #     new_motion = self._motion[selected_pts_mask]
     #     new_omega = self._omega[selected_pts_mask]
+    #     new_beta = self._beta[selected_pts_mask]
+
     #     self.densification_postfix(
     #         new_xyz,
     #         new_features_dc,
@@ -1184,9 +1267,10 @@ class GaussianModel:
     #         new_scaling,
     #         new_rotation,
     #         new_trbf_center,
-    #         new_trbf_scale,
+    #         # new_trbf_scale,
     #         new_motion,
     #         new_omega,
+    #         new_beta,
     #     )
 
     # def densify_prune_clone_im(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
@@ -1201,7 +1285,7 @@ class GaussianModel:
     #     self.densify_and_split_im(grads, max_grad, extent, 2)
     #     print("after split", self._xyz.shape[0])
 
-    #     prune_mask = (self.get_opacity < min_opacity).squeeze()
+    #     prune_mask = (self.get_opacity(self.delta_t) < min_opacity).squeeze()
     #     if max_screen_size:
     #         big_points_vs = self.max_radii2D > max_screen_size
     #         big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
@@ -1210,27 +1294,27 @@ class GaussianModel:
 
     #     torch.cuda.empty_cache()
 
-    def densify_prune_clone(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
-        # print("before", torch.amax(self.get_scaling))
+    # def densify_prune_clone(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
+    #     # print("before", torch.amax(self.get_scaling))
 
-        grads = self.xyz_gradient_accum / self.denom
-        grads[grads.isnan()] = 0.0
+    #     grads = self.xyz_gradient_accum / self.denom
+    #     grads[grads.isnan()] = 0.0
 
-        print("before clone", self._xyz.shape[0])
-        self.densify_and_clone(grads, max_grad, extent)
-        print("after clone", self._xyz.shape[0])
+    #     print("before clone", self._xyz.shape[0])
+    #     self.densify_and_clone(grads, max_grad, extent)
+    #     print("after clone", self._xyz.shape[0])
 
-        self.densify_and_split_v2(grads, max_grad, extent, 2)
-        print("after split", self._xyz.shape[0])
+    #     self.densify_and_split_v2(grads, max_grad, extent, 2)
+    #     print("after split", self._xyz.shape[0])
 
-        prune_mask = (self.get_opacity < min_opacity).squeeze()
-        if max_screen_size:
-            big_points_vs = self.max_radii2D > max_screen_size
-            big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
+    #     prune_mask = (self.get_opacity(self.delta_t) < min_opacity).squeeze()
+    #     if max_screen_size:
+    #         big_points_vs = self.max_radii2D > max_screen_size
+    #         big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
 
-            prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+    #         prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
 
-        torch.cuda.empty_cache()
+    #     torch.cuda.empty_cache()
 
     def add_densification_stats(self, viewspace_point_tensor, update_filter):
         self.xyz_gradient_accum[update_filter] += torch.norm(
@@ -1276,9 +1360,10 @@ class GaussianModel:
     #     new_features_dc = []
     #     new_opacity = []
     #     new_trbf_center = []
-    #     new_trbf_scale = []
+    #     # new_trbf_scale = []
     #     new_motion = []
     #     new_omega = []
+    #     new_beta = []
     #     new_feature_t = []
 
     #     camera2wold = viewpoint_cam.world_view_transform.T.inverse()
@@ -1336,10 +1421,11 @@ class GaussianModel:
     #         select_num_points = torch.sum(selected_mask).item()
     #         new_trbf_center.append(torch.rand((select_num_points, 1)).cuda())
 
-    #         assert self.trbf_scale_init < 1
-    #         new_trbf_scale.append(self.trbf_scale_init * torch.ones((select_num_points, 1), device="cuda"))
-    #         new_motion.append(torch.zeros((select_num_points, 3), device="cuda"))
+    #         # assert self.trbf_scale_init < 1
+    #         # new_trbf_scale.append(self.trbf_scale_init * torch.ones((select_num_points, 1), device="cuda"))
+    #         new_motion.append(torch.zeros((select_num_points, 9), device="cuda"))
     #         new_omega.append(torch.zeros((select_num_points, 4), device="cuda"))
+    #         new_beta.append(torch.zeros((select_num_points, 1), device="cuda"))
     #         new_feature_t.append(torch.zeros((select_num_points, 3), device="cuda"))
 
     #     new_xyz = torch.cat(new_xyz, dim=0)
@@ -1352,9 +1438,10 @@ class GaussianModel:
     #     # new_opacity = torch.cat(new_opacity, dim=0)
     #     new_opacity = inverse_sigmoid(0.1 * torch.ones_like(new_xyz[:, 0:1]))
     #     new_trbf_center = torch.cat(new_trbf_center, dim=0)
-    #     new_trbf_scale = torch.cat(new_trbf_scale, dim=0)
+    #     # new_trbf_scale = torch.cat(new_trbf_scale, dim=0)
     #     new_motion = torch.cat(new_motion, dim=0)
     #     new_omega = torch.cat(new_omega, dim=0)
+    #     new_beta = torch.cat(new_beta, dim=0)
     #     new_feature_t = torch.cat(new_feature_t, dim=0)
 
     #     tmp_xyz = torch.cat((new_xyz, self._xyz), dim=0)
@@ -1371,9 +1458,10 @@ class GaussianModel:
     #         new_scaling,
     #         new_rotation,
     #         new_trbf_center,
-    #         new_trbf_scale,
+    #         # new_trbf_scale,
     #         new_motion,
     #         new_omega,
+    #         new_beta,
     #         new_feature_t,
     #     )
     #     return new_xyz.shape[0]
@@ -1389,9 +1477,10 @@ class GaussianModel:
     #     self._scaling = optimizable_tensors["scaling"]
     #     self._rotation = optimizable_tensors["rotation"]
     #     self._trbf_center = optimizable_tensors["trbf_center"]
-    #     self._trbf_scale = optimizable_tensors["trbf_scale"]
+    #     # self._trbf_scale = optimizable_tensors["trbf_scale"]
     #     self._motion = optimizable_tensors["motion"]
     #     self._omega = optimizable_tensors["omega"]
+    #     self._beta = optimizable_tensors["beta"]
 
     #     self.xyz_gradient_accum = self.xyz_gradient_accum[valid_points_mask]
 
@@ -1402,11 +1491,11 @@ class GaussianModel:
 
     # def reduce_points_op_scale_by_mask(self, selected_pts_mask):
     #     # restrict original one
-    #     mean_value = torch.min(self.get_opacity)
+    #     mean_value = torch.min(self.get_opacity(self.delta_t))
     #     opacities_new = inverse_sigmoid(
     #         torch.min(
-    #             torch.ones_like(self.get_opacity[selected_pts_mask]) * mean_value,
-    #             torch.ones_like(self.get_opacity[selected_pts_mask]) * 0.004,
+    #             torch.ones_like(self.get_opacity(self.delta_t)[selected_pts_mask]) * mean_value,
+    #             torch.ones_like(self.get_opacity(self.delta_t)[selected_pts_mask]) * 0.004,
     #         )
     #     )
     #     opacity_old = self._opacity.clone()
@@ -1415,15 +1504,15 @@ class GaussianModel:
     #     optimizable_tensors = self.replace_tensor_to_optimizer(opacity_old, "opacity")
     #     self._opacity = optimizable_tensors["opacity"]
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, **kwargs):
+    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size):
         ## raw method from 3dgs debugging hyfluid
         grads = self.xyz_gradient_accum / self.denom
         grads[grads.isnan()] = 0.0
 
         self.densify_and_clone(grads, max_grad, extent)
         self.densify_and_split(grads, max_grad, extent)
-
-        prune_mask = (self.get_opacity < min_opacity).squeeze()
+        cur_opacity = self.get_opacity(self.delta_t)
+        prune_mask = (cur_opacity < min_opacity).squeeze()
         if max_screen_size:
             big_points_vs = self.max_radii2D > max_screen_size
             big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent

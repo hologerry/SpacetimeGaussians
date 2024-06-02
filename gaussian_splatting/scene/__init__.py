@@ -15,8 +15,8 @@ import os
 import torch
 
 from gaussian_splatting.arguments import ModelParams
+from gaussian_splatting.gaussian.gaussian_model import GaussianModel
 from gaussian_splatting.scene.dataset_readers import scene_load_type_callbacks
-from gaussian_splatting.scene.ours_full import GaussianModel
 from gaussian_splatting.utils.camera_utils import (
     camera_list_from_cam_infos_v2,
     camera_to_json,

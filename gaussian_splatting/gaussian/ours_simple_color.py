@@ -26,10 +26,10 @@ from gaussian_splatting.utils.general_utils import (
     strip_symmetric,
     update_quaternion,
 )
-from gaussian_splatting.utils.graphics_utils import BasicPointCloud
+from gaussian_splatting.utils.graphics_utils import BasicPointCloud, pix2ndc
 from gaussian_splatting.utils.system_utils import mkdir_p
-from helper_color_model import get_color_model
-from helper_gaussian_model import (
+from helper_color import get_color_model
+from helper_gaussian import (
     interpolate_part_use,
     interpolate_point,
     interpolate_point_v3,
@@ -222,7 +222,8 @@ class GaussianModel:
         # features9channel = fused_color
         # lite just use the base color
 
-        self._features_dc = nn.Parameter(fused_color.contiguous().requires_grad_(True))
+        fused_color_fix = torch.zeros_like(fused_color) + 1.0
+        self._features_dc = nn.Parameter(fused_color_fix.contiguous().requires_grad_(True))
         print(f"self._features_dc inited {self._features_dc}")
 
         N, _ = fused_color.shape
@@ -240,7 +241,7 @@ class GaussianModel:
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
         print(f"self._opacity inited {self._opacity}")
 
-        motion = torch.zeros((fused_point_cloud.shape[0], 6), device="cuda")  # x1,x2,x3, y1,y2,y3, z1,z2,z3
+        motion = torch.zeros((fused_point_cloud.shape[0], 9), device="cuda")  # x1,x2,x3, y1,y2,y3, z1,z2,z3
         self._motion = nn.Parameter(motion.requires_grad_(True))
         print(f"self._motion inited {self._motion}")
 
@@ -502,7 +503,7 @@ class GaussianModel:
 
         # motion = np.asarray(ply_data.elements[0]["motion"])
         motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
-        num_motion = 6
+        num_motion = 9
         motion = np.zeros((xyz.shape[0], num_motion))
         for i in range(num_motion):
             motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
@@ -602,7 +603,7 @@ class GaussianModel:
 
         # motion = np.asarray(ply_data.elements[0]["motion"])
         motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
-        num_motion = 6
+        num_motion = 9
         motion = np.zeros((xyz.shape[0], num_motion))
         for i in range(num_motion):
             motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
@@ -702,7 +703,7 @@ class GaussianModel:
 
         # motion = np.asarray(ply_data.elements[0]["motion"])
         motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
-        num_motion = 6
+        num_motion = 9
         motion = np.zeros((xyz.shape[0], num_motion))
         for i in range(num_motion):
             motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
@@ -813,7 +814,7 @@ class GaussianModel:
 
         # motion = np.asarray(ply_data.elements[0]["motion"])
         motion_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("motion")]
-        num_motion = 6
+        num_motion = 9
         motion = np.zeros((xyz.shape[0], num_motion))
         for i in range(num_motion):
             motion[:, i] = np.asarray(ply_data.elements[0]["motion_" + str(i)])
@@ -1277,8 +1278,6 @@ class GaussianModel:
         depth_max=None,
         shuffle=False,
     ):
-        def pix2ndc(v, S):
-            return (v * 2.0 + 1.0) / S - 1.0
 
         ray_list = torch.linspace(self.ray_start, ray_end, new_ray_step)  # 0.7 to ray_end
         rgbs = gt_image[:, bad_uv_idx[:, 0], bad_uv_idx[:, 1]]
@@ -1365,7 +1364,7 @@ class GaussianModel:
 
             assert self.trbf_scale_init < 1
             new_trbf_scale.append(self.trbf_scale_init * torch.ones((select_num_points, 1), device="cuda"))
-            new_motion.append(torch.zeros((select_num_points, 6), device="cuda"))
+            new_motion.append(torch.zeros((select_num_points, 9), device="cuda"))
             new_omega.append(torch.zeros((select_num_points, 4), device="cuda"))
             new_feature_t.append(torch.zeros((select_num_points, 3), device="cuda"))
 

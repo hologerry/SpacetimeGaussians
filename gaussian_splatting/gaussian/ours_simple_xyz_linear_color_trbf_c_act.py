@@ -26,10 +26,10 @@ from gaussian_splatting.utils.general_utils import (
     strip_symmetric,
     update_quaternion,
 )
-from gaussian_splatting.utils.graphics_utils import BasicPointCloud
+from gaussian_splatting.utils.graphics_utils import BasicPointCloud, pix2ndc
 from gaussian_splatting.utils.system_utils import mkdir_p
-from helper_color_model import get_color_model
-from helper_gaussian_model import (
+from helper_color import get_color_model
+from helper_gaussian import (
     interpolate_part_use,
     interpolate_point,
     interpolate_point_v3,
@@ -45,6 +45,9 @@ class GaussianModel:
             symm = strip_symmetric(actual_covariance)
             return symm
 
+        def step_function(delta_t):
+            return (delta_t >= 0).float()
+
         self.scaling_activation = torch.exp
         self.scaling_inverse_activation = torch.log
 
@@ -55,6 +58,8 @@ class GaussianModel:
 
         self.rotation_activation = torch.nn.functional.normalize
         # self.feature_act = torch.sigmoid
+
+        self.t_activation = step_function
 
     def __init__(self, sh_degree: int, rgb_function="rgbv1"):
         self.active_sh_degree = 0
@@ -164,39 +169,6 @@ class GaussianModel:
             self.active_sh_degree += 1
 
     def create_from_pcd(self, pcd: BasicPointCloud, spatial_lr_scale: float):
-
-        if self.preprocess_points == 3:
-            pcd = interpolate_point(pcd, 4)
-
-        elif self.preprocess_points == 4:
-            pcd = interpolate_point(pcd, 2)
-
-        elif self.preprocess_points == 5:
-            pcd = interpolate_point(pcd, 6)
-
-        elif self.preprocess_points == 6:
-            pcd = interpolate_point(pcd, 8)
-
-        elif self.preprocess_points == 7:
-            pcd = interpolate_point(pcd, 16)
-
-        elif self.preprocess_points == 8:
-            pcd = interpolate_point_v3(pcd, 4)
-
-        elif self.preprocess_points == 14:
-            pcd = interpolate_part_use(pcd, 2)
-
-        elif self.preprocess_points == 15:
-            pcd = interpolate_part_use(pcd, 4)
-
-        elif self.preprocess_points == 16:
-            pcd = interpolate_part_use(pcd, 8)
-
-        elif self.preprocess_points == 17:
-            pcd = interpolate_part_use(pcd, 16)
-
-        else:
-            pass
 
         self.spatial_lr_scale = spatial_lr_scale
         fused_point_cloud = torch.tensor(np.asarray(pcd.points)).float().cuda()

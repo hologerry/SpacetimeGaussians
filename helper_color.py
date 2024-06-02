@@ -27,7 +27,7 @@ import torch.nn as nn
 from mmcv.ops import knn
 from simple_knn._C import distCUDA2
 
-from gaussian_splatting.utils.graphics_utils import BasicPointCloud
+from gaussian_splatting.utils.graphics_utils import BasicPointCloud, pix2ndc
 
 
 class Sandwich(nn.Module):
@@ -131,11 +131,3 @@ def get_color_model(rgb_function):
     else:
         return None
     return rgb_decoder
-
-
-def pix2ndc(v, S):
-    return (v * 2.0 + 1.0) / S - 1.0
-
-
-def ndc2pix(v, S):
-    return ((v + 1.0) * S - 1.0) * 0.5

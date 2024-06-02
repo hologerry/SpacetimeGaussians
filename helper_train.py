@@ -296,10 +296,6 @@ def record_points_helper(model_path, numpoints, iteration, string):
         file.write(string + " points number " + str(numpoints) + "\n")
 
 
-def pix2ndc(v, S):
-    return (v * 2.0 + 1.0) / S - 1.0
-
-
 def reload_helper(gaussians, opt, max_x, max_y, max_z, min_x, min_y, min_z):
     given_path = opt.prev_path
     if opt.load_all == 0:

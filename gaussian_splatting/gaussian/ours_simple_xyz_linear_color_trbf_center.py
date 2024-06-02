@@ -26,10 +26,10 @@ from gaussian_splatting.utils.general_utils import (
     strip_symmetric,
     update_quaternion,
 )
-from gaussian_splatting.utils.graphics_utils import BasicPointCloud
+from gaussian_splatting.utils.graphics_utils import BasicPointCloud, pix2ndc
 from gaussian_splatting.utils.system_utils import mkdir_p
-from helper_color_model import get_color_model
-from helper_gaussian_model import (
+from helper_color import get_color_model
+from helper_gaussian import (
     interpolate_part_use,
     interpolate_point,
     interpolate_point_v3,
@@ -222,7 +222,8 @@ class GaussianModel:
         # features9channel = fused_color
         # lite just use the base color
 
-        self._features_dc = nn.Parameter(fused_color.contiguous().requires_grad_(True))
+        fused_color_fix = torch.zeros_like(fused_color) + 0.6
+        self._features_dc = nn.Parameter(fused_color_fix.contiguous().requires_grad_(True))
         print(f"self._features_dc inited {self._features_dc}")
 
         N, _ = fused_color.shape
@@ -247,7 +248,8 @@ class GaussianModel:
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
         print(f"self.max_radii2D inited {self.max_radii2D}")
 
-        self._trbf_center = nn.Parameter(times.contiguous().requires_grad_(True))
+        times_zero = torch.zeros_like(times)
+        self._trbf_center = nn.Parameter(times_zero.requires_grad_(True))
         self._trbf_scale = nn.Parameter(torch.ones((self.get_xyz.shape[0], 1), device="cuda").requires_grad_(True))
 
         print(f"self._trbf_center inited {self._trbf_center}")
@@ -1027,7 +1029,7 @@ class GaussianModel:
         # new_features_rest = self._features_rest[selected_pts_mask].repeat(N,1)
         new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
         new_trbf_center = self._trbf_center[selected_pts_mask].repeat(N, 1)
-        new_trbf_center = torch.rand_like(new_trbf_center)  # * 0.5
+        new_trbf_center = torch.zeros_like(new_trbf_center)  # * 0.5
         new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
         new_motion = self._motion[selected_pts_mask].repeat(N, 1)
         new_omega = self._omega[selected_pts_mask].repeat(N, 1)
@@ -1113,7 +1115,7 @@ class GaussianModel:
         new_features_dc = self._features_dc[selected_pts_mask].repeat(N, 1)  # n,1,1 to n1
         new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
         new_trbf_center = self._trbf_center[selected_pts_mask].repeat(N, 1)
-        new_trbf_center = torch.rand_like(new_trbf_center)  # * 0.5
+        new_trbf_center = torch.zeros_like(new_trbf_center)  # * 0.5
         new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
         new_motion = self._motion[selected_pts_mask].repeat(N, 1)
         new_omega = self._omega[selected_pts_mask].repeat(N, 1)
@@ -1169,7 +1171,7 @@ class GaussianModel:
         new_opacities = self._opacity[selected_pts_mask]
         new_scaling = self._scaling[selected_pts_mask]
         new_rotation = self._rotation[selected_pts_mask]
-        new_trbf_center = torch.rand(
+        new_trbf_center = torch.zeros(
             (self._trbf_center[selected_pts_mask].shape[0], 1), device="cuda"
         )  # self._trbf_center[selected_pts_mask]
         new_trbf_scale = self._trbf_scale[selected_pts_mask]
@@ -1277,8 +1279,6 @@ class GaussianModel:
         depth_max=None,
         shuffle=False,
     ):
-        def pix2ndc(v, S):
-            return (v * 2.0 + 1.0) / S - 1.0
 
         ray_list = torch.linspace(self.ray_start, ray_end, new_ray_step)  # 0.7 to ray_end
         rgbs = gt_image[:, bad_uv_idx[:, 0], bad_uv_idx[:, 1]]
@@ -1361,7 +1361,7 @@ class GaussianModel:
 
             # new_trbf_center.append(torch.rand(1).cuda() * torch.ones((N_points, 1), device="cuda"))
             select_num_points = torch.sum(selected_mask).item()
-            new_trbf_center.append(torch.rand((select_num_points, 1)).cuda())
+            new_trbf_center.append(torch.zeros((select_num_points, 1)).cuda())
 
             assert self.trbf_scale_init < 1
             new_trbf_scale.append(self.trbf_scale_init * torch.ones((select_num_points, 1), device="cuda"))

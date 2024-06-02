@@ -3,7 +3,7 @@ import time
 
 import torch
 
-from gaussian_splatting.scene.ours_lite import GaussianModel
+from gaussian_splatting.gaussian.ours_lite import GaussianModel
 
 
 def train_ours_lite(

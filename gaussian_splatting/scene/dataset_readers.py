@@ -27,7 +27,7 @@ from plyfile import PlyData, PlyElement
 from simple_knn._C import distCUDA2
 from tqdm import tqdm, trange
 
-from gaussian_splatting.scene.colmap_loader import (
+from gaussian_splatting.colmap_loader import (
     qvec_2_rot_mat,
     read_extrinsics_binary,
     read_extrinsics_text,
@@ -1467,7 +1467,7 @@ def read_nerf_synthetic_info_hyfluid(
     img_offset=False,
     init_num_pts_per_time=1000,
     init_trbf_c_fix=False,
-    init_color_fix_value: float=None,
+    init_color_fix_value: float = None,
     **kwargs,
 ):
     print("Reading Training Transforms...")

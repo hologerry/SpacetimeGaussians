@@ -52,7 +52,7 @@ from gaussian_splatting.lpipsPyTorch import lpips as lpips_func
 from gaussian_splatting.scene import Scene
 from gaussian_splatting.utils.image_utils import psnr as psnr_func
 from gaussian_splatting.utils.loss_utils import ssim as ssim_func
-from helper_gaussian_model import get_model
+from helper_gaussian import get_model
 from helper_parser import get_test_parser
 from helper_pipe import get_render_pipe
 from helper_train import trb_exp_linear_function, trb_function

@@ -3,7 +3,7 @@ import time
 
 import torch
 
-from gaussian_splatting.scene.ours_simple_opacity_no_t import GaussianModel
+from gaussian_splatting.gaussian.ours_simple_opacity_no_t import GaussianModel
 
 
 def train_ours_lite_opacity_no_t(
