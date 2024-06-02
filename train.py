@@ -387,7 +387,7 @@ def train(
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
 
             if iteration % 10 == 0:
-                post_fix = {"Loss": f"{ema_loss_for_log:.{7}f}", "Points": gaussians.get_xyz.shape[0]}
+                post_fix = {"Loss": f"{ema_loss_for_log:.7f}", "Points": gaussians.get_xyz.shape[0]}
                 progress_bar.set_postfix(post_fix)
                 progress_bar.update(10)
 
@@ -413,6 +413,23 @@ def train(
                 pipe_args.rd_pipe,
                 # test_all_train_views=True,
             )
+            if iteration <= model_args.level_1_start_iter:
+                cur_clone = model_args.clone
+                cur_split = model_args.split
+                cur_split_prune = model_args.split_prune
+                cur_prune = model_args.prune
+                cur_zero_grad_level = None
+            else:
+                cur_clone = model_args.level_1_clone
+                cur_split = model_args.level_1_split
+                cur_split_prune = model_args.level_1_split_prune
+                cur_prune = model_args.level_1_prune
+                cur_zero_grad_level = model_args.zero_grad_level
+                if iteration == model_args.level_1_start_iter + 1:
+                    msg_str = f"Level 1 start at iteration {iteration}"
+                    msg_str += f" clone: {cur_clone}, split: {cur_split}, split_prune: {cur_split_prune}, prune: {cur_prune}"
+                    msg_str += f" zero_grad_level: {cur_zero_grad_level}"
+                    print(msg_str)
 
             # Densification and pruning here
             flag = control_gaussians(
@@ -430,9 +447,11 @@ def train(
                 min_bounds=min_bounds,
                 white_background=model_args.white_background,
                 # max_timestamp=model_args.max_timestamp,
-                clone=model_args.clone,
-                split=model_args.split,
-                prune=model_args.prune,
+                clone=cur_clone,
+                split=cur_split,
+                split_prune=cur_split_prune,
+                prune=cur_prune,
+                zero_grad_level=cur_zero_grad_level,
             )
 
             # # guided sampling step

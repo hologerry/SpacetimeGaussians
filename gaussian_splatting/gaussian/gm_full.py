@@ -1426,7 +1426,7 @@ class GaussianModel:
 
         self.mask_for_ems = self.mask_for_ems[valid_points_mask]  # we only remain valid mask from ems
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size):
+    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, **kwargs):
         ## raw method from 3dgs debugging hyfluid
         grads = self.xyz_gradient_accum / self.denom
         grads[grads.isnan()] = 0.0

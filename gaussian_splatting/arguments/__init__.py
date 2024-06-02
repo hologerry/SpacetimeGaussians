@@ -100,7 +100,13 @@ class ModelParams(ParamGroup):
         self.init_region_type = "large"
         self.clone = True
         self.split = True
+        self.split_prune = True
         self.prune = True
+        self.zero_grad_level = None
+        self.level_1_start_iter = 30000
+        self.level_1_clone = True
+        self.level_1_split = True
+        self.level_1_prune = True
         self.init_num_pts_per_time = 1000
         self.init_trbf_c_fix = False
         self.init_color_fix_value = None  # None for random color, float for fix value

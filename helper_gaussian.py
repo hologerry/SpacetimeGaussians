@@ -3,10 +3,11 @@ import torch
 
 from mmcv.ops import knn
 
+from gaussian_splatting.gaussian.gaussian_model import GaussianModel
 from gaussian_splatting.utils.graphics_utils import BasicPointCloud
 
 
-def get_model(model="full"):
+def get_model(model="full") -> GaussianModel:
     if model == "full":
         from gaussian_splatting.gaussian.gm_full import GaussianModel
 
@@ -84,8 +85,11 @@ def get_model(model="full"):
     elif model == "simple_all":
         from gaussian_splatting.gaussian.gm_simple_all import GaussianModel
 
+    elif model == "lite_two_level":
+        from gaussian_splatting.gaussian.gm_lite_two_level import GaussianModel
+
     else:
-        from gaussian_splatting.gaussian.gaussian_model import GaussianModel
+        raise ValueError(f"Model {model} not found")
 
     return GaussianModel
 

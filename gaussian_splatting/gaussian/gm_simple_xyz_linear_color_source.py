@@ -760,7 +760,7 @@ class GaussianModel:
             new_point_timestamp,
         )
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True):
+    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True, prune=True):
         ## raw method from 3dgs debugging hyfluid
         # max_grad: 0.0002
         # min_opacity: 0.005
@@ -769,8 +769,9 @@ class GaussianModel:
         # print("extent", extent)
         # print("max_screen_size", max_screen_size)
 
-        grads = self.xyz_gradient_accum / self.denom
-        grads[grads.isnan()] = 0.0
+        if clone or split:
+            grads = self.xyz_gradient_accum / self.denom
+            grads[grads.isnan()] = 0.0
 
         if clone:
             # print(f"before densify_and_clone {self._xyz.shape[0]}")
@@ -780,13 +781,14 @@ class GaussianModel:
             self.densify_and_split(grads, max_grad, extent)
         # print(f"after densify_and_split {self._xyz.shape[0]}")
 
-        prune_mask = (self.get_opacity < min_opacity).squeeze()
-        if max_screen_size:
-            # print("using max_screen_size", max_screen_size)
-            # print("self.max_radii2D", self.max_radii2D)
-            big_points_vs = self.max_radii2D > max_screen_size
-            big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
-            prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
-        self.prune_points(prune_mask)
+        if prune:
+            prune_mask = (self.get_opacity < min_opacity).squeeze()
+            if max_screen_size:
+                # print("using max_screen_size", max_screen_size)
+                # print("self.max_radii2D", self.max_radii2D)
+                big_points_vs = self.max_radii2D > max_screen_size
+                big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
+                prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+            self.prune_points(prune_mask)
 
         torch.cuda.empty_cache()

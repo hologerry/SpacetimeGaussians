@@ -554,6 +554,7 @@ class GaussianModel:
         new_trbf_scale,
         new_motion,
         new_omega,
+        new_level,
         dummy=None,
     ):
         d = {
@@ -580,11 +581,13 @@ class GaussianModel:
         self._motion = optimizable_tensors["motion"]
         self._omega = optimizable_tensors["omega"]
 
+        self._level = torch.cat((self._level, new_level), dim=0)
+
         self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
         self.denom = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
 
-    def densify_and_split(self, grads, grad_threshold, scene_extent, N=2):
+    def densify_and_split(self, grads, grad_threshold, scene_extent, split_prune=True, N=2):
         n_init_points = self.get_xyz.shape[0]
         padded_grad = torch.zeros((n_init_points), device="cuda")
         padded_grad[: grads.shape[0]] = grads.squeeze()
@@ -609,6 +612,7 @@ class GaussianModel:
         new_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N, 1)
         new_motion = self._motion[selected_pts_mask].repeat(N, 1)
         new_omega = self._omega[selected_pts_mask].repeat(N, 1)
+        new_level = torch.ones((new_xyz.shape[0], 1), device="cuda")
 
         self.densification_postfix(
             new_xyz,
@@ -620,12 +624,14 @@ class GaussianModel:
             new_trbf_scale,
             new_motion,
             new_omega,
+            new_level,
         )
 
-        prune_filter = torch.cat(
-            (selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool))
-        )
-        self.prune_points(prune_filter)
+        if split_prune:
+            prune_filter = torch.cat(
+                (selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool))
+            )
+            self.prune_points(prune_filter)
 
     def densify_and_clone(self, grads, grad_threshold, scene_extent):
         # Extract points that satisfy the gradient condition
@@ -645,6 +651,8 @@ class GaussianModel:
         new_trbf_scale = self._trbf_scale[selected_pts_mask]
         new_motion = self._motion[selected_pts_mask]
         new_omega = self._omega[selected_pts_mask]
+        # new points we set to level 1
+        new_level = torch.ones((new_xyz.shape[0], 1), device="cuda")
         self.densification_postfix(
             new_xyz,
             new_features_dc,
@@ -655,6 +663,7 @@ class GaussianModel:
             new_trbf_scale,
             new_motion,
             new_omega,
+            new_level,
         )
 
     def add_densification_stats(self, viewspace_point_tensor, update_filter):
@@ -801,7 +810,22 @@ class GaussianModel:
         )
         return new_xyz.shape[0]
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True, prune=True):
+    def zero_gradient_by_level(self, level=0.0):
+        # we set the grad to zero for points with _level == level
+        mask = self._level == level
+        self._xyz_grd[mask] = 0.0
+        self._features_dc_grd[mask] = 0.0
+
+        self._scaling_grd[mask] = 0.0
+        self._rotation_grd[mask] = 0.0
+        self._opacity_grd[mask] = 0.0
+        self._trbf_center_grd[mask] = 0.0
+        self._trbf_scale_grd[mask] = 0.0
+        self._motion_grd[mask] = 0.0
+        self._omega_grd[mask] = 0.0
+
+
+    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True, split_prune=True, prune=True, zero_grad_level=None):
         ## raw method from 3dgs debugging hyfluid
         if clone or split:
             grads = self.xyz_gradient_accum / self.denom
@@ -810,7 +834,7 @@ class GaussianModel:
         if clone:
             self.densify_and_clone(grads, max_grad, extent)
         if split:
-            self.densify_and_split(grads, max_grad, extent)
+            self.densify_and_split(grads, max_grad, extent, split_prune)
 
         if prune:
             prune_mask = (self.get_opacity < min_opacity).squeeze()
@@ -819,5 +843,8 @@ class GaussianModel:
                 big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
                 prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
             self.prune_points(prune_mask)
+
+        if zero_grad_level is not None:
+            self.zero_gradient_by_level(zero_grad_level)
 
         torch.cuda.empty_cache()

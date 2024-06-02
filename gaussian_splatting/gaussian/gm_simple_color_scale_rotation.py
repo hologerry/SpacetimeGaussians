@@ -1409,7 +1409,7 @@ class GaussianModel:
     #     optimizable_tensors = self.replace_tensor_to_optimizer(opacity_old, "opacity")
     #     self._opacity = optimizable_tensors["opacity"]
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True, prune=True):
+    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True, prune=True, **kwargs):
         ## raw method from 3dgs debugging hyfluid
         if clone or split:
             grads = self.xyz_gradient_accum / self.denom

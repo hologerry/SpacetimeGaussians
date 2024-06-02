@@ -1416,6 +1416,7 @@ class GaussianModel:
         clone=True,
         split=True,
         prune=True,
+        **kwargs,
     ):
         ## raw method from 3dgs debugging hyfluid
         if clone or split:
