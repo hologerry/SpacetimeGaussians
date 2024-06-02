@@ -3,10 +3,10 @@ import time
 
 import torch
 
-from gaussian_splatting.gaussian.ours_simple_xyz_linear import GaussianModel
+from gaussian_splatting.gaussian.gm_simple_opacity_w_t import GaussianModel
 
 
-def train_ours_lite_xyz_linear(
+def train_pipe_lite_opacity_exp_linear(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -72,8 +72,8 @@ def train_ours_lite_xyz_linear(
     means3D = (
         means3D
         + gm._motion[:, 0:3] * tforpoly
-        # + gm._motion[:, 3:6] * tforpoly * tforpoly
-        # + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
+        + gm._motion[:, 3:6] * tforpoly * tforpoly
+        + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
 
     rotations = gm.get_rotation(tforpoly)  # to try use
@@ -104,7 +104,7 @@ def train_ours_lite_xyz_linear(
     }
 
 
-def test_ours_lite_xyz_linear_vis(
+def test_pipe_lite_opacity_exp_linear_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -156,17 +156,17 @@ def test_ours_lite_xyz_linear_vis(
     means3D = (
         means3D
         + motion[:, 0:3] * tforpoly
-        # + motion[:, 3:6] * tforpoly * tforpoly
-        # + motion[:, 6:9] * tforpoly * tforpoly * tforpoly
+        + motion[:, 3:6] * tforpoly * tforpoly
+        + motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
-    velocities3D = motion[:, 0:3]  # + 2 * motion[:, 3:6] * tforpoly # + 3 * motion[:, 6:9] * tforpoly * tforpoly
+    velocities3D = motion[:, 0:3] + 2 * motion[:, 3:6] * tforpoly + 3 * motion[:, 6:9] * tforpoly * tforpoly
 
     point_opacity = gm.get_opacity
 
     trbf_scale = gm.get_trbf_scale
 
     trbf_distance = tforpoly / torch.exp(trbf_scale)
-    trbf_output = basic_function(trbf_distance)
+    trbf_output = basic_function(trbf_distance)  # in exp linear the basic function is different
 
     opacity = point_opacity * trbf_output  # - 0.5
 

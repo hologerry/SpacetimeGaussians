@@ -3,10 +3,10 @@ import time
 
 import torch
 
-from gaussian_splatting.gaussian.ours_simple_all import GaussianModel
+from gaussian_splatting.gaussian.gm_simple_xyz_linear_color import GaussianModel
 
 
-def train_ours_lite_all(
+def train_pipe_lite_xyz_linear_color(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -104,7 +104,7 @@ def train_ours_lite_all(
     }
 
 
-def test_ours_lite_all_vis(
+def test_pipe_lite_xyz_linear_color_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,

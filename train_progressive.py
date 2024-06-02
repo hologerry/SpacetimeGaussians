@@ -52,7 +52,7 @@ from image_video_io import images_to_video
 
 
 def train(
-        args,
+    args,
     model_args,
     optim_args,
     pipe_args,

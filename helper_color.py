@@ -20,14 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import numpy as np
 import torch
 import torch.nn as nn
-
-from mmcv.ops import knn
-from simple_knn._C import distCUDA2
-
-from gaussian_splatting.utils.graphics_utils import BasicPointCloud, pix2ndc
 
 
 class Sandwich(nn.Module):

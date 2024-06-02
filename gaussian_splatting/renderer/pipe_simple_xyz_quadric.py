@@ -3,10 +3,10 @@ import time
 
 import torch
 
-from gaussian_splatting.gaussian.ours_lite import GaussianModel
+from gaussian_splatting.gaussian.gm_simple_xyz_quadric import GaussianModel
 
 
-def train_ours_lite(
+def train_pipe_lite_xyz_quadric(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -73,7 +73,7 @@ def train_ours_lite(
         means3D
         + gm._motion[:, 0:3] * tforpoly
         + gm._motion[:, 3:6] * tforpoly * tforpoly
-        + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
+        # + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
 
     rotations = gm.get_rotation(tforpoly)  # to try use
@@ -104,83 +104,7 @@ def train_ours_lite(
     }
 
 
-def test_ours_lite(
-    viewpoint_camera,
-    gm: GaussianModel,
-    pipe,
-    bg_color: torch.Tensor,
-    scaling_modifier=1.0,
-    override_color=None,
-    basic_function=None,
-    GRsetting=None,
-    GRzer=None,
-):
-
-    screen_space_points = torch.zeros_like(gm.get_xyz, dtype=gm.get_xyz.dtype, requires_grad=True, device="cuda") + 0
-
-    torch.cuda.synchronize()
-    start_time = time.time()
-
-    tan_fov_x = math.tan(viewpoint_camera.FoVx * 0.5)
-    tan_fov_y = math.tan(viewpoint_camera.FoVy * 0.5)
-
-    raster_settings = GRsetting(
-        image_height=int(viewpoint_camera.image_height),
-        image_width=int(viewpoint_camera.image_width),
-        tan_fov_x=tan_fov_x,
-        tan_fov_y=tan_fov_y,
-        bg=bg_color,
-        scale_modifier=scaling_modifier,
-        view_matrix=viewpoint_camera.world_view_transform,
-        proj_matrix=viewpoint_camera.full_proj_transform,
-        sh_degree=gm.active_sh_degree,
-        campos=viewpoint_camera.camera_center,
-        prefiltered=False,
-        debug=False,
-    )
-
-    rasterizer = GRzer(raster_settings=raster_settings)
-
-    tforpoly = viewpoint_camera.timestamp - gm.get_trbf_center
-
-    rotations = gm.get_rotation(tforpoly)  # to try use
-    colors_precomp = gm.get_features(tforpoly)
-
-    means2D = screen_space_points
-
-    cov3D_precomp = None
-
-    shs = None
-
-    # in test, the means3D, opacities are moved in to cuda: prepreprocessCUDA
-
-    rendered_image, radii = rasterizer(
-        timestamp=viewpoint_camera.timestamp,
-        trbf_center=gm.get_trbf_center,
-        trbf_scale=gm.computed_trbf_scale,
-        motion=gm._motion,
-        means3D=gm.get_xyz,
-        means2D=means2D,
-        shs=shs,
-        colors_precomp=colors_precomp,
-        opacities=gm.computed_opacity,
-        scales=gm.computed_scales,
-        rotations=rotations,
-        cov3D_precomp=cov3D_precomp,
-    )
-
-    torch.cuda.synchronize()
-    duration = time.time() - start_time
-    return {
-        "render": rendered_image,
-        "viewspace_points": screen_space_points,
-        "visibility_filter": radii > 0,
-        "radii": radii,
-        "duration": duration,
-    }
-
-
-def test_ours_lite_vis(
+def test_pipe_lite_xyz_quadric_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -233,9 +157,9 @@ def test_ours_lite_vis(
         means3D
         + motion[:, 0:3] * tforpoly
         + motion[:, 3:6] * tforpoly * tforpoly
-        + motion[:, 6:9] * tforpoly * tforpoly * tforpoly
+        # + motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
-    velocities3D = motion[:, 0:3] + 2 * motion[:, 3:6] * tforpoly + 3 * motion[:, 6:9] * tforpoly * tforpoly
+    velocities3D = motion[:, 0:3] + 2 * motion[:, 3:6] * tforpoly  # + 3 * motion[:, 6:9] * tforpoly * tforpoly
 
     point_opacity = gm.get_opacity
 

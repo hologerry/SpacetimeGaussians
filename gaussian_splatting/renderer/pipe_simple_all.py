@@ -3,12 +3,10 @@ import time
 
 import torch
 
-from gaussian_splatting.gaussian.ours_simple_xyz_quadric_trbf_center import (
-    GaussianModel,
-)
+from gaussian_splatting.gaussian.gm_simple_all import GaussianModel
 
 
-def train_ours_lite_xyz_quadric_trbf_center(
+def train_pipe_lite_all(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -74,7 +72,7 @@ def train_ours_lite_xyz_quadric_trbf_center(
     means3D = (
         means3D
         + gm._motion[:, 0:3] * tforpoly
-        + gm._motion[:, 3:6] * tforpoly * tforpoly
+        # + gm._motion[:, 3:6] * tforpoly * tforpoly
         # + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
 
@@ -106,7 +104,7 @@ def train_ours_lite_xyz_quadric_trbf_center(
     }
 
 
-def test_ours_lite_xyz_quadric_trbf_center_vis(
+def test_pipe_lite_all_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -158,10 +156,10 @@ def test_ours_lite_xyz_quadric_trbf_center_vis(
     means3D = (
         means3D
         + motion[:, 0:3] * tforpoly
-        + motion[:, 3:6] * tforpoly * tforpoly
+        # + motion[:, 3:6] * tforpoly * tforpoly
         # + motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
-    velocities3D = motion[:, 0:3] + 2 * motion[:, 3:6] * tforpoly  # + 3 * motion[:, 6:9] * tforpoly * tforpoly
+    velocities3D = motion[:, 0:3]  # + 2 * motion[:, 3:6] * tforpoly # + 3 * motion[:, 6:9] * tforpoly * tforpoly
 
     point_opacity = gm.get_opacity
 

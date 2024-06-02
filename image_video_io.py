@@ -6,7 +6,6 @@ import imageio
 import numpy as np
 
 from moviepy.editor import VideoFileClip
-from rich import print
 
 
 def cmd_wrapper(program):

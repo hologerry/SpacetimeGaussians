@@ -3,10 +3,10 @@ import time
 
 import torch
 
-from gaussian_splatting.gaussian.ours_simple_opacity_w_t import GaussianModel
+from gaussian_splatting.gaussian.gm_full import GaussianModel
 
 
-def train_ours_lite_opacity_exp_linear(
+def train_pipe_full(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -25,6 +25,7 @@ def train_ours_lite_opacity_exp_linear(
 
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
     screen_space_points = torch.zeros_like(gm.get_xyz, dtype=gm.get_xyz.dtype, requires_grad=True, device="cuda") + 0
+    # point times just ones, used for board casting
     point_times = torch.ones((gm.get_xyz.shape[0], 1), dtype=gm.get_xyz.dtype, requires_grad=False, device="cuda") + 0
     try:
         screen_space_points.retain_grad()
@@ -53,7 +54,6 @@ def train_ours_lite_opacity_exp_linear(
 
     means3D = gm.get_xyz
     means2D = screen_space_points
-
     point_opacity = gm.get_opacity
 
     trbf_center = gm.get_trbf_center
@@ -66,23 +66,19 @@ def train_ours_lite_opacity_exp_linear(
     opacity = point_opacity * trbf_output  # - 0.5
     gm.trbf_output = trbf_output
 
-    scales = gm.get_scaling
+    cov3D_precomp = None
 
-    tforpoly = trbf_distance_offset.detach()
+    scales = gm.get_scaling
+    shs = None
+    tforpoly = trbf_distance_offset.detach()  # Polynomial Motion Trajectory.
     means3D = (
         means3D
         + gm._motion[:, 0:3] * tforpoly
         + gm._motion[:, 3:6] * tforpoly * tforpoly
         + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
-
     rotations = gm.get_rotation(tforpoly)  # to try use
     colors_precomp = gm.get_features(tforpoly)
-
-    cov3D_precomp = None
-
-    shs = None
-
     rendered_image, radii, depth = rasterizer(
         means3D=means3D,
         means2D=means2D,
@@ -94,6 +90,8 @@ def train_ours_lite_opacity_exp_linear(
         cov3D_precomp=cov3D_precomp,
     )
 
+    rendered_image = gm.rgb_decoder(rendered_image.unsqueeze(0), viewpoint_camera.rays, viewpoint_camera.timestamp)
+    rendered_image = rendered_image.squeeze(0)
     return {
         "render": rendered_image,
         "viewspace_points": screen_space_points,
@@ -104,7 +102,7 @@ def train_ours_lite_opacity_exp_linear(
     }
 
 
-def test_ours_lite_opacity_exp_linear_vis(
+def test_pipe_full(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -115,12 +113,24 @@ def test_ours_lite_opacity_exp_linear_vis(
     GRsetting=None,
     GRzer=None,
 ):
+    """
+    Render the scene.
 
+    Background tensor (bg_color) must be on GPU!
+    """
+
+    # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
     screen_space_points = torch.zeros_like(gm.get_xyz, dtype=gm.get_xyz.dtype, requires_grad=True, device="cuda") + 0
-
     torch.cuda.synchronize()
     start_time = time.time()
 
+    point_times = torch.ones((gm.get_xyz.shape[0], 1), dtype=gm.get_xyz.dtype, requires_grad=False, device="cuda") + 0
+    try:
+        screen_space_points.retain_grad()
+    except:
+        pass
+
+    # Set up rasterization configuration
     tan_fov_x = math.tan(viewpoint_camera.FoVx * 0.5)
     tan_fov_y = math.tan(viewpoint_camera.FoVy * 0.5)
 
@@ -136,83 +146,61 @@ def test_ours_lite_opacity_exp_linear_vis(
         sh_degree=gm.active_sh_degree,
         campos=viewpoint_camera.camera_center,
         prefiltered=False,
-        debug=False,
     )
 
     rasterizer = GRzer(raster_settings=raster_settings)
 
-    tforpoly = viewpoint_camera.timestamp - gm.get_trbf_center
-
-    rotations = gm.get_rotation(tforpoly)  # to try use
-    colors_precomp = gm.get_features(tforpoly)
-
-    motion = gm._motion
-
     means3D = gm.get_xyz
-
-    # in test, the means3D, opacities are moved in to cuda: prepreprocessCUDA
-    # here we compute for saving and visualization
-
-    means3D = (
-        means3D
-        + motion[:, 0:3] * tforpoly
-        + motion[:, 3:6] * tforpoly * tforpoly
-        + motion[:, 6:9] * tforpoly * tforpoly * tforpoly
-    )
-    velocities3D = motion[:, 0:3] + 2 * motion[:, 3:6] * tforpoly + 3 * motion[:, 6:9] * tforpoly * tforpoly
-
+    means2D = screen_space_points
     point_opacity = gm.get_opacity
 
+    trbf_center = gm.get_trbf_center
     trbf_scale = gm.get_trbf_scale
 
-    trbf_distance = tforpoly / torch.exp(trbf_scale)
-    trbf_output = basic_function(trbf_distance)  # in exp linear the basic function is different
+    trbf_distance_offset = viewpoint_camera.timestamp * point_times - trbf_center
+    trbf_distance = trbf_distance_offset / torch.exp(trbf_scale)
+    trbf_output = basic_function(trbf_distance)
 
     opacity = point_opacity * trbf_output  # - 0.5
-
-    # computed_opacity is not blend with timestamp
-    computed_opacity = gm.computed_opacity
-    scales = gm.computed_scales
-
-    means2D = screen_space_points
+    gm.trbf_output = trbf_output
 
     cov3D_precomp = None
 
+    scales = gm.get_scaling
     shs = None
-
-    # cuda prepreprocessCUDA will calculate the means3D, opacities with timestamp
-    rendered_image, radii = rasterizer(
-        timestamp=viewpoint_camera.timestamp,
-        trbf_center=gm.get_trbf_center,
-        trbf_scale=gm.computed_trbf_scale,
-        motion=gm._motion,
-        means3D=gm.get_xyz,
+    tforpoly = trbf_distance_offset.detach()
+    means3D = (
+        means3D
+        + gm._motion[:, 0:3] * tforpoly
+        + gm._motion[:, 3:6] * tforpoly * tforpoly
+        + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
+    )
+    rotations = gm.get_rotation(tforpoly)  # to try use
+    colors_precomp = gm.get_features(tforpoly)
+    rendered_image, radii, depth = rasterizer(
+        means3D=means3D,
         means2D=means2D,
         shs=shs,
         colors_precomp=colors_precomp,
-        opacities=computed_opacity,
+        opacities=opacity,
         scales=scales,
         rotations=rotations,
         cov3D_precomp=cov3D_precomp,
     )
 
+    rendered_image = gm.rgb_decoder(
+        rendered_image.unsqueeze(0), viewpoint_camera.rays, viewpoint_camera.timestamp
+    )  # 1 , 3
+    rendered_image = rendered_image.squeeze(0)
     torch.cuda.synchronize()
     duration = time.time() - start_time
+
     return {
         "render": rendered_image,
-        "trbf_center": gm.get_trbf_center,
-        "trbf_scale": gm.get_trbf_scale,
         "viewspace_points": screen_space_points,
         "visibility_filter": radii > 0,
         "radii": radii,
-        "duration": duration,
-        "means3D_no_t": gm.get_xyz,
-        "means3D": means3D,
-        "means2D": means2D,
-        "motion": motion,
-        "velocities3D": velocities3D,
         "opacity": opacity,
-        "rotations": rotations,
-        "colors_precomp": colors_precomp,
-        "scales": scales,
+        "depth": depth,
+        "duration": duration,
     }

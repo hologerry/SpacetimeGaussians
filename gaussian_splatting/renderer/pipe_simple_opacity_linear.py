@@ -3,10 +3,10 @@ import time
 
 import torch
 
-from gaussian_splatting.gaussian.ours_simple_xyz_linear_color import GaussianModel
+from gaussian_splatting.gaussian.gm_simple_opacity_linear import GaussianModel
 
 
-def train_ours_lite_xyz_linear_color(
+def train_pipe_lite_opacity_linear(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -54,16 +54,15 @@ def train_ours_lite_xyz_linear_color(
     means3D = gm.get_xyz
     means2D = screen_space_points
 
-    point_opacity = gm.get_opacity
-
     trbf_center = gm.get_trbf_center
-    trbf_scale = gm.get_trbf_scale
+    # trbf_scale = gm.get_trbf_scale # no trbf_scale in linear
 
     trbf_distance_offset = viewpoint_camera.timestamp * point_times - trbf_center
-    trbf_distance = trbf_distance_offset / torch.exp(trbf_scale)
-    trbf_output = basic_function(trbf_distance)
 
-    opacity = point_opacity * trbf_output  # - 0.5
+    point_opacity = gm.get_opacity(trbf_distance_offset)
+    trbf_output = trbf_distance_offset  # * trbf_scale
+
+    opacity = point_opacity  # * trbf_output  # - 0.5
     gm.trbf_output = trbf_output
 
     scales = gm.get_scaling
@@ -72,8 +71,8 @@ def train_ours_lite_xyz_linear_color(
     means3D = (
         means3D
         + gm._motion[:, 0:3] * tforpoly
-        # + gm._motion[:, 3:6] * tforpoly * tforpoly
-        # + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
+        + gm._motion[:, 3:6] * tforpoly * tforpoly
+        + gm._motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
 
     rotations = gm.get_rotation(tforpoly)  # to try use
@@ -104,7 +103,7 @@ def train_ours_lite_xyz_linear_color(
     }
 
 
-def test_ours_lite_xyz_linear_color_vis(
+def test_pipe_lite_opacity_linear_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -156,19 +155,19 @@ def test_ours_lite_xyz_linear_color_vis(
     means3D = (
         means3D
         + motion[:, 0:3] * tforpoly
-        # + motion[:, 3:6] * tforpoly * tforpoly
-        # + motion[:, 6:9] * tforpoly * tforpoly * tforpoly
+        + motion[:, 3:6] * tforpoly * tforpoly
+        + motion[:, 6:9] * tforpoly * tforpoly * tforpoly
     )
-    velocities3D = motion[:, 0:3]  # + 2 * motion[:, 3:6] * tforpoly # + 3 * motion[:, 6:9] * tforpoly * tforpoly
+    velocities3D = motion[:, 0:3] + 2 * motion[:, 3:6] * tforpoly + 3 * motion[:, 6:9] * tforpoly * tforpoly
 
-    point_opacity = gm.get_opacity
+    point_opacity = gm.get_opacity(tforpoly)
 
-    trbf_scale = gm.get_trbf_scale
+    # trbf_scale = gm.get_trbf_scale
 
-    trbf_distance = tforpoly / torch.exp(trbf_scale)
-    trbf_output = basic_function(trbf_distance)
+    # trbf_distance = tforpoly / torch.exp(trbf_scale)
+    # trbf_output = basic_function(trbf_distance) # in exp linear the basic function is different
 
-    opacity = point_opacity * trbf_output  # - 0.5
+    opacity = point_opacity  # * trbf_output  # - 0.5
 
     # computed_opacity is not blend with timestamp
     computed_opacity = gm.computed_opacity

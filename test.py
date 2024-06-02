@@ -395,7 +395,9 @@ def run_future(args, model_args: ModelParams, pipe_args: PipelineParams, iterati
 
         future_view_start_idx = max(future_view_start_idx, cur_view_time_idx)
 
-    print(f"Test on future views future_view_start_idx: {future_view_start_idx}, max_timestamp: {model_args.max_timestamp}")
+    print(
+        f"Test on future views future_view_start_idx: {future_view_start_idx}, max_timestamp: {model_args.max_timestamp}"
+    )
     future_views = copy.deepcopy(views)
     for f_view in future_views:
         f_view.time_idx += future_view_start_idx

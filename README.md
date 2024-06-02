@@ -238,7 +238,7 @@ The above command has beed tested on Nvidia RTX 3050 Laptop GPU + Windows 10.
 ## Create Your New Representations and Rendering Pipeline
 If you want to customize our codebase for your own models, you can refer to the following steps </br>
 - Step 1: Create a new Gaussian representation in this [folder](./thirdparty/gaussian_splatting/scene/). You can use ```oursfull.py``` or ```ourslite.py``` as a template. </br>
-- Step 2: Create a new rendering pipeline in this [file](./thirdparty/gaussian_splatting/renderer/__init__.py). You can use the ```train_ours_full``` function as a template. </br>
+- Step 2: Create a new rendering pipeline in this [file](./thirdparty/gaussian_splatting/renderer/__init__.py). You can use the ```train_pipe_full``` function as a template. </br>
 - Step 3 (For new dataset, optional): Create a new dataloader in this [file](./thirdparty/gaussian_splatting/scene/__init__.py) and this [file](./thirdparty/gaussian_splatting/scene/dataset_readers.py). </br>
 - Step 4: Update the intermidiate API in ```get_model``` (for Step 1) and ```get_render_pipe``` (for Step 2) functions in ```helper_train.py```.</br>
 

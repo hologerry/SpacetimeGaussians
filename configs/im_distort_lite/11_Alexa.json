@@ -1,5 +1,5 @@
 {
-  "model": "ours_lite",
+  "model": "gm_lite",
   "loader": "immersivess",
   "position_lr_init": 1.6e-05,
   "scaling_lr": 0.0015,
@@ -7,7 +7,7 @@
   "ray_start": 1.0,
   "densify": 8,
   "ems_start": 30000,
-  "rd_pipe": "train_ours_lite_ss",
+  "rd_pipe": "train_pipe_lite_ss",
   "rgb_function": "sandwichnoactss",
   "resolution": 1,
   "duration": 50,

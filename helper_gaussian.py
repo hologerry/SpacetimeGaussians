@@ -8,83 +8,81 @@ from gaussian_splatting.utils.graphics_utils import BasicPointCloud
 
 def get_model(model="ours_full"):
     if model == "ours_full":
-        from gaussian_splatting.gaussian.ours_full import GaussianModel
+        from gaussian_splatting.gaussian.gm_full import GaussianModel
 
     elif model == "ours_lite":
-        from gaussian_splatting.gaussian.ours_lite import GaussianModel
+        from gaussian_splatting.gaussian.gm_lite import GaussianModel
 
     elif model == "ours_lite_act":
-        from gaussian_splatting.gaussian.ours_lite_act import GaussianModel
+        from gaussian_splatting.gaussian.gm_lite_act import GaussianModel
 
     elif model == "ours_simple_scale":
-        from gaussian_splatting.gaussian.ours_simple_scale import GaussianModel
+        from gaussian_splatting.gaussian.gm_simple_scale import GaussianModel
 
     elif model == "ours_simple_rotation":
-        from gaussian_splatting.gaussian.ours_simple_rotation import GaussianModel
+        from gaussian_splatting.gaussian.gm_simple_rotation import GaussianModel
 
     elif model == "ours_simple_color":
-        from gaussian_splatting.gaussian.ours_simple_color import GaussianModel
+        from gaussian_splatting.gaussian.gm_simple_color import GaussianModel
 
     elif model == "ours_simple_color_scale_rotation":
-        from gaussian_splatting.gaussian.ours_simple_color_scale_rotation import (
+        from gaussian_splatting.gaussian.gm_simple_color_scale_rotation import (
             GaussianModel,
         )
 
     elif model == "ours_simple_color_scale_rotation_act":
-        from gaussian_splatting.gaussian.ours_simple_color_scale_rotation_act import (
+        from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act import (
             GaussianModel,
         )
 
     elif model == "ours_simple_opacity_no_t":
-        from gaussian_splatting.gaussian.ours_simple_opacity_no_t import GaussianModel
+        from gaussian_splatting.gaussian.gm_simple_opacity_no_t import GaussianModel
 
     elif model == "ours_simple_opacity_linear":
-        from gaussian_splatting.gaussian.ours_simple_opacity_linear import GaussianModel
+        from gaussian_splatting.gaussian.gm_simple_opacity_linear import GaussianModel
 
     elif model == "ours_simple_opacity_w_t":
-        from gaussian_splatting.gaussian.ours_simple_opacity_w_t import GaussianModel
+        from gaussian_splatting.gaussian.gm_simple_opacity_w_t import GaussianModel
 
     elif model == "ours_simple_xyz_quadric":
-        from gaussian_splatting.gaussian.ours_simple_xyz_quadric import GaussianModel
+        from gaussian_splatting.gaussian.gm_simple_xyz_quadric import GaussianModel
 
     elif model == "ours_simple_xyz_linear":
-        from gaussian_splatting.gaussian.ours_simple_xyz_linear import GaussianModel
+        from gaussian_splatting.gaussian.gm_simple_xyz_linear import GaussianModel
 
     elif model == "ours_simple_xyz_linear_color":
-        from gaussian_splatting.gaussian.ours_simple_xyz_linear_color import (
-            GaussianModel,
-        )
+        from gaussian_splatting.gaussian.gm_simple_xyz_linear_color import GaussianModel
 
     elif model == "ours_simple_xyz_linear_color_trbf_c_act":
-        from gaussian_splatting.gaussian.ours_simple_xyz_linear_color_trbf_c_act import (
+        from gaussian_splatting.gaussian.gm_simple_xyz_linear_color_trbf_c_act import (
             GaussianModel,
         )
 
     elif model == "ours_simple_fix_xyz_linear_color_trbf_c_act":
-        from gaussian_splatting.gaussian.ours_simple_fix_xyz_linear_color_trbf_c_act import (
+        from gaussian_splatting.gaussian.gm_simple_fix_xyz_linear_color_trbf_c_act import (
             GaussianModel,
         )
 
     elif model == "ours_simple_xyz_linear_color_source":
-        from gaussian_splatting.gaussian.ours_simple_xyz_linear_color_source import (
+        from gaussian_splatting.gaussian.gm_simple_xyz_linear_color_source import (
             GaussianModel,
         )
 
     elif model == "ours_simple_xyz_linear_color_trbf_center":
-        from gaussian_splatting.gaussian.ours_simple_xyz_linear_color_trbf_center import (
+        from gaussian_splatting.gaussian.gm_simple_xyz_linear_color_trbf_center import (
             GaussianModel,
         )
 
     elif model == "ours_simple_trbf_center":
-        from gaussian_splatting.gaussian.ours_simple_trbf_center import GaussianModel
+        from gaussian_splatting.gaussian.gm_simple_trbf_center import GaussianModel
 
     elif model == "ours_simple_xyz_quadric_trbf_center":
-        from gaussian_splatting.gaussian.ours_simple_xyz_quadric_trbf_center import (
+        from gaussian_splatting.gaussian.gm_simple_xyz_quadric_trbf_center import (
             GaussianModel,
         )
 
     elif model == "ours_simple_all":
-        from gaussian_splatting.gaussian.ours_simple_all import GaussianModel
+        from gaussian_splatting.gaussian.gm_simple_all import GaussianModel
 
     else:
         from gaussian_splatting.gaussian.gaussian_model import GaussianModel
