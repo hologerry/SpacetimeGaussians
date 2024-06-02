@@ -140,7 +140,6 @@ def control_gaussians(
     split=True,
     split_prune=True,
     prune=True,
-    zero_grad_level=None,
 ):
     if iteration < opt.densify_until_iter:
         gaussians.max_radii2D[visibility_filter] = torch.max(
@@ -164,7 +163,6 @@ def control_gaussians(
                     split=split,
                     split_prune=split_prune,
                     prune=prune,
-                    zero_grad_level=zero_grad_level,
                 )
 
             if iteration % opt.opacity_reset_interval == 0 or (

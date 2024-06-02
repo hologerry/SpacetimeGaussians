@@ -250,43 +250,6 @@ def train(
             gt_image = viewpoint_cam.original_image.float().cuda()
             # gt_image_real = viewpoint_cam.original_image_real.float().cuda()
 
-            # if iteration % 500 == 0:
-            #     save_image(
-            #         depth,
-            #         os.path.join(
-            #             scene.model_path,
-            #             "training_render",
-            #             f"depth_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
-            #         ),
-            #     )
-            #     save_image(
-            #         image,
-            #         os.path.join(
-            #             scene.model_path,
-            #             "training_render",
-            #             f"render_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
-            #         ),
-            #     )
-            #     save_image(
-            #         gt_image,
-            #         os.path.join(
-            #             scene.model_path,
-            #             "training_render",
-            #             f"gt_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
-            #         ),
-            #     )
-            #     # save_image(
-            #     #     gt_image_real,
-            #     #     os.path.join(
-            #     #         scene.model_path,
-            #     #         "training_render",
-            #     #         f"gt_real_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
-            #     #     ),
-            #     # )
-            #     # current_xyz = gaussians.get_xyz
-            #     # xyz_min = torch.min(current_xyz, dim=0).values
-            #     # xyz_max = torch.max(current_xyz, dim=0).values
-            #     # print(f"Iter {iteration} xyz shape: {current_xyz.shape}")
 
             if optim_args.gt_mask:
                 # for training with undistorted immersive image, masking black pixels in undistorted image.
@@ -294,22 +257,6 @@ def train(
                 mask = mask.float()
                 image = image * (1 - mask) + gt_image * (mask)
 
-            # if optim_args.reg == 2:
-            #     Ll1 = l2_loss(image, gt_image)
-            #     loss = Ll1
-            # elif optim_args.reg == 3:
-            #     Ll1 = relative_loss(image, gt_image)
-            #     loss = Ll1
-            # else:
-            #     # if viewpoint_cam.is_fake_view:
-            #     #     if model_args.grey_image:
-            #     #         image = torch.cat((image, image, image), dim=1)
-            #     #         gt_image = torch.cat((gt_image, gt_image, gt_image), dim=1)
-            #     #     Ll1 = lpips_criteria(image, gt_image, normalize=True)
-            #     # else:
-            #     #     Ll1 = l1_loss(image, gt_image)
-            #     Ll1 = l1_loss(image, gt_image)
-            #     loss = get_loss(optim_args, Ll1, ssim, image, gt_image, gaussians, radii)
 
             view_name = viewpoint_cam.image_name
 
@@ -346,37 +293,10 @@ def train(
                     f"train_loss/opacity_vel_loss_{view_name}", opacity_velocity_loss.item(), iteration
                 )
 
-            # if flag_ems == 1:
-            #     if viewpoint_cam.image_name not in loss_dict:
-            #         loss_dict[viewpoint_cam.image_name] = loss.item()
-            #         ssim_dict[viewpoint_cam.image_name] = ssim(
-            #             image.clone().detach(), gt_image.clone().detach()
-            #         ).item()
-
             loss.backward()
             gaussians.cache_gradient()
             gaussians.optimizer.zero_grad(set_to_none=True)
 
-        # if flag_ems == 1 and len(loss_dict.keys()) == len(viewpoint_set):
-        #     # sort dict by value
-        #     # ssim_dict loss_dict
-        #     ordered_loss_dict = sorted(ssim_dict.items(), key=lambda item: item[1], reverse=False)
-        #     flag_ems = 2
-        #     select_views_list = []
-        #     select_views = {}
-        #     for idx, pair in enumerate(ordered_loss_dict):
-        #         viewname, loss_score = pair
-        #         ssim_score = ssim_dict[viewname]
-        #         if ssim_score < 0.91:  # avoid large ssim
-        #             select_views_list.append((viewname, "rk" + str(idx) + "_ssim" + str(ssim_score)[0:4]))
-        #     if len(select_views_list) < 2:
-        #         select_views = []
-        #     else:
-        #         select_views_list = select_views_list[:2]
-        #         for v in select_views_list:
-        #             select_views[v[0]] = v[1]
-
-        #     selected_length = len(select_views)
 
         iter_end.record()
         gaussians.set_batch_gradient(optim_args.batch)
@@ -451,177 +371,15 @@ def train(
                 split=cur_split,
                 split_prune=cur_split_prune,
                 prune=cur_prune,
-                zero_grad_level=cur_zero_grad_level,
             )
 
-            # # guided sampling step
-            # if (
-            #     iteration > ems_start_from_iterations
-            #     and flag_ems == 2
-            #     and ems_cnt < selected_length
-            #     and viewpoint_cam.image_name in select_views
-            #     and (iteration - laster_ems > 100)
-            # ):
-            #     # ["camera_0002"] :#select_views :  #["camera_0002"]:
-            #     select_views.pop(viewpoint_cam.image_name)  # remove sampled cameras
-            #     ems_cnt += 1
-            #     laster_ems = iteration
-            #     ssim_current = ssim(image.detach(), gt_image.detach()).item()
-            #     scene.record_points(iteration, "ssim_" + str(ssim_current))
-            #     # some scenes' structure is already good, no need to add more points
-            #     if ssim_current < 0.88:
-            #         image_adjust = image / (torch.mean(image) + 0.01)  #
-            #         gt_adjust = gt_image / (torch.mean(gt_image) + 0.01)
-            #         diff = torch.abs(image_adjust - gt_adjust)
-            #         diff = torch.sum(diff, dim=0)  # h, w
-            #         diff_sorted, _ = torch.sort(diff.reshape(-1))
-            #         num_pixels = diff.shape[0] * diff.shape[1]
-            #         threshold = diff_sorted[int(num_pixels * optim_args.ems_threshold)].item()
-            #         out_mask = diff > threshold  #
-            #         kh, kw = 16, 16  # kernel size
-            #         dh, dw = 16, 16  # stride
-            #         # compute padding
-            #         ideal_h, ideal_w = (
-            #             int(image.shape[1] / dh + 1) * kw,
-            #             int(image.shape[2] / dw + 1) * kw,
-            #         )
 
-            #         out_mask = torch.nn.functional.pad(
-            #             out_mask,
-            #             (0, ideal_w - out_mask.shape[1], 0, ideal_h - out_mask.shape[0]),
-            #             mode="constant",
-            #             value=0,
-            #         )
-            #         patches = out_mask.unfold(0, kh, dh).unfold(1, kw, dw)
-            #         dummy_patch = torch.ones_like(patches)
-            #         patches_sum = patches.sum(dim=(2, 3))
-            #         patches_mask = patches_sum > kh * kh * 0.85
-            #         patches_mask = patches_mask.unsqueeze(2).unsqueeze(3).repeat(1, 1, kh, kh).float()
-            #         patches = dummy_patch * patches_mask
+        gaussians.zero_gradient_by_level(cur_zero_grad_level)
 
-            #         depth = render_pkg["depth"]
-            #         depth = depth.squeeze(0)
-            #         # compute padding for depth
-            #         ideal_depth_h, ideal_depth_w = (
-            #             int(depth.shape[0] / dh + 1) * kw,
-            #             int(depth.shape[1] / dw + 1) * kw,
-            #         )
-
-            #         depth = torch.nn.functional.pad(
-            #             depth,
-            #             (0, ideal_depth_w - depth.shape[1], 0, ideal_depth_h - depth.shape[0]),
-            #             mode="constant",
-            #             value=0,
-            #         )
-
-            #         depth_patches = depth.unfold(0, kh, dh).unfold(1, kw, dw)
-            #         dummy_depth_patches = torch.ones_like(depth_patches)
-            #         a, b, c, d = depth_patches.shape
-            #         depth_patches = depth_patches.reshape(a, b, c * d)
-            #         median_depth_patch = torch.median(depth_patches, dim=(2))[0]
-            #         depth_patches = dummy_depth_patches * (median_depth_patch.unsqueeze(2).unsqueeze(3))
-            #         unfold_depth_shape = dummy_depth_patches.size()
-            #         output_depth_h = unfold_depth_shape[0] * unfold_depth_shape[2]
-            #         output_depth_w = unfold_depth_shape[1] * unfold_depth_shape[3]
-
-            #         patches_depth_orig = depth_patches.view(unfold_depth_shape)
-            #         patches_depth_orig = patches_depth_orig.permute(0, 2, 1, 3).contiguous()
-            #         # 1 for error, 0 for no error
-            #         patches_depth = patches_depth_orig.view(output_depth_h, output_depth_w).float()
-
-            #         depth = patches_depth[: render_pkg["depth"].shape[1], : render_pkg["depth"].shape[2]]
-            #         depth = depth.unsqueeze(0)
-
-            #         mid_patch = torch.ones_like(patches)
-
-            #         for i in range(0, kh, 2):
-            #             for j in range(0, kw, 2):
-            #                 mid_patch[:, :, i, j] = 0.0
-
-            #         center_patches = patches * mid_patch
-
-            #         unfold_shape = patches.size()
-            #         patches_orig = patches.view(unfold_shape)
-            #         center_patches_orig = center_patches.view(unfold_shape)
-
-            #         output_h = unfold_shape[0] * unfold_shape[2]
-            #         output_w = unfold_shape[1] * unfold_shape[3]
-            #         patches_orig = patches_orig.permute(0, 2, 1, 3).contiguous()
-            #         center_patches_orig = center_patches_orig.permute(0, 2, 1, 3).contiguous()
-            #         # H * W  mask, # 1 for error, 0 for no error
-            #         center_mask = center_patches_orig.view(output_h, output_w).float()
-            #         center_mask = center_mask[: image.shape[1], : image.shape[2]]  # reverse back
-
-            #         # H * W  mask, # 1 for error, 0 for no error
-            #         error_mask = patches_orig.view(output_h, output_w).float()
-            #         error_mask = error_mask[: image.shape[1], : image.shape[2]]  # reverse back
-
-            #         H, W = center_mask.shape
-
-            #         offset_H = int(H / 10)
-            #         offset_W = int(W / 10)
-
-            #         center_mask[0:offset_H, :] = 0.0
-            #         center_mask[:, 0:offset_W] = 0.0
-
-            #         center_mask[-offset_H:, :] = 0.0
-            #         center_mask[:, -offset_W:] = 0.0
-
-            #         depth = render_pkg["depth"]
-            #         depth_map = torch.cat((depth, depth, depth), dim=0)
-            #         invalid_depth_mask = depth == 15.0
-
-            #         path_dir = scene.model_path + "/ems_" + str(ems_cnt - 1)
-            #         if not os.path.exists(path_dir):
-            #             os.makedirs(path_dir)
-
-            #         depth_map = depth_map / torch.amax(depth_map)
-            #         invalid_depth_map = torch.cat(
-            #             (invalid_depth_mask, invalid_depth_mask, invalid_depth_mask), dim=0
-            #         ).float()
-
-            #         save_image(gt_image, os.path.join(path_dir, "gt" + str(iteration) + ".png"))
-            #         save_image(image, os.path.join(path_dir, "render" + str(iteration) + ".png"))
-            #         save_image(depth_map, os.path.join(path_dir, "depth" + str(iteration) + ".png"))
-            #         save_image(invalid_depth_map, os.path.join(path_dir, "invalid_depth" + str(iteration) + ".png"))
-
-            #         bad_indices = center_mask.nonzero()
-            #         diff_sorted, _ = torch.sort(depth.reshape(-1))
-            #         N = diff_sorted.shape[0]
-            #         median_depth = int(0.7 * N)
-            #         median_depth = diff_sorted[median_depth]
-
-            #         depth = torch.where(depth > median_depth, depth, median_depth)
-
-            #         total_N_new_points = gaussians.add_gaussians(
-            #             bad_indices,
-            #             viewpoint_cam,
-            #             depth,
-            #             gt_image,
-            #             new_ray_step=optim_args.new_ray_step,
-            #             ray_end=optim_args.ray_end,
-            #             depth_max=depth_dict[viewpoint_cam.image_name],
-            #             shuffle=(optim_args.shuffle_ems != 0),
-            #         )
-
-            #         gt_image = gt_image * error_mask
-            #         image = render_pkg["render"] * error_mask
-
-            #         scene.record_points(iteration, "after add points by uv")
-
-            #         save_image(gt_image, os.path.join(path_dir, "masked_gt" + str(iteration) + ".png"))
-            #         save_image(image, os.path.join(path_dir, "masked_render" + str(iteration) + ".png"))
-            #         visibility_filter = torch.cat((visibility_filter, torch.zeros(total_N_new_points).cuda(0)), dim=0)
-            #         visibility_filter = visibility_filter.bool()
-            #         radii = torch.cat((radii, torch.zeros(total_N_new_points).cuda(0)), dim=0)
-            #         viewspace_point_tensor = torch.cat(
-            #             (viewspace_point_tensor, torch.zeros(total_N_new_points, 3).cuda(0)), dim=0
-            #         )
-
-            # Optimizer step
-            if iteration < optim_args.iterations:
-                gaussians.optimizer.step()
-                gaussians.optimizer.zero_grad(set_to_none=True)
+        # Optimizer step
+        if iteration < optim_args.iterations:
+            gaussians.optimizer.step()
+            gaussians.optimizer.zero_grad(set_to_none=True)
 
             # if iteration in checkpoint_iterations:
             #     print(f"\n[ITER {iteration}] Saving Checkpoint")

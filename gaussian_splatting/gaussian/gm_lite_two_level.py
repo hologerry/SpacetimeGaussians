@@ -491,6 +491,16 @@ class GaussianModel:
                     optimizable_tensors[group["name"]] = group["params"][0]
         return optimizable_tensors
 
+    def _zero_optimizer(self, mask):
+        for group in self.optimizer.param_groups:
+            if len(group["params"]) == 1 and group["name"] != "decoder":
+                stored_state = self.optimizer.state.get(group["params"][0], None)
+                if stored_state is not None:
+                    stored_state["exp_avg"][mask] = 0.0
+                    stored_state["exp_avg_sq"][mask] = 0.0
+
+                    self.optimizer.state[group["params"][0]] = stored_state
+
     def prune_points(self, mask):
         valid_points_mask = ~mask
         optimizable_tensors = self._prune_optimizer(valid_points_mask)
@@ -508,6 +518,7 @@ class GaussianModel:
 
         self.xyz_gradient_accum = self.xyz_gradient_accum[valid_points_mask]
 
+        self._level = self._level[valid_points_mask]
         self.denom = self.denom[valid_points_mask]
         self.max_radii2D = self.max_radii2D[valid_points_mask]
         if self.omega_mask is not None:
@@ -810,22 +821,14 @@ class GaussianModel:
         )
         return new_xyz.shape[0]
 
-    def zero_gradient_by_level(self, level=0.0):
+    def zero_gradient_by_level(self, level=None):
         # we set the grad to zero for points with _level == level
-        mask = self._level == level
-        self._xyz_grd[mask] = 0.0
-        self._features_dc_grd[mask] = 0.0
+        if level is not None and level >= 0.0:
+            mask = self._level == level
+            mask = mask.squeeze(1)
+            self._zero_optimizer(mask)
 
-        self._scaling_grd[mask] = 0.0
-        self._rotation_grd[mask] = 0.0
-        self._opacity_grd[mask] = 0.0
-        self._trbf_center_grd[mask] = 0.0
-        self._trbf_scale_grd[mask] = 0.0
-        self._motion_grd[mask] = 0.0
-        self._omega_grd[mask] = 0.0
-
-
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True, split_prune=True, prune=True, zero_grad_level=None):
+    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True, split_prune=True, prune=True, **kwargs):
         ## raw method from 3dgs debugging hyfluid
         if clone or split:
             grads = self.xyz_gradient_accum / self.denom
@@ -838,13 +841,13 @@ class GaussianModel:
 
         if prune:
             prune_mask = (self.get_opacity < min_opacity).squeeze()
+            new_point_mask = self._level == 1.0
+            new_point_mask = new_point_mask.squeeze()
+            prune_mask = torch.logical_and(prune_mask, new_point_mask) # only prune the level 1 points
             if max_screen_size:
                 big_points_vs = self.max_radii2D > max_screen_size
                 big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
                 prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
             self.prune_points(prune_mask)
-
-        if zero_grad_level is not None:
-            self.zero_gradient_by_level(zero_grad_level)
 
         torch.cuda.empty_cache()

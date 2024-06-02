@@ -106,6 +106,7 @@ class ModelParams(ParamGroup):
         self.level_1_start_iter = 30000
         self.level_1_clone = True
         self.level_1_split = True
+        self.level_1_split_prune = True
         self.level_1_prune = True
         self.init_num_pts_per_time = 1000
         self.init_trbf_c_fix = False
