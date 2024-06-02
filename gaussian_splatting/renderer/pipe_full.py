@@ -6,7 +6,7 @@ import torch
 from gaussian_splatting.gaussian.gm_full import GaussianModel
 
 
-def train_pipe_full(
+def train_full(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -102,7 +102,7 @@ def train_pipe_full(
     }
 
 
-def test_pipe_full(
+def test_full(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,

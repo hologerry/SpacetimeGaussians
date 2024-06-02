@@ -6,7 +6,7 @@ import torch
 from gaussian_splatting.gaussian.gm_lite_act import GaussianModel
 
 
-def train_pipe_lite_act(
+def train_lite_act(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -107,7 +107,7 @@ def train_pipe_lite_act(
     }
 
 
-def test_pipe_lite_act_vis(
+def test_lite_act_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,

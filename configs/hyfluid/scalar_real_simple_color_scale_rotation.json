@@ -1,6 +1,6 @@
 {
   "resolution": 1,
-  "model": "gm_simple_color_scale_rotation",
+  "model": "simple_color_scale_rotation",
   "scaling_lr": 0.0,
   "feature_lr": 0.0,
   "omega_lr": 0.0,
@@ -13,7 +13,7 @@
   "start_time": 0,
   "duration": 120,
   "time_step": 1,
-  "rd_pipe": "train_pipe_lite_single",
+  "rd_pipe": "train_lite_single",
   "rgb_function": "none",
   "batch": 1,
   "densify": 0,

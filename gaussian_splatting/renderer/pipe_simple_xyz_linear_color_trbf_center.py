@@ -8,7 +8,7 @@ from gaussian_splatting.gaussian.gm_simple_xyz_linear_color_trbf_center import (
 )
 
 
-def train_pipe_lite_xyz_linear_color_trbf_center(
+def train_lite_xyz_linear_color_trbf_center(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -106,7 +106,7 @@ def train_pipe_lite_xyz_linear_color_trbf_center(
     }
 
 
-def test_pipe_lite_xyz_linear_color_trbf_center_vis(
+def test_lite_xyz_linear_color_trbf_center_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,

@@ -33,6 +33,7 @@ import torch
 from torchvision.utils import save_image
 from tqdm import tqdm
 
+from gaussian_splatting.gaussian.gaussian_model import GaussianModel
 from gaussian_splatting.helper3dg import get_render_parts
 from gaussian_splatting.scene import Scene
 from gaussian_splatting.utils.graphics_utils import get_world_2_view2
@@ -249,43 +250,43 @@ def train(
             gt_image = viewpoint_cam.original_image.float().cuda()
             # gt_image_real = viewpoint_cam.original_image_real.float().cuda()
 
-            if iteration % 500 == 0:
-                save_image(
-                    depth,
-                    os.path.join(
-                        scene.model_path,
-                        "training_render",
-                        f"depth_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
-                    ),
-                )
-                save_image(
-                    image,
-                    os.path.join(
-                        scene.model_path,
-                        "training_render",
-                        f"render_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
-                    ),
-                )
-                save_image(
-                    gt_image,
-                    os.path.join(
-                        scene.model_path,
-                        "training_render",
-                        f"gt_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
-                    ),
-                )
-                # save_image(
-                #     gt_image_real,
-                #     os.path.join(
-                #         scene.model_path,
-                #         "training_render",
-                #         f"gt_real_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
-                #     ),
-                # )
-                current_xyz = gaussians.get_xyz
-                # xyz_min = torch.min(current_xyz, dim=0).values
-                # xyz_max = torch.max(current_xyz, dim=0).values
-                # print(f"Iter {iteration} xyz shape: {current_xyz.shape}")
+            # if iteration % 500 == 0:
+            #     save_image(
+            #         depth,
+            #         os.path.join(
+            #             scene.model_path,
+            #             "training_render",
+            #             f"depth_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
+            #         ),
+            #     )
+            #     save_image(
+            #         image,
+            #         os.path.join(
+            #             scene.model_path,
+            #             "training_render",
+            #             f"render_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
+            #         ),
+            #     )
+            #     save_image(
+            #         gt_image,
+            #         os.path.join(
+            #             scene.model_path,
+            #             "training_render",
+            #             f"gt_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
+            #         ),
+            #     )
+            #     # save_image(
+            #     #     gt_image_real,
+            #     #     os.path.join(
+            #     #         scene.model_path,
+            #     #         "training_render",
+            #     #         f"gt_real_{viewpoint_cam.image_name}_{viewpoint_cam.uid}_{iteration:05d}_{i}.png",
+            #     #     ),
+            #     # )
+            #     # current_xyz = gaussians.get_xyz
+            #     # xyz_min = torch.min(current_xyz, dim=0).values
+            #     # xyz_max = torch.max(current_xyz, dim=0).values
+            #     # print(f"Iter {iteration} xyz shape: {current_xyz.shape}")
 
             if optim_args.gt_mask:
                 # for training with undistorted immersive image, masking black pixels in undistorted image.
@@ -428,7 +429,7 @@ def train(
                 max_bounds=max_bounds,
                 min_bounds=min_bounds,
                 white_background=model_args.white_background,
-                max_timestamp=model_args.max_timestamp,
+                # max_timestamp=model_args.max_timestamp,
                 clone=model_args.clone,
                 split=model_args.split,
                 prune=model_args.prune,
@@ -710,21 +711,21 @@ def training_report(
             for view_name in list(all_view_names):
                 images_to_video(
                     os.path.join(scene.model_path, "training_render"),
-                    f"test_render_{view_name}",
+                    f"render_{view_name}",
                     f"{iteration:05d}.png",
                     os.path.join(scene.model_path, f"training_render_{view_name}_{iteration:05d}.mp4"),
                     fps=30,
                 )
                 images_to_video(
                     os.path.join(scene.model_path, "training_render"),
-                    f"test_gt_{view_name}",
+                    f"gt_{view_name}",
                     f"{iteration:05d}.png",
                     os.path.join(scene.model_path, f"training_gt_{view_name}_{iteration:05d}.mp4"),
                     fps=30,
                 )
                 # images_to_video(
                 #     os.path.join(scene.model_path, "training_render"),
-                #     f"test_gt_real_{view_name}",
+                #     f"gt_real_{view_name}",
                 #     f"{iteration:05d}.png",
                 #     os.path.join(scene.model_path, f"training_gt_real_{view_name}_{iteration:05d}.mp4"),
                 #     fps=30,

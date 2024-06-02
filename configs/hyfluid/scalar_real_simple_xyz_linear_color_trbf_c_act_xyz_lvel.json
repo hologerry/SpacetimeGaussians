@@ -1,6 +1,6 @@
 {
   "resolution": 1,
-  "model": "gm_simple_xyz_linear_color_trbf_c_act",
+  "model": "simple_xyz_linear_color_trbf_c_act",
   "scaling_lr": 0.0015,
   "feature_lr": 0.0,
   "preprocess_points": 0,
@@ -11,7 +11,7 @@
   "start_time": 0,
   "duration": 120,
   "time_step": 1,
-  "rd_pipe": "train_pipe_lite_single_xyz_linear_color_trbf_c_act_xyz",
+  "rd_pipe": "train_lite_single_xyz_linear_color_trbf_c_act_xyz",
   "rgb_function": "none",
   "batch": 4,
   "densify": 0,

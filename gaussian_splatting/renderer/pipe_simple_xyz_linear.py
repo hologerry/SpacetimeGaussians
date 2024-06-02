@@ -6,7 +6,7 @@ import torch
 from gaussian_splatting.gaussian.gm_simple_xyz_linear import GaussianModel
 
 
-def train_pipe_lite_xyz_linear(
+def train_lite_xyz_linear(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -104,7 +104,7 @@ def train_pipe_lite_xyz_linear(
     }
 
 
-def test_pipe_lite_xyz_linear_vis(
+def test_lite_xyz_linear_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,

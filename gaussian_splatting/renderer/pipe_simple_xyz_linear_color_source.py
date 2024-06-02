@@ -6,7 +6,7 @@ import torch
 from gaussian_splatting.gaussian.gm_simple_xyz_linear_color_source import GaussianModel
 
 
-def train_pipe_lite_xyz_linear_color_source(
+def train_lite_xyz_linear_color_source(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -108,7 +108,7 @@ def train_pipe_lite_xyz_linear_color_source(
     }
 
 
-def test_pipe_lite_xyz_linear_color_source_vis(
+def test_lite_xyz_linear_color_source_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,

@@ -1,11 +1,11 @@
 {
   "resolution": 1,
-  "model": "gm_full",
+  "model": "full",
   "scaling_lr": 0.0015,
   "preprocess_points": 0,
   "test_iteration": 30000,
   "duration": 10,
-  "rd_pipe": "train_pipe_full",
+  "rd_pipe": "train_full",
   "rgb_function": "none",
   "batch": 2,
   "densify": 0,

@@ -1,6 +1,6 @@
 {
   "resolution": 1,
-  "model": "gm_simple_all",
+  "model": "simple_all",
   "scaling_lr": 0.0015,
   "omega_lr": 0.0,
   "rotation_lr": 0.0,
@@ -10,7 +10,7 @@
   "start_time": 0,
   "duration": 120,
   "time_step": 1,
-  "rd_pipe": "train_pipe_lite_single_all",
+  "rd_pipe": "train_lite_single_all",
   "rgb_function": "none",
   "batch": 1,
   "densify": 0,

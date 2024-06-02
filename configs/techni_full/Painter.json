@@ -1,6 +1,6 @@
 {
   "resolution": 1,
-  "model": "gm_full",
+  "model": "full",
   "scaling_lr": 0.005,
   "trbf_scale_init": 2.0,
   "preprocess_points": 0,
@@ -10,5 +10,5 @@
   "duration": 50,
   "rgb_function": "sandwichnoact",
   "loader": "technicolor",
-  "rd_pipe": "train_pipe_full"
+  "rd_pipe": "train_full"
 }

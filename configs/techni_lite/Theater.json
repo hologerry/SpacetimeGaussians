@@ -1,6 +1,6 @@
 {
   "resolution": 1,
-  "model": "gm_lite",
+  "model": "lite",
   "scaling_lr": 0.005,
   "trbf_scale_init": 2.0,
   "preprocess_points": 0,
@@ -10,5 +10,5 @@
   "duration": 50,
   "rgb_function": "None",
   "loader": "technicolor",
-  "rd_pipe": "train_pipe_lite"
+  "rd_pipe": "train_lite"
 }

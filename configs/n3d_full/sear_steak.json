@@ -1,10 +1,10 @@
 {
   "resolution": 2,
-  "model": "gm_full",
+  "model": "full",
   "scaling_lr": 0.0015,
   "preprocess_points": 0,
   "test_iteration": 25000,
   "duration": 50,
-  "rd_pipe": "train_pipe_full",
+  "rd_pipe": "train_full",
   "rgb_function": "sandwich"
 }

@@ -1,9 +1,9 @@
 {
   "resolution": 2,
-  "model": "gm_lite",
+  "model": "lite",
   "scaling_lr": 0.0015,
   "preprocess_points": 3,
   "test_iteration": 25000,
   "duration": 50,
-  "rd_pipe": "train_pipe_lite"
+  "rd_pipe": "train_lite"
 }

@@ -1,5 +1,5 @@
 {
-  "model": "gm_full",
+  "model": "full",
   "loader": "immersivess",
   "position_lr_init": 1.6e-05,
   "feature_lr": 0.00475,
@@ -9,7 +9,7 @@
   "densify_cnt": 9,
   "ems_start": 30000,
   "densify": 4,
-  "rd_pipe": "train_pipe_full_ss",
+  "rd_pipe": "train_full_ss",
   "rgb_function": "sandwichnoactss",
   "resolution": 1,
   "duration": 50,

@@ -6,7 +6,7 @@ import torch
 from gaussian_splatting.gaussian.gm_simple_xyz_quadric import GaussianModel
 
 
-def train_pipe_lite_xyz_quadric(
+def train_lite_xyz_quadric(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -104,7 +104,7 @@ def train_pipe_lite_xyz_quadric(
     }
 
 
-def test_pipe_lite_xyz_quadric_vis(
+def test_lite_xyz_quadric_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,

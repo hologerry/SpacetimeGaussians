@@ -8,7 +8,7 @@ from gaussian_splatting.gaussian.gm_simple_xyz_linear_color_trbf_c_act import (
 )
 
 
-def train_pipe_lite_xyz_linear_color_trbf_c_act(
+def train_lite_xyz_linear_color_trbf_c_act(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -109,7 +109,7 @@ def train_pipe_lite_xyz_linear_color_trbf_c_act(
     }
 
 
-def test_pipe_lite_xyz_linear_color_trbf_c_act_vis(
+def test_lite_xyz_linear_color_trbf_c_act_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,

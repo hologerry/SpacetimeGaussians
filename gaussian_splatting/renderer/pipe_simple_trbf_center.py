@@ -6,7 +6,7 @@ import torch
 from gaussian_splatting.gaussian.gm_simple_trbf_center import GaussianModel
 
 
-def train_pipe_lite_trbf_center(
+def train_lite_trbf_center(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -104,7 +104,7 @@ def train_pipe_lite_trbf_center(
     }
 
 
-def test_pipe_lite_trbf_center_vis(
+def test_lite_trbf_center_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,

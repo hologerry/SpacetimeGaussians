@@ -6,7 +6,7 @@ import torch
 from gaussian_splatting.gaussian.gm_simple_opacity_linear import GaussianModel
 
 
-def train_pipe_lite_opacity_linear(
+def train_lite_opacity_linear(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -103,7 +103,7 @@ def train_pipe_lite_opacity_linear(
     }
 
 
-def test_pipe_lite_opacity_linear_vis(
+def test_lite_opacity_linear_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
