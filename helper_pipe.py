@@ -54,15 +54,35 @@ def get_render_pipe(option="train_full"):
 
         return train_lite, GaussianRasterizationSettings, GaussianRasterizer
 
-    elif option == "test_lite_single":
+    elif option == "test_lite_single_vis":
         from forward_lite_single import (
             GaussianRasterizationSettings,
             GaussianRasterizer,
         )
 
-        from gaussian_splatting.renderer import test_lite
+        from gaussian_splatting.renderer import test_lite_vis
 
-        return test_lite, GaussianRasterizationSettings, GaussianRasterizer
+        return test_lite_vis, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "train_lite_two_level_single":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from gaussian_splatting.renderer import train_lite_two_level
+
+        return train_lite_two_level, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_lite_two_level_single_vis":
+        from forward_lite_single import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from gaussian_splatting.renderer import test_lite_two_level_vis
+
+        return test_lite_two_level_vis, GaussianRasterizationSettings, GaussianRasterizer
 
     elif option == "train_lite_act_single":
         from diff_gaussian_rasterization_ch1 import (
@@ -83,6 +103,26 @@ def get_render_pipe(option="train_full"):
         from gaussian_splatting.renderer import test_lite_act_vis
 
         return test_lite_act_vis, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "train_lite_two_sp_level_act_single":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from gaussian_splatting.renderer import train_lite_two_sp_level_act
+
+        return train_lite_two_sp_level_act, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_lite_two_sp_level_act_single_vis":
+        from forward_lite_single import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from gaussian_splatting.renderer import test_lite_two_sp_level_act_vis
+
+        return test_lite_two_sp_level_act_vis, GaussianRasterizationSettings, GaussianRasterizer
 
     elif option == "train_lite_single_all":
         from diff_gaussian_rasterization_ch1 import (

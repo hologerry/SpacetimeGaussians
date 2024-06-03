@@ -125,27 +125,6 @@ def run_test(args, model_args: ModelParams, pipe_args: PipelineParams, iteration
         gaussians.rgb_decoder.cuda()
         gaussians.rgb_decoder.eval()
 
-    # stats_dict = {}
-
-    # scales = gaussians.get_scaling
-
-    # scales_max = torch.amax(scales).item()
-    # scales_mean = torch.mean(scales).item()
-
-    # stats_dict["scales_max"] = scales_max
-    # stats_dict["scales_mean"] = scales_mean
-
-    # if "opacity_linear" not in rd_pipe:
-    #     op = gaussians.get_opacity
-    #     op_max = torch.amax(op).item()
-    #     op_mean = torch.mean(op).item()
-    #     stats_dict["op_max"] = op_max
-    #     stats_dict["op_mean"] = op_mean
-
-    # stats_path = os.path.join(model_path, "stat_" + str(iteration) + ".json")
-    # with open(stats_path, "w") as fp:
-    #     json.dump(stats_dict, fp, indent=True)
-
     test_rd_pipe = args.rd_pipe.replace("train", "test")
     test_rd_pipe += "_vis"
     render, GRsetting, GRzer = get_render_pipe(test_rd_pipe)

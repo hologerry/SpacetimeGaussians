@@ -36,6 +36,11 @@ def get_model(model="full") -> GaussianModel:
             GaussianModel,
         )
 
+    elif model == "simple_color_scale_rotation_two_sp_level_act":
+        from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_two_sp_level_act import (
+            GaussianModel,
+        )
+
     elif model == "simple_opacity_no_t":
         from gaussian_splatting.gaussian.gm_simple_opacity_no_t import GaussianModel
 

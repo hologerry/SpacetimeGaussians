@@ -18,6 +18,8 @@
 from .pipe_full import test_full, train_full
 from .pipe_lite import test_lite, test_lite_vis, train_lite
 from .pipe_lite_act import test_lite_act_vis, train_lite_act
+from .pipe_lite_two_level import test_lite_two_level_vis, train_lite_two_level
+from .pipe_lite_two_sp_level_act import test_lite_two_sp_level_act_vis, train_lite_two_sp_level_act
 from .pipe_simple_opacity_exp_linear import (
     test_lite_opacity_exp_linear_vis,
     train_lite_opacity_exp_linear,

@@ -138,8 +138,6 @@ def train(
 
     scene.record_points(0, "start training")
 
-    flag_ems = 0
-    # ems_cnt = 0
     loss_dict = {}
     ssim_dict = {}
     depth_dict = {}
@@ -191,22 +189,39 @@ def train(
 
     # lpips_criteria = lpips.LPIPS(net="alex", verbose=False).cuda()
 
-    print(f"clone: {optim_args.clone}, split {optim_args.split}, prune {optim_args.prune}")
+    print(f"Level 0 clone: {optim_args.clone}, split {optim_args.split}, prune {optim_args.prune}")
 
     for iteration in range(first_iter, optim_args.iterations + 1):
-        # if args.loader != "hyfluid" and iteration == optim_args.ems_start:
-        #     flag_ems = 1  # start ems
+
+        if iteration < optim_args.level_1_start_iter:
+            cur_level = 0
+        else:
+            cur_level = 1
+
+        if iteration == optim_args.level_1_start_iter:
+            gaussians.create_another_level(
+                scene.cameras_extent,
+                model_args.level_1_init_num_pts_per_time,
+                model_args.start_time,
+                model_args.duration,
+                model_args.time_step,
+            )
+            gaussians.level_1_training_setup(optim_args)
 
         iter_start.record()
-        gaussians.update_learning_rate(iteration)
+        if cur_level == 0:
+            gaussians.update_learning_rate(iteration)
+        elif cur_level == 1:
+            gaussians.update_level_1_learning_rate(iteration)
 
         if (iteration - 1) == debug_from:
             pipe_args.debug = True
 
-        if gaussians.rgb_decoder is not None:
-            gaussians.rgb_decoder.train()
+        if cur_level == 0:
+            gaussians.zero_gradient_cache()
+        elif cur_level == 1:
+            gaussians.zero_level_1_gradient_cache()
 
-        gaussians.zero_gradient_cache()
         time_index = randint(0, (len(unique_timestamps) - 1))
         viewpoint_set = train_cam_dict[time_index]
         cam_index = random.sample(viewpoint_set, optim_args.batch)
@@ -223,6 +238,7 @@ def train(
                 basic_function=trbf_base_function,
                 GRsetting=GRsetting,
                 GRzer=GRzer,
+                level=cur_level,
             )
             image, viewspace_point_tensor, visibility_filter, radii = get_render_parts(render_pkg)
             # depth = render_pkg["depth"]
@@ -260,7 +276,6 @@ def train(
             #     mask = torch.sum(gt_image, dim=0) == 0
             #     mask = mask.float()
             #     image = image * (1 - mask) + gt_image * (mask)
-
 
             view_name = viewpoint_cam.image_name
 
@@ -309,19 +324,29 @@ def train(
                 )
 
             loss.backward()
-            gaussians.cache_gradient()
-            gaussians.optimizer.zero_grad(set_to_none=True)
+            if cur_level == 0:
+                gaussians.cache_gradient()
+                gaussians.optimizer.zero_grad(set_to_none=True)
+            elif cur_level == 1:
+                gaussians.cache_level_1_gradient()
+                gaussians.level_1_optimizer.zero_grad(set_to_none=True)
 
         iter_end.record()
-        gaussians.set_batch_gradient(optim_args.batch)
-        # note we retrieve the correct gradient except the mask
+        if cur_level == 0:
+            gaussians.set_batch_gradient(optim_args.batch)
+        elif cur_level == 1:
+            gaussians.set_level_1_batch_gradient(optim_args.batch)
 
         with torch.no_grad():
             # Progress bar
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
 
             if iteration % 10 == 0:
-                post_fix = {"Loss": f"{ema_loss_for_log:.7f}", "Points": gaussians.get_xyz.shape[0]}
+                if cur_level == 0:
+                    num_points = gaussians.get_xyz.shape[0]
+                elif cur_level == 1:
+                    num_points = gaussians.get_all_xyz.shape[0]
+                post_fix = {"Level": f"{cur_level}", "Loss": f"{ema_loss_for_log:.7f}", "Points": num_points}
                 progress_bar.set_postfix(post_fix)
                 progress_bar.update(10)
 
@@ -347,23 +372,21 @@ def train(
                 pipe_args.rd_pipe,
                 # test_all_train_views=True,
             )
-            if iteration <= optim_args.level_1_start_iter:
+            if cur_level == 0:
                 cur_clone = optim_args.clone
                 cur_split = optim_args.split
                 cur_split_prune = optim_args.split_prune
                 cur_prune = optim_args.prune
-                cur_zero_grad_level = None
-            else:
+                # cur_zero_grad_level = None
+            elif cur_level == 1:
                 cur_clone = optim_args.level_1_clone
                 cur_split = optim_args.level_1_split
                 cur_split_prune = optim_args.level_1_split_prune
                 cur_prune = optim_args.level_1_prune
-                cur_zero_grad_level = optim_args.zero_grad_level
-                if iteration == optim_args.level_1_start_iter + 1:
-                    msg_str = f"Level 1 start at iteration {iteration}"
-                    msg_str += f" clone: {cur_clone}, split: {cur_split}, split_prune: {cur_split_prune}, prune: {cur_prune}"
-                    msg_str += f" zero_grad_level: {cur_zero_grad_level}"
-                    print(msg_str)
+                # cur_zero_grad_level = None
+
+            if cur_level == 1 and iteration == optim_args.level_1_start_iter:
+                print(f"Level 1 clone: {cur_clone}, split {cur_split}, prune {cur_prune}")
 
             # Densification and pruning here
             flag = control_gaussians(
@@ -385,14 +408,19 @@ def train(
                 split=cur_split,
                 split_prune=cur_split_prune,
                 prune=cur_prune,
+                level=cur_level,
             )
 
         # gaussians.zero_gradient_by_level(cur_zero_grad_level)
 
         # Optimizer step
         if iteration < optim_args.iterations:
-            gaussians.optimizer.step()
-            gaussians.optimizer.zero_grad(set_to_none=True)
+            if cur_level == 0:
+                gaussians.optimizer.step()
+                gaussians.optimizer.zero_grad(set_to_none=True)
+            elif cur_level == 1:
+                gaussians.level_1_optimizer.step()
+                gaussians.level_1_optimizer.zero_grad(set_to_none=True)
 
             # if iteration in checkpoint_iterations:
             #     print(f"\n[ITER {iteration}] Saving Checkpoint")

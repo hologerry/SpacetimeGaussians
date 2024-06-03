@@ -98,19 +98,12 @@ class ModelParams(ParamGroup):
         self.new_pts = 10_000
         self.img_offset = False
         self.init_region_type = "large"
-        self.clone = True
-        self.split = True
-        self.split_prune = True
-        self.prune = True
-        self.zero_grad_level = None
-        self.level_1_start_iter = 30000
-        self.level_1_clone = True
-        self.level_1_split = True
-        self.level_1_split_prune = True
-        self.level_1_prune = True
+
         self.init_num_pts_per_time = 1000
         self.init_trbf_c_fix = False
         self.init_color_fix_value = None  # None for random color, float for fix value
+
+        self.level_1_init_num_pts_per_time = 100
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -132,6 +125,9 @@ class PipelineParams(ParamGroup):
 class OptimizationParams(ParamGroup):
     def __init__(self, parser):
         self.iterations = 30_000
+
+        self.batch = 2
+
         self.position_lr_init = 0.00016
         self.position_lr_final = 0.0000016
         self.position_lr_delay_mult = 0.01
@@ -144,24 +140,43 @@ class OptimizationParams(ParamGroup):
         self.trbf_c_lr = 0.0001
         self.trbf_s_lr = 0.03
         self.trbf_scale_init = 0.0
+        self.rgb_lr = 0.0001
 
-        self.batch = 2
         self.move_lr = 3.5
 
         self.omega_lr = 0.0001
         self.beta_lr = 0.0001
         self.rotation_lr = 0.001
 
-        self.percent_dense = 0.01
+        self.level_1_position_lr_init = 0.00016
+        self.level_1_position_lr_final = 0.0000016
+        self.level_1_position_lr_delay_mult = 0.01
+        self.level_1_position_lr_max_steps = 30_000
+        self.level_1_feature_lr = 0.0025
+        self.level_1_feature_t_lr = 0.001
+        self.level_1_opacity_lr = 0.05
+        self.level_1_scaling_lr = 0.005
+
+        self.level_1_trbf_c_lr = 0.0001
+        self.level_1_trbf_s_lr = 0.03
+        self.level_1_trbf_scale_init = 0.0
+        self.level_1_rgb_lr = 0.0001
+
+        self.level_1_move_lr = 3.5
+
+        self.level_1_omega_lr = 0.0001
+        self.level_1_beta_lr = 0.0001
+        self.level_1_rotation_lr = 0.001
+
+
         self.lambda_dssim = 0.2
-        self.densification_interval = 100
+
+        self.percent_dense = 0.01
+
         self.opacity_reset_interval = 3_000
         self.opacity_reset_at = 10000
-        self.densify_from_iter = 500
-        self.densify_until_iter = 9000
-        self.densify_grad_threshold = 0.0002
 
-        self.rgb_lr = 0.0001
+
         self.densify_cnt = 6
         self.reg = 0
         self.lambda_reg = 0.0001
@@ -196,6 +211,36 @@ class OptimizationParams(ParamGroup):
 
         self.lambda_velocity = 0.0  # 1e-2
         self.lambda_opacity_vel = 0.0  # 1e-2
+
+        self.densification_interval = 100
+        self.densify_from_iter = 500
+        self.densify_until_iter = 9000
+        self.densify_grad_threshold = 0.0002
+
+        self.clone = True
+        self.split = True
+        self.split_prune = True
+        self.prune = True
+
+        self.post_prune = False
+        self.post_prune_interval = 100
+        self.post_prune_from_iter = 25000
+        self.post_prune_until_iter = 27000
+
+        self.zero_grad_level = None
+        self.level_1_start_iter = 30000
+
+        self.level_1_clone = True
+        self.level_1_split = True
+        self.level_1_split_prune = True
+        self.level_1_prune = True
+        self.level_1_densify_from_iter = 30000
+        self.level_1_densify_until_iter = 35000
+
+        self.level_1_post_prune = False
+        self.level_1_post_prune_interval = 100
+        self.level_1_post_prune_from_iter = 55000
+        self.level_1_post_prune_until_iter = 57000
 
         super().__init__(parser, "Optimization Parameters")
 

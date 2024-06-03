@@ -140,16 +140,28 @@ def control_gaussians(
     split=True,
     split_prune=True,
     prune=True,
+    level=0,
 ):
-    if iteration < opt.densify_until_iter:
+    if level == 0 and iteration < opt.densify_until_iter:
         gaussians.max_radii2D[visibility_filter] = torch.max(
             gaussians.max_radii2D[visibility_filter], radii[visibility_filter]
         )
         gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
+    if level == 1 and iteration < opt.level_1_densify_until_iter:
+        n_level_0_points = gaussians.get_xyz.shape[0]
+        level_1_radii = radii[n_level_0_points:]
+        level_1_visibility_filter = visibility_filter[n_level_0_points:]
+
+        gaussians.level_1_max_radii2D[level_1_visibility_filter] = torch.max(
+            gaussians.level_1_max_radii2D[level_1_visibility_filter], level_1_radii[level_1_visibility_filter]
+        )
+        gaussians.add_densification_stats_level_1(viewspace_point_tensor, visibility_filter)
+
+
     if densify == 0:  # raw gaussian splatting
 
-        if iteration < opt.densify_until_iter:
+        if level == 0 and iteration < opt.densify_until_iter:
 
             if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                 size_threshold = 20 if iteration > opt.opacity_reset_interval else None
@@ -172,6 +184,54 @@ def control_gaussians(
 
             ## bbox pruning not working, cause optimizer state to None, directly use the range to initialize points
             # gaussians.prune_points_bbox(scene.bbox_model)
+
+        if level == 1 and iteration < opt.level_1_densify_until_iter:
+
+            if iteration > opt.level_1_densify_from_iter and iteration % opt.densification_interval == 0:
+                size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+                gaussians.densify_and_prune_level_1(
+                    opt.densify_grad_threshold,
+                    0.005,
+                    scene.cameras_extent,
+                    size_threshold,
+                    # max_timestamp=max_timestamp,
+                    clone=clone,
+                    split=split,
+                    split_prune=split_prune,
+                    prune=prune,
+                )
+
+            if iteration % opt.opacity_reset_interval == 0 or (
+                white_background and iteration == opt.level_1_densify_from_iter
+            ):
+                gaussians.reset_opacity_level_1()
+
+        if (
+            level == 0
+            and opt.post_prune
+            and iteration > opt.post_prune_from_iter
+            and iteration % opt.post_prune_interval == 0
+            and iteration < opt.post_prune_until_iter
+        ):
+            size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+            gaussians.post_prune(
+                0.005,
+                scene.cameras_extent,
+                size_threshold,
+            )
+
+        if (level == 1
+            and opt.level_1_post_prune
+            and iteration > opt.level_1_post_prune_from_iter
+            and iteration % opt.level_1_post_prune_interval == 0
+            and iteration < opt.level_1_post_prune_until_iter
+        ):
+            size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+            gaussians.post_prune_level_1(
+                0.005,
+                scene.cameras_extent,
+                size_threshold,
+            )
 
         return flag
 

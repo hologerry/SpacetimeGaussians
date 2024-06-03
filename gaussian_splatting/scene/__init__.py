@@ -57,31 +57,6 @@ class Scene:
         self.test_cameras = {}
         ray_dict = {}
 
-        # if loader == "colmap" or loader == "colmap_valid":  # colmap_valid only for testing
-        #     scene_info = scene_load_type_callbacks["colmap"](
-        #         args.source_path, args.images, args.eval, multi_view, duration=duration
-        #     )
-
-        # elif loader == "technicolor" or loader == "technicolor_valid":
-        #     scene_info = scene_load_type_callbacks["technicolor"](
-        #         args.source_path, args.images, args.eval, multi_view, duration=duration
-        #     )
-
-        # elif loader == "immersive" or loader == "immersive_valid" or loader == "immersive_ss":
-        #     scene_info = scene_load_type_callbacks["immersive"](
-        #         args.source_path, args.images, args.eval, multi_view, duration=duration
-        #     )
-        # elif loader == "immersive_valid_ss":
-        #     scene_info = scene_load_type_callbacks["immersive"](
-        #         args.source_path, args.images, args.eval, multi_view, duration=duration, test_only=True
-        #     )
-
-        # elif loader == "colmapmv":  # colmap_valid only for testing
-        #     scene_info = scene_load_type_callbacks["colmapmv"](
-        #         args.source_path, args.images, args.eval, multi_view, duration=duration
-        #     )
-
-        # el
         if loader in ["hyfluid", "hyfluid_valid", "synthetic_particle", "synthetic_particle_valid"]:
             scene_info = scene_load_type_callbacks[loader](
                 args.source_path,
@@ -124,33 +99,16 @@ class Scene:
             with open(os.path.join(self.model_path, "cameras.json"), "w") as file:
                 json.dump(json_cams, file, indent=2)
 
-        # if shuffle and "hyfluid" not in loader:
-        #     random.shuffle(scene_info.train_cameras)  # Multi-res consistent random shuffling
-        #     random.shuffle(scene_info.test_cameras)  # Multi-res consistent random shuffling
-        #     # shuffle will cause the uid change
-
         self.cameras_extent = scene_info.nerf_normalization["radius"]
         self.bbox_model = scene_info.bbox_model
 
         for resolution_scale in resolution_scales:
             print("Loading Training Cameras")
             if loader in [
-                #     "colmap_valid",
-                #     "colmapmv",
-                #     "immersive_valid",
-                #     "technicolor_valid",
-                #     "immersive_valid_ss",
-                #     "imv2valid",
                 "hyfluid_valid",
                 "synthetic_particle_valid",
             ]:
                 self.train_cameras[resolution_scale] = []  # no training data
-
-            # elif loader in ["immersive_ss"]:
-            #     assert resolution_scale == 1.0, "High frequency data only available at 1.0 scale"
-            #     self.train_cameras[resolution_scale] = camera_list_from_cam_infos_v2(
-            #         scene_info.train_cameras, resolution_scale, args, ss=True
-            #     )
 
             else:
                 self.train_cameras[resolution_scale] = camera_list_from_cam_infos_v2(
@@ -159,13 +117,6 @@ class Scene:
 
             print("Loading Test Cameras")
             if loader in [
-                # "colmap_valid",
-                # "immersive_valid",
-                # "colmap",
-                # "technicolor_valid",
-                # "technicolor",
-                # "imv2",
-                # "imv2valid",
                 "hyfluid",
                 "hyfluid_valid",
                 "synthetic_particle",
@@ -175,14 +126,6 @@ class Scene:
                 self.test_cameras[resolution_scale] = camera_list_from_cam_infos_v2(
                     scene_info.test_cameras, resolution_scale, args
                 )
-            # elif loader in ["immersive_ss", "immersive_valid_ss"]:
-            #     self.test_cameras[resolution_scale] = camera_list_from_cam_infos_v2(
-            #         scene_info.test_cameras, resolution_scale, args, ss=True
-            #     )
-            # elif loader in ["colmapmv"]:  # only for multi view
-            #     self.test_cameras[resolution_scale] = camera_list_from_cam_infos_v2_no_gt(
-            #         scene_info.test_cameras, resolution_scale, args
-            #     )
             else:
                 raise NotImplementedError(f"Loader {loader} not implemented")
 
@@ -196,27 +139,10 @@ class Scene:
                 ray_dict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1).cuda()  # 1 x 6 x H x W
 
         for cam in self.train_cameras[resolution_scale]:
-            cam.rays = ray_dict[cam.image_name]  # should be direct ?
+            cam.rays = ray_dict[cam.image_name]
 
         for cam in self.test_cameras[resolution_scale]:
-            cam.rays = ray_dict[cam.image_name]  # should be direct ?
-
-        # if loader in ["immersive_ss", "immersive_valid_ss"]:  # construct shared fish_eyed remapping
-        #     self.fish_eye_mapper = {}
-        #     for cam in self.train_cameras[resolution_scale]:
-        #         if cam.image_name not in self.fish_eye_mapper:
-        #             self.fish_eye_mapper[cam.image_name] = get_fish_eye_mapper(args.source_path, cam.image_name)  #
-        #             self.fish_eye_mapper[cam.image_name].requires_grad = False
-
-        #     for cam in self.test_cameras[resolution_scale]:
-        #         if cam.image_name not in self.fish_eye_mapper:
-        #             self.fish_eye_mapper[cam.image_name] = get_fish_eye_mapper(args.source_path, cam.image_name)  #
-        #             self.fish_eye_mapper[cam.image_name].requires_grad = False
-
-        #     for cam in self.train_cameras[resolution_scale]:
-        #         cam.fish_eye_mapper = self.fish_eye_mapper[cam.image_name]
-        #     for cam in self.test_cameras[resolution_scale]:
-        #         cam.fish_eye_mapper = self.fish_eye_mapper[cam.image_name]
+            cam.rays = ray_dict[cam.image_name]
 
         if self.loaded_iter:
             self.gaussians.load_ply(
