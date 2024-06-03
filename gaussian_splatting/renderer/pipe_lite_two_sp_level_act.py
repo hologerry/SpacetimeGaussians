@@ -67,6 +67,9 @@ def train_lite_two_sp_level_act(
     trbf_distance_offset = viewpoint_camera.timestamp * point_times - trbf_center
 
     time_coefficient = gm.t_activation(trbf_distance_offset)
+    if not act_level_1:
+        n_level_0_points = gm.get_xyz.shape[0]
+        time_coefficient[n_level_0_points:] = 1.0
 
     trbf_distance = trbf_distance_offset / torch.exp(trbf_scale)
     trbf_output = basic_function(trbf_distance)
@@ -166,6 +169,9 @@ def test_lite_two_sp_level_act_vis(
     tforpoly = viewpoint_camera.timestamp - trbf_center
 
     time_coefficient = gm.t_activation(tforpoly)
+    if not act_level_1:
+        n_level_0_points = gm.get_xyz.shape[0]
+        time_coefficient[n_level_0_points:] = 1.0
 
     rotations = gm.get_rotation(tforpoly) if level == 0 else gm.get_all_rotation(tforpoly)
     rotations = rotations * time_coefficient

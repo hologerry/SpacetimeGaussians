@@ -348,6 +348,10 @@ class GaussianModel:
         self,
         spatial_lr_scale: float,
         new_pts_per_time: int,
+        new_pts_init_op=0.1,
+        new_pts_init_color=0.6,
+        new_pts_init_xyz="parent",
+        new_pts_init_scale="dist",
         start_time=0,
         duration=120,
         time_step=1,
@@ -363,22 +367,40 @@ class GaussianModel:
         level_1_total_times = []
         for time_i in range(start_time, start_time + duration, time_step):
             cur_time_stamp = (time_i - start_time) / duration
-            trbf_distance_offset = cur_time_stamp * point_times - parent_trbf_center
-            tforpoly = trbf_distance_offset.detach()
-            time_coefficient = self.t_activation(trbf_distance_offset)
-            cur_level_means_3D = (
-                parent_means_3D
-                + parent_motion[:, 0:3] * tforpoly * time_coefficient
-                + parent_motion[:, 3:6] * tforpoly * tforpoly * time_coefficient
-                + parent_motion[:, 6:9] * tforpoly * tforpoly * tforpoly * time_coefficient
-            )
-            all_xyz_to_select = torch.where(time_coefficient > 0, True, False)
-            all_xyz_to_select = all_xyz_to_select.squeeze()
-            cur_level_means_3D = cur_level_means_3D[all_xyz_to_select]
-            cur_level_select_idx = torch.randperm(cur_level_means_3D.shape[0])[:new_pts_per_time]
-            cur_level_selected_means_3D = cur_level_means_3D[cur_level_select_idx]
-            means_3D_offset = torch.rand_like(cur_level_selected_means_3D) * 1e-3
-            cur_level_xyz = cur_level_selected_means_3D + means_3D_offset
+            if new_pts_init_xyz == "parent":
+                trbf_distance_offset = cur_time_stamp * point_times - parent_trbf_center
+                tforpoly = trbf_distance_offset.detach()
+                time_coefficient = self.t_activation(trbf_distance_offset)
+                cur_level_means_3D = (
+                    parent_means_3D
+                    + parent_motion[:, 0:3] * tforpoly * time_coefficient
+                    + parent_motion[:, 3:6] * tforpoly * tforpoly * time_coefficient
+                    + parent_motion[:, 6:9] * tforpoly * tforpoly * tforpoly * time_coefficient
+                )
+                all_xyz_to_select = torch.where(time_coefficient > 0, True, False)
+                all_xyz_to_select = all_xyz_to_select.squeeze()
+                cur_level_means_3D = cur_level_means_3D[all_xyz_to_select]
+                cur_level_select_idx = torch.randperm(cur_level_means_3D.shape[0])[:new_pts_per_time]
+                cur_level_selected_means_3D = cur_level_means_3D[cur_level_select_idx]
+                means_3D_offset = torch.rand_like(cur_level_selected_means_3D) * 1e-3
+                cur_level_xyz = cur_level_selected_means_3D + means_3D_offset
+
+            elif new_pts_init_xyz == "large":
+                radius_max = 0.18  # default value 0.18  source region 0.026
+                x_mid = 0.34  # default value 0.34 source region 0.34
+                y_min = -0.01  # default value -0.01  source region -0.01
+                y_max = 0.7  # default value 0.7  source region 0.05
+                z_mid = -0.225  # default value -0.225  source region -0.225
+                y = np.random.uniform(y_min, y_max, (new_pts_per_time, 1))
+
+                radius = np.random.random((new_pts_per_time, 1)) * radius_max
+                theta = np.random.random((new_pts_per_time, 1)) * 2 * np.pi
+                x = radius * np.cos(theta) + x_mid
+                z = radius * np.sin(theta) + z_mid
+
+                xyz = np.concatenate((x, y, z), axis=1)
+                cur_level_xyz = torch.tensor(xyz, dtype=torch.float, device="cuda")
+
             cur_level_time = torch.ones((cur_level_xyz.shape[0], 1), device="cuda") * cur_time_stamp
             level_1_total_xyz.append(cur_level_xyz)
             level_1_total_times.append(cur_level_time)
@@ -390,12 +412,16 @@ class GaussianModel:
         print(f"self._level_1_xyz inited {self._level_1_xyz}")
 
         level_1_fused_color = torch.rand((self._level_1_xyz.shape[0], self._features_dc.shape[1])).float().cuda()
+        level_1_fused_color = level_1_fused_color * new_pts_init_color + new_pts_init_color
         self._level_1_features_dc = nn.Parameter(level_1_fused_color.requires_grad_(True))
         print(f"self._level_1_features_dc inited {self._level_1_features_dc}")
 
-        level_1_dist2 = torch.clamp_min(distCUDA2(level_1_total_xyz), 0.0000001)
-        level_1_scales = torch.log(torch.sqrt(level_1_dist2))[..., None].repeat(1, 3)
-        level_1_scales = torch.clamp(level_1_scales, -10, 1.0)
+        if new_pts_init_scale == "dist":
+            level_1_dist2 = torch.clamp_min(distCUDA2(level_1_total_xyz), 0.0000001)
+            level_1_scales = torch.log(torch.sqrt(level_1_dist2))[..., None].repeat(1, 3)
+            level_1_scales = torch.clamp(level_1_scales, -10, 1.0)
+        elif isinstance(new_pts_init_scale, float):
+            level_1_scales = torch.zeros((level_1_total_xyz.shape[0], 3), device="cuda") + new_pts_init_scale
         self._level_1_scaling = nn.Parameter(level_1_scales.requires_grad_(True))
         print(f"self._level_1_scaling inited {self._level_1_scaling}")
 
@@ -409,7 +435,7 @@ class GaussianModel:
         print(f"self._level_1_omega inited {self._level_1_omega}")
 
         level_1_opacities = inverse_sigmoid(
-            0.1 * torch.ones((level_1_total_xyz.shape[0], 1), dtype=torch.float, device="cuda")
+            new_pts_init_op * torch.ones((level_1_total_xyz.shape[0], 1), dtype=torch.float, device="cuda")
         )
         self._level_1_opacity = nn.Parameter(level_1_opacities.requires_grad_(True))
         print(f"self._level_1_opacity inited {self._level_1_opacity}")

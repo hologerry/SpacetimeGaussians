@@ -22,6 +22,7 @@
   "level_1_split": true,
   "level_1_split_prune": true,
   "level_1_prune": true,
+  "zero_grad_level": 0.0,
   "batch": 1,
   "densify": 0,
   "densify_from_iter": 0,

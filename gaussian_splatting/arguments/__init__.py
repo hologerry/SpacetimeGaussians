@@ -104,6 +104,10 @@ class ModelParams(ParamGroup):
         self.init_color_fix_value = None  # None for random color, float for fix value
 
         self.level_1_init_num_pts_per_time = 100
+        self.level_1_init_pts_op = 0.1
+        self.level_1_init_pts_color = 0.5
+        self.level_1_init_pts_xyz = "parent"
+        self.level_1_init_pts_scale = "dist"  # or float, such as -5, before exp
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -241,6 +245,8 @@ class OptimizationParams(ParamGroup):
         self.level_1_post_prune_interval = 100
         self.level_1_post_prune_from_iter = 55000
         self.level_1_post_prune_until_iter = 57000
+
+        self.act_level_1 = True
 
         super().__init__(parser, "Optimization Parameters")
 

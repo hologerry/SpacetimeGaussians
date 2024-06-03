@@ -2,8 +2,8 @@
 {
 python train.py \
     --source_path /dev/shm/ScalarReal \
-    --config configs/hyfluid/scalar_real_simple_color_scale_rotation_act.json \
-    --model_path /data/Dynamics/SpacetimeGaussiansLog/hyfluid_scalar_real/simple_pillar_small_imgoffset_grey_color_scale_rotation_act_trbfcInit0_N120x10_densify5000_postpruneall \
+    --config configs/gaussian_fluid/scalar_real_lite_two_level.json \
+    --model_path /data/Dynamics/SpacetimeGaussiansLog/gaussian_fluid_scalar_real/two_level_lite_L1_15e3_N120x5_nocsp_L2_30e3_densi15e3-14e3_zerograd0 \
     --loader hyfluid
 exit
 }

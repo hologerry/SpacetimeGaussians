@@ -202,6 +202,10 @@ def train(
             gaussians.create_another_level(
                 scene.cameras_extent,
                 model_args.level_1_init_num_pts_per_time,
+                model_args.level_1_init_pts_op,
+                model_args.level_1_init_pts_color,
+                model_args.level_1_init_pts_xyz,
+                model_args.level_1_init_pts_scale,
                 model_args.start_time,
                 model_args.duration,
                 model_args.time_step,
@@ -239,6 +243,7 @@ def train(
                 GRsetting=GRsetting,
                 GRzer=GRzer,
                 level=cur_level,
+                act_level_1=optim_args.act_level_1,
             )
             image, viewspace_point_tensor, visibility_filter, radii = get_render_parts(render_pkg)
             # depth = render_pkg["depth"]
@@ -276,6 +281,11 @@ def train(
             #     mask = torch.sum(gt_image, dim=0) == 0
             #     mask = mask.float()
             #     image = image * (1 - mask) + gt_image * (mask)
+
+            if iteration == optim_args.level_1_start_iter:
+                save_image(image, os.path.join(scene.model_path, f"level_1_initial_render_{viewpoint_cam.image_name}.png"))
+                save_image(gt_image, os.path.join(scene.model_path, f"level_1_initial_gt_{viewpoint_cam.image_name}.png"))
+
 
             view_name = viewpoint_cam.image_name
 
@@ -359,6 +369,7 @@ def train(
 
             # Log and save
             training_report(
+                optim_args,
                 tb_writer,
                 iteration,
                 iter_start.elapsed_time(iter_end),
@@ -371,6 +382,7 @@ def train(
                 GRzer,
                 pipe_args.rd_pipe,
                 # test_all_train_views=True,
+                cur_level=cur_level,
             )
             if cur_level == 0:
                 cur_clone = optim_args.clone
@@ -428,6 +440,7 @@ def train(
 
 
 def training_report(
+    optim_args,
     tb_writer,
     iteration,
     elapsed,
@@ -440,6 +453,7 @@ def training_report(
     GRzer,
     rd_pipe,
     test_all_train_views=False,
+    cur_level=0,
 ):
     if tb_writer:
         tb_writer.add_scalar("iter_time", elapsed, iteration)
@@ -472,6 +486,8 @@ def training_report(
                     basic_function=trbf_base_function,
                     GRsetting=GRsetting,
                     GRzer=GRzer,
+                    level=cur_level,
+                    act_level_1=optim_args.act_level_1,
                 )
                 all_view_names.add(viewpoint.image_name)
                 image = torch.clamp(rendered["render"], 0.0, 1.0)
