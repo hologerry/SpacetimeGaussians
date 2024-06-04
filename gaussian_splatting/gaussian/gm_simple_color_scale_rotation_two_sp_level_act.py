@@ -353,6 +353,7 @@ class GaussianModel:
         new_pts_init_xyz="parent",
         new_pts_init_xyz_offset=0.0,
         new_pts_init_scale="dist",
+        new_pts_init_min_opacity=0.05,
         start_time=0,
         duration=120,
         time_step=1,
@@ -363,6 +364,7 @@ class GaussianModel:
         parent_means_3D = self.get_xyz
         parent_trbf_center = self.get_trbf_center
         parent_motion = self._motion
+        parent_opacity = self.get_opacity
         point_times = torch.ones((n_parent_level, 1), dtype=torch.float, requires_grad=False, device="cuda")
         level_1_total_xyz = []
         level_1_total_times = []
@@ -378,9 +380,11 @@ class GaussianModel:
                     + parent_motion[:, 3:6] * tforpoly * tforpoly * time_coefficient
                     + parent_motion[:, 6:9] * tforpoly * tforpoly * tforpoly * time_coefficient
                 )
-                all_xyz_to_select = torch.where(time_coefficient > 0, True, False)
-                all_xyz_to_select = all_xyz_to_select.squeeze()
-                cur_level_means_3D = cur_level_means_3D[all_xyz_to_select]
+                time_visible_xyz_to_select = torch.where(time_coefficient > 0, True, False)
+                time_visible_xyz_to_select = time_visible_xyz_to_select.squeeze()
+                opacity_visible_xyz_to_select = (parent_opacity > new_pts_init_min_opacity).squeeze()
+                visible_xyz_to_select = torch.logical_and(time_visible_xyz_to_select, opacity_visible_xyz_to_select)
+                cur_level_means_3D = cur_level_means_3D[visible_xyz_to_select]
                 cur_level_select_idx = torch.randperm(cur_level_means_3D.shape[0])[:new_pts_per_time]
                 cur_level_selected_means_3D = cur_level_means_3D[cur_level_select_idx]
                 means_3D_offset = torch.rand_like(cur_level_selected_means_3D) * new_pts_init_xyz_offset

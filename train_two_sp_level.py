@@ -195,8 +195,10 @@ def train(
 
         if iteration < optim_args.level_1_start_iter:
             cur_level = 0
-        else:
+        elif iteration < optim_args.two_level_joint_start_iter:
             cur_level = 1
+        else:
+            cur_level = 2
 
         if iteration == optim_args.level_1_start_iter:
             gaussians.create_another_level(
@@ -207,6 +209,7 @@ def train(
                 model_args.level_1_init_pts_xyz,
                 model_args.level_1_init_pts_xyz_offset,
                 model_args.level_1_init_pts_scale,
+                model_args.level_1_init_pts_min_opacity,
                 model_args.start_time,
                 model_args.duration,
                 model_args.time_step,
@@ -217,7 +220,7 @@ def train(
         if cur_level == 0:
             gaussians.update_learning_rate(iteration)
         elif cur_level == 1:
-            gaussians.update_level_1_learning_rate(iteration)
+            gaussians.update_level_1_learning_rate(iteration - optim_args.level_1_start_iter)
 
         if (iteration - 1) == debug_from:
             pipe_args.debug = True

@@ -109,6 +109,7 @@ class ModelParams(ParamGroup):
         self.level_1_init_pts_xyz = "parent"
         self.level_1_init_pts_xyz_offset = 1e-3  # random offset on parent xyz
         self.level_1_init_pts_scale = "dist"  # or float, such as -5, before exp
+        self.level_1_init_pts_min_opacity = 0.05
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -233,8 +234,8 @@ class OptimizationParams(ParamGroup):
         self.post_prune_until_iter = 27000
 
         self.zero_grad_level = None
-        self.level_1_start_iter = 30000
 
+        self.level_1_start_iter = 30000
         self.level_1_clone = True
         self.level_1_split = True
         self.level_1_split_prune = True
@@ -249,6 +250,9 @@ class OptimizationParams(ParamGroup):
         self.level_1_post_prune_until_iter = 57000
 
         self.act_level_1 = True
+
+        self.two_level_joint_start_iter = 60000
+
 
         super().__init__(parser, "Optimization Parameters")
 
