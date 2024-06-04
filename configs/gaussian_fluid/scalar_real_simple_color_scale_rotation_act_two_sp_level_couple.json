@@ -45,9 +45,9 @@
   "level_1_post_prune_from_iter": 55000,
   "level_1_post_prune_until_iter": 60000,
 
-  "act_level_1": false,
+  "act_level_1": true,
 
-  "lambda_level_1_delta_xyz": 1e2,
+  "lambda_level_1_delta_xyz": 10,
 
   "batch": 1,
   "densify": 0,
