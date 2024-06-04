@@ -75,18 +75,31 @@ from skimage.metrics import structural_similarity as ssim
 # print(n)
 
 # Create a tensor with gradient tracking
-x0 = torch.randn(10, 2, requires_grad=True)
-x1 = torch.randn(10, requires_grad=True)
-y = x0.mean(-1) + x1
+# x0 = torch.randn(10, 2, requires_grad=True)
+# x1 = torch.randn(10, requires_grad=True)
+# y = x0.mean(-1) + x1
 
-z = y.mean()
+# z = y.mean()
 
-z.backward()
+# z.backward()
 
-print(x0.grad)
-print(x1.grad)
+# print(x0.grad)
+# print(x1.grad)
 
-x1_slice = x1.grad[0:5]
-print(x1_slice)
+# x1_slice = x1.grad[0:5]
+# print(x1_slice)
 
-a = torch.randn(10, 2, requires_grad=True)
+# a = torch.randn(10, 2, requires_grad=True)
+
+xyz = torch.rand((10, 3), requires_grad=True)
+print(xyz)
+index = torch.arange(10).reshape(-1, 1)
+rand_index = torch.randperm(10)
+select_rand_index = rand_index[:5]
+print(index.shape)
+print(rand_index.shape)
+print(select_rand_index.shape)
+
+selected_xyz = xyz[select_rand_index]
+print(selected_xyz.shape)
+

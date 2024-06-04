@@ -25,7 +25,6 @@ def train_lite_act_two_sp_level(
     Background tensor (bg_color) must be on GPU!
     """
     # when set act_level_1, activation is applied on all points, otherwise only on the level 0 points
-    # TODO: add activation only to the level 0 points
 
     # Set up rasterization configuration
     tan_fov_x = math.tan(viewpoint_camera.FoVx * 0.5)

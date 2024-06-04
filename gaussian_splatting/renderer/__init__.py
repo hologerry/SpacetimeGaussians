@@ -22,6 +22,10 @@ from .pipe_lite_act_two_sp_level import (
     test_lite_act_two_sp_level_vis,
     train_lite_act_two_sp_level,
 )
+from .pipe_lite_act_two_sp_level_couple import (
+    test_lite_act_two_sp_level_couple_vis,
+    train_lite_act_two_sp_level_couple,
+)
 from .pipe_lite_two_level import test_lite_two_level_vis, train_lite_two_level
 from .pipe_simple_opacity_exp_linear import (
     test_lite_opacity_exp_linear_vis,

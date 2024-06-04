@@ -124,6 +124,26 @@ def get_render_pipe(option="train_full"):
 
         return test_lite_act_two_sp_level_vis, GaussianRasterizationSettings, GaussianRasterizer
 
+    elif option == "train_lite_act_two_sp_level_couple_single":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from gaussian_splatting.renderer import train_lite_act_two_sp_level_couple
+
+        return train_lite_act_two_sp_level_couple, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_lite_act_two_sp_level_couple_single_vis":
+        from forward_lite_single import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from gaussian_splatting.renderer import test_lite_act_two_sp_level_couple_vis
+
+        return test_lite_act_two_sp_level_couple_vis, GaussianRasterizationSettings, GaussianRasterizer
+
     elif option == "train_lite_single_all":
         from diff_gaussian_rasterization_ch1 import (
             GaussianRasterizationSettings,
