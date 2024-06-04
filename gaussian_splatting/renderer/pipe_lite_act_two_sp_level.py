@@ -3,10 +3,10 @@ import time
 
 import torch
 
-from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_two_sp_level_act import GaussianModel
+from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level import GaussianModel
 
 
-def train_lite_two_sp_level_act(
+def train_lite_act_two_sp_level(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -124,7 +124,7 @@ def train_lite_two_sp_level_act(
 
 
 
-def test_lite_two_sp_level_act_vis(
+def test_lite_act_two_sp_level_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
