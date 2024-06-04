@@ -32,6 +32,7 @@
   "level_1_init_pts_op": 0.1,
   "level_1_init_pts_color": 0.6,
   "level_1_init_pts_xyz": "parent",
+  "level_1_init_pts_xyz_offset": 0.0,
   "level_1_init_pts_scale": -5.0,
   "level_1_clone": true,
   "level_1_split": true,

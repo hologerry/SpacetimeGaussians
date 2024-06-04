@@ -107,6 +107,7 @@ class ModelParams(ParamGroup):
         self.level_1_init_pts_op = 0.1
         self.level_1_init_pts_color = 0.5
         self.level_1_init_pts_xyz = "parent"
+        self.level_1_init_pts_xyz_offset = 1e-3  # random offset on parent xyz
         self.level_1_init_pts_scale = "dist"  # or float, such as -5, before exp
 
         super().__init__(parser, "Loading Parameters", sentinel)
@@ -242,6 +243,7 @@ class OptimizationParams(ParamGroup):
         self.level_1_densify_until_iter = 35000
 
         self.level_1_post_prune = False
+        self.level_1_post_prune_color = None
         self.level_1_post_prune_interval = 100
         self.level_1_post_prune_from_iter = 55000
         self.level_1_post_prune_until_iter = 57000

@@ -205,6 +205,7 @@ def train(
                 model_args.level_1_init_pts_op,
                 model_args.level_1_init_pts_color,
                 model_args.level_1_init_pts_xyz,
+                model_args.level_1_init_pts_xyz_offset,
                 model_args.level_1_init_pts_scale,
                 model_args.start_time,
                 model_args.duration,

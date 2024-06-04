@@ -387,7 +387,7 @@ def train(
                 prune=cur_prune,
             )
 
-        gaussians.zero_gradient_by_level(cur_zero_grad_level)
+        # gaussians.zero_gradient_by_level(cur_zero_grad_level)
 
         # Optimizer step
         if iteration < optim_args.iterations:

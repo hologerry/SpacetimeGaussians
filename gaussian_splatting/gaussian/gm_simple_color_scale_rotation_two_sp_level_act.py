@@ -351,6 +351,7 @@ class GaussianModel:
         new_pts_init_op=0.1,
         new_pts_init_color=0.6,
         new_pts_init_xyz="parent",
+        new_pts_init_xyz_offset=0.0,
         new_pts_init_scale="dist",
         start_time=0,
         duration=120,
@@ -382,7 +383,7 @@ class GaussianModel:
                 cur_level_means_3D = cur_level_means_3D[all_xyz_to_select]
                 cur_level_select_idx = torch.randperm(cur_level_means_3D.shape[0])[:new_pts_per_time]
                 cur_level_selected_means_3D = cur_level_means_3D[cur_level_select_idx]
-                means_3D_offset = torch.rand_like(cur_level_selected_means_3D) * 1e-3
+                means_3D_offset = torch.rand_like(cur_level_selected_means_3D) * new_pts_init_xyz_offset
                 cur_level_xyz = cur_level_selected_means_3D + means_3D_offset
 
             elif new_pts_init_xyz == "large":
@@ -1288,12 +1289,7 @@ class GaussianModel:
 
         torch.cuda.empty_cache()
 
-    def post_prune(
-        self,
-        min_opacity,
-        extent,
-        max_screen_size,
-    ):
+    def post_prune(self, min_opacity, extent, max_screen_size):
         prune_mask = (self.get_opacity < min_opacity).squeeze()
         if max_screen_size:
             big_points_vs = self.max_radii2D > max_screen_size
@@ -1334,13 +1330,12 @@ class GaussianModel:
 
         torch.cuda.empty_cache()
 
-    def post_prune_level_1(
-        self,
-        min_opacity,
-        extent,
-        max_screen_size,
-    ):
+    def post_prune_level_1(self, min_opacity, extent, max_screen_size, prune_color=None):
         prune_mask = (self.get_level_1_opacity < min_opacity).squeeze()
+        if prune_color is not None and isinstance(prune_color, float):
+            prune_mask_color = (self.get_level_1_features < prune_color).squeeze()
+            prune_mask = torch.logical_or(prune_mask, prune_mask_color)
+
         if max_screen_size:
             big_points_vs = self.level_1_max_radii2D > max_screen_size
             big_points_ws = self.get_level_1_scaling.max(dim=1).values > 0.1 * extent

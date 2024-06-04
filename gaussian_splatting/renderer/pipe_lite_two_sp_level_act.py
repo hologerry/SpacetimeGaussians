@@ -254,4 +254,5 @@ def test_lite_two_sp_level_act_vis(
         "rotations": rotations,
         "colors_precomp": colors_precomp,
         "scales": scales,
+        "point_levels": point_levels,
     }
