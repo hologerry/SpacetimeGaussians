@@ -195,10 +195,8 @@ def train(
 
         if iteration < optim_args.level_1_start_iter:
             cur_level = 0
-        elif iteration < optim_args.two_level_joint_start_iter:
-            cur_level = 1
         else:
-            cur_level = 2
+            cur_level = 1
 
         if iteration == optim_args.level_1_start_iter:
             gaussians.create_another_level(
@@ -359,7 +357,8 @@ def train(
                 if cur_level == 0:
                     num_points = gaussians.get_xyz.shape[0]
                 elif cur_level == 1:
-                    num_points = gaussians.get_all_xyz.shape[0]
+                    # since in two_sp_level_couple model, xyz is fake
+                    num_points = gaussians.get_xyz.shape[0] + gaussians.get_level_1_features.shape[0]
                 post_fix = {"Level": f"{cur_level}", "Loss": f"{ema_loss_for_log:.7f}", "Points": num_points}
                 progress_bar.set_postfix(post_fix)
                 progress_bar.update(10)

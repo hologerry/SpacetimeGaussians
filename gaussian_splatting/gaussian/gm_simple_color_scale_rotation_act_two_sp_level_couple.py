@@ -180,9 +180,7 @@ class GaussianModel:
         self.delta_t = cur_delta_t
         return self.rotation_activation(rotation)
 
-    def get_level_1_rotation(self, delta_t):
-        n_level_1_points = self._level_1_xyz.shape[0]
-        level_1_delta_t = delta_t[-n_level_1_points:]
+    def get_level_1_rotation(self, level_1_delta_t):
         level_1_rotation = self._level_1_rotation + level_1_delta_t * self._level_1_omega
         self.level_1_delta_t = level_1_delta_t
         return self.rotation_activation(level_1_rotation)
@@ -196,6 +194,8 @@ class GaussianModel:
 
     @property
     def get_level_1_xyz(self):
+        n_level_1_points = self._level_1_parent_idx.shape[0]
+        self._level_1_xyz = torch.zeros((n_level_1_points, 3), dtype=torch.float, device="cuda")
         return self._level_1_xyz
 
     @property
@@ -470,7 +470,6 @@ class GaussianModel:
         self._omega_grd += self._omega.grad.clone()
 
     def cache_level_1_gradient(self):
-        # self._level_1_xyz_grad += self._level_1_xyz.grad.clone()
         self._level_1_features_dc_grad += self._level_1_features_dc.grad.clone()
         self._level_1_scaling_grad += self._level_1_scaling.grad.clone()
         self._level_1_rotation_grad += self._level_1_rotation.grad.clone()
@@ -492,7 +491,6 @@ class GaussianModel:
         self._omega_grd = torch.zeros_like(self._omega, requires_grad=False)
 
     def zero_level_1_gradient_cache(self):
-        # self._level_1_xyz_grad = torch.zeros_like(self._level_1_xyz, requires_grad=False)
         self._level_1_features_dc_grad = torch.zeros_like(self._level_1_features_dc, requires_grad=False)
         self._level_1_scaling_grad = torch.zeros_like(self._level_1_scaling, requires_grad=False)
         self._level_1_rotation_grad = torch.zeros_like(self._level_1_rotation, requires_grad=False)
@@ -516,7 +514,6 @@ class GaussianModel:
 
     def set_level_1_batch_gradient(self, batch_size):
         ratio = 1 / batch_size
-        # self._level_1_xyz.grad = self._level_1_xyz_grad * ratio
         self._level_1_features_dc.grad = self._level_1_features_dc_grad * ratio
         self._level_1_scaling.grad = self._level_1_scaling_grad * ratio
         self._level_1_rotation.grad = self._level_1_rotation_grad * ratio
@@ -558,11 +555,6 @@ class GaussianModel:
         self.level_1_xyz_gradient_accum = torch.zeros((self.get_level_1_parent_idx.shape[0], 1), device="cuda")
         self.level_1_denom = torch.zeros((self.get_level_1_parent_idx.shape[0], 1), device="cuda")
         l = [
-            # {
-            #     "params": [self._level_1_xyz],
-            #     "lr": training_args.level_1_position_lr_init * self.level_1_spatial_lr_scale,
-            #     "name": "xyz",
-            # },
             {"params": [self._level_1_features_dc], "lr": training_args.level_1_feature_lr, "name": "f_dc"},
             {"params": [self._level_1_opacity], "lr": training_args.level_1_opacity_lr, "name": "opacity"},
             {"params": [self._level_1_scaling], "lr": training_args.level_1_scaling_lr, "name": "scaling"},
@@ -944,9 +936,7 @@ class GaussianModel:
     def prune_points_level_1(self, mask):
         valid_points_mask = ~mask
         optimizable_tensors = self._prune_level_1_optimizer(valid_points_mask)
-        # self._level_1_xyz = optimizable_tensors["xyz"]
         self._level_1_features_dc = optimizable_tensors["f_dc"]
-        # self._level_1_features_rest = optimizable_tensors["f_rest"]
         self._level_1_opacity = optimizable_tensors["opacity"]
         self._level_1_scaling = optimizable_tensors["scaling"]
         self._level_1_rotation = optimizable_tensors["rotation"]
@@ -1092,9 +1082,7 @@ class GaussianModel:
         }
 
         optimizable_tensors = self.cat_tensors_to_level_1_optimizer(d)
-        # self._level_1_xyz = optimizable_tensors["xyz"]
         self._level_1_features_dc = optimizable_tensors["f_dc"]
-        # self._level_1_features_rest = optimizable_tensors["f_rest"]
         self._level_1_opacity = optimizable_tensors["opacity"]
         self._level_1_scaling = optimizable_tensors["scaling"]
         self._level_1_rotation = optimizable_tensors["rotation"]

@@ -251,7 +251,7 @@ class OptimizationParams(ParamGroup):
 
         self.act_level_1 = True
 
-        self.two_level_joint_start_iter = 60000
+        # self.two_level_joint_start_iter = 60000
 
 
         super().__init__(parser, "Optimization Parameters")

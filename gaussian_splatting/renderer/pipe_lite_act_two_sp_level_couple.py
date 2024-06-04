@@ -152,6 +152,9 @@ def train_lite_act_two_sp_level_couple(
         opacity = torch.cat((level_0_opacity, level_1_opacity), dim=0)
         scales = torch.cat((level_0_scales, level_1_scales), dim=0)
 
+    else:
+        raise ValueError(f"Invalid level: {level}")
+
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
     screen_space_points = torch.zeros((n_points, 3), dtype=cur_means3D.dtype, requires_grad=True, device="cuda") + 0
     try:
@@ -265,6 +268,7 @@ def test_lite_act_two_sp_level_couple_vis(
     level_0_scales = gm.computed_scales
     level_0_scales = level_0_scales * level_0_time_coefficient
     level_0_computed_trbf_scale = gm.computed_trbf_scale
+    level_0_parent_idx_dummy = torch.zeros((n_level_0_points, 1), dtype=torch.long, device="cuda") - 1.0
 
     if level == 0:
         n_points = n_level_0_points
@@ -351,6 +355,11 @@ def test_lite_act_two_sp_level_couple_vis(
         computed_trbf_scale = torch.cat((level_0_computed_trbf_scale, level_1_computed_trbf_scale), dim=0)
         computed_opacity = torch.cat((level_0_computed_opacity, level_1_computed_opacity), dim=0)
 
+        parent_idx = torch.cat((level_0_parent_idx_dummy, level_1_parent_idx), dim=0)
+
+    else:
+        raise ValueError(f"Invalid level: {level}")
+
     screen_space_points = torch.zeros((n_points, 3), dtype=means3D.dtype, requires_grad=True, device="cuda") + 0
 
     means2D = screen_space_points
@@ -397,4 +406,5 @@ def test_lite_act_two_sp_level_couple_vis(
         "colors_precomp": colors_precomp,
         "scales": scales,
         "point_levels": point_levels,
+        "parent_idx": parent_idx,
     }
