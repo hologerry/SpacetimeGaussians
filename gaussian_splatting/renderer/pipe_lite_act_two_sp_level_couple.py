@@ -175,7 +175,7 @@ def train_lite_act_two_sp_level_couple(
         cov3D_precomp=None,
     )
 
-    return {
+    output_dict = {
         "render": rendered_image,
         "viewspace_points": screen_space_points,
         "visibility_filter": radii > 0,
@@ -183,6 +183,11 @@ def train_lite_act_two_sp_level_couple(
         "opacity": opacity,
         "depth": depth,
     }
+
+    if level == 1:
+        output_dict["level_1_delta_means3D"] = level_1_delta_means3D
+
+    return output_dict
 
 
 def test_lite_act_two_sp_level_couple_vis(
@@ -309,6 +314,7 @@ def test_lite_act_two_sp_level_couple_vis(
 
         level_1_parent_idx = level_1_parent_idx.squeeze(1)
         level_1_parent_means3D = level_0_cur_means3D[level_1_parent_idx]
+        level_1_parent_velocity3D = level_0_velocities3D[level_1_parent_idx]
 
         level_1_delta_means3D = (
             level_1_motion[:, 0:3] * level_1_tforpoly * level_1_time_coefficient
@@ -323,12 +329,14 @@ def test_lite_act_two_sp_level_couple_vis(
 
         level_1_cur_means3D = level_1_parent_means3D + level_1_delta_means3D
 
-        level_1_velocities3D = (
-            level_0_velocities3D
-            + level_1_motion[:, 0:3]
+        level_1_delta_velocities3D = (
+            +level_1_motion[:, 0:3]
             + 2 * level_1_motion[:, 3:6] * level_1_tforpoly
             + 3 * level_1_motion[:, 6:9] * level_1_tforpoly * level_1_tforpoly
         )
+
+        level_1_velocities3D = level_1_parent_velocity3D + level_1_delta_velocities3D
+
         level_1_point_opacity = gm.get_level_1_opacity
         level_1_trbf_scale = gm.get_level_1_trbf_scale
         level_1_trbf_distance = level_1_tforpoly / torch.exp(level_1_trbf_scale)
@@ -355,7 +363,8 @@ def test_lite_act_two_sp_level_couple_vis(
         computed_trbf_scale = torch.cat((level_0_computed_trbf_scale, level_1_computed_trbf_scale), dim=0)
         computed_opacity = torch.cat((level_0_computed_opacity, level_1_computed_opacity), dim=0)
 
-        parent_idx = torch.cat((level_0_parent_idx_dummy, level_1_parent_idx), dim=0)
+        # we use gm.get_level_1_parent_idx instead of level_1_parent_idx, as the diminsion is different
+        parent_idx = torch.cat((level_0_parent_idx_dummy, gm.get_level_1_parent_idx), dim=0)
 
     else:
         raise ValueError(f"Invalid level: {level}")

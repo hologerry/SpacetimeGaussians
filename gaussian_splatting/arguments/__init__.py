@@ -251,6 +251,9 @@ class OptimizationParams(ParamGroup):
 
         self.act_level_1 = True
 
+        self.lambda_level_1_motion = 0  # 1e-2
+        self.lambda_level_1_delta_xyz = 0  # 1e-2
+
         # self.two_level_joint_start_iter = 60000
 
 

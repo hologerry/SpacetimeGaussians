@@ -277,7 +277,6 @@ def train(
             #     )
             #     lvl0_image, lvl0_viewspace_point_tensor, lvl0_visibility_filter, lvl0_radii = get_render_parts(level_0_render_pkg)
 
-
             # if optim_args.gt_mask:
             #     # for training with undistorted immersive image, masking black pixels in undistorted image.
             #     mask = torch.sum(gt_image, dim=0) == 0
@@ -285,9 +284,12 @@ def train(
             #     image = image * (1 - mask) + gt_image * (mask)
 
             if iteration == optim_args.level_1_start_iter:
-                save_image(image, os.path.join(scene.model_path, f"level_1_initial_render_{viewpoint_cam.image_name}.png"))
-                save_image(gt_image, os.path.join(scene.model_path, f"level_1_initial_gt_{viewpoint_cam.image_name}.png"))
-
+                save_image(
+                    image, os.path.join(scene.model_path, f"level_1_initial_render_{viewpoint_cam.image_name}.png")
+                )
+                save_image(
+                    gt_image, os.path.join(scene.model_path, f"level_1_initial_gt_{viewpoint_cam.image_name}.png")
+                )
 
             view_name = viewpoint_cam.image_name
 
@@ -319,6 +321,20 @@ def train(
                 opacity_velocity_loss = optim_args.lambda_opacity_vel * loss_opacity_velocity
                 loss += opacity_velocity_loss
 
+            if optim_args.lambda_level_1_motion > 0 and cur_level == 1:
+                level_1_motion = gaussians.get_level_1_motion
+                level_1_motion = torch.abs(level_1_motion)
+                loss_level_1_motion = level_1_motion.mean()
+                level_1_motion_loss = optim_args.lambda_level_1_motion * loss_level_1_motion
+                loss += level_1_motion_loss
+
+            if optim_args.lambda_level_1_delta_xyz > 0 and cur_level == 1:
+                level_1_delta_xyz = render_pkg["level_1_delta_means3D"]
+                level_1_delta_xyz = torch.abs(level_1_delta_xyz)
+                loss_level_1_delta_xyz = level_1_delta_xyz.mean()
+                level_1_delta_xyz_loss = optim_args.lambda_level_1_delta_xyz * loss_level_1_delta_xyz
+                loss += level_1_delta_xyz_loss
+
             tb_writer.add_scalar(f"train_loss/l1_loss_{view_name}", l1_loss_value.item(), iteration)
             tb_writer.add_scalar(f"train_loss/ssim_loss_{view_name}", ssim_loss_value.item(), iteration)
             tb_writer.add_scalar(f"train_loss/w_loss_{view_name}", weight_loss.item(), iteration)
@@ -333,6 +349,14 @@ def train(
             if optim_args.lambda_opacity_vel > 0:
                 tb_writer.add_scalar(
                     f"train_loss/opacity_vel_loss_{view_name}", opacity_velocity_loss.item(), iteration
+                )
+            if optim_args.lambda_level_1_motion > 0 and cur_level == 1:
+                tb_writer.add_scalar(
+                    f"train_loss/level_1_motion_loss_{view_name}", level_1_motion_loss.item(), iteration
+                )
+            if optim_args.lambda_level_1_delta_xyz > 0 and cur_level == 1:
+                tb_writer.add_scalar(
+                    f"train_loss/level_1_delta_xyz_loss_{view_name}", level_1_delta_xyz_loss.item(), iteration
                 )
 
             loss.backward()
