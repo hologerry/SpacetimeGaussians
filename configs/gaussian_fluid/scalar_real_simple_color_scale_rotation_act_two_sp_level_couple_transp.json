@@ -1,6 +1,6 @@
 {
   "resolution": 1,
-  "model": "simple_color_scale_rotation_act_two_sp_level_couple",
+  "model": "simple_color_scale_rotation_act_two_sp_level_couple_transp",
   "scaling_lr": 0.0,
   "feature_lr": 0.0,
   "omega_lr": 0.0,
@@ -13,7 +13,7 @@
   "duration": 120,
   "time_step": 1,
   "max_timestamp": 1.0,
-  "rd_pipe": "train_lite_act_two_sp_level_couple_single",
+  "rd_pipe": "train_lite_act_two_sp_level_couple_transp_single",
   "rgb_function": "none",
   "iterations": 60000,
 
@@ -47,7 +47,9 @@
 
   "act_level_1": false,
 
-  "lambda_level_1_delta_xyz": 5,
+  "lambda_level_1_delta_xyz": 1e2,
+
+  "transparent_level_0": true,
 
   "batch": 1,
   "densify": 0,

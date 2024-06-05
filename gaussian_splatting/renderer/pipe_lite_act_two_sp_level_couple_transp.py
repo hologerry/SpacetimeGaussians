@@ -3,12 +3,12 @@ import time
 
 import torch
 
-from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple import (
+from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp import (
     GaussianModel,
 )
 
 
-def train_lite_act_two_sp_level_couple(
+def train_lite_act_two_sp_level_couple_transp(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -20,6 +20,7 @@ def train_lite_act_two_sp_level_couple(
     GRzer=None,
     level=0,
     act_level_1=False,
+    transp_level_0=False,
     **kwargs,
 ):
     """
@@ -147,11 +148,22 @@ def train_lite_act_two_sp_level_couple(
         level_1_colors_precomp = gm.get_level_1_features
         level_1_colors_precomp = level_1_colors_precomp * level_1_time_coefficient
 
-        cur_means3D = torch.cat((level_0_cur_means3D, level_1_cur_means3D), dim=0)
-        rotations = torch.cat((level_0_rotations, level_1_rotations), dim=0)
-        colors_precomp = torch.cat((level_0_colors_precomp, level_1_colors_precomp), dim=0)
-        opacity = torch.cat((level_0_opacity, level_1_opacity), dim=0)
-        scales = torch.cat((level_0_scales, level_1_scales), dim=0)
+        if transp_level_0:
+            # only the level_1 points are used in the rendering
+            cur_means3D = level_1_cur_means3D
+            rotations = level_1_rotations
+            colors_precomp = level_1_colors_precomp
+            opacity = level_1_opacity
+            scales = level_1_scales
+            n_points = n_level_1_points
+
+        else:
+            cur_means3D = torch.cat((level_0_cur_means3D, level_1_cur_means3D), dim=0)
+            rotations = torch.cat((level_0_rotations, level_1_rotations), dim=0)
+            colors_precomp = torch.cat((level_0_colors_precomp, level_1_colors_precomp), dim=0)
+            opacity = torch.cat((level_0_opacity, level_1_opacity), dim=0)
+            scales = torch.cat((level_0_scales, level_1_scales), dim=0)
+
 
     else:
         raise ValueError(f"Invalid level: {level}")
@@ -191,7 +203,7 @@ def train_lite_act_two_sp_level_couple(
     return output_dict
 
 
-def test_lite_act_two_sp_level_couple_vis(
+def test_lite_act_two_sp_level_couple_transp_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -203,6 +215,7 @@ def test_lite_act_two_sp_level_couple_vis(
     GRzer=None,
     level=0,
     act_level_1=False,
+    transp_level_0=False,
     **kwargs,
 ):
 
@@ -353,22 +366,41 @@ def test_lite_act_two_sp_level_couple_vis(
         level_1_scales = level_1_scales * level_1_time_coefficient
         level_1_computed_trbf_scale = gm.computed_level_1_trbf_scale
 
-        means3D = torch.cat((level_0_means3D, level_1_means3D), dim=0)
-        cur_means3D = torch.cat((level_0_cur_means3D, level_1_cur_means3D), dim=0)
-        rotations = torch.cat((level_0_rotations, level_1_rotations), dim=0)
-        colors_precomp = torch.cat((level_0_colors_precomp, level_1_colors_precomp), dim=0)
-        opacity = torch.cat((level_0_opacity, level_1_opacity), dim=0)
-        scales = torch.cat((level_0_scales, level_1_scales), dim=0)
+        if transp_level_0:
+            cur_means3D = level_1_cur_means3D
+            rotations = level_1_rotations
+            colors_precomp = level_1_colors_precomp
+            opacity = level_1_opacity
+            scales = level_1_scales
+            means3D = level_1_means3D
+            trbf_center = level_1_trbf_center
+            trbf_scale = level_1_trbf_scale
+            motion = level_1_motion
+            velocities3D = level_1_velocities3D
+            computed_trbf_scale = level_1_computed_trbf_scale
+            computed_opacity = level_1_computed_opacity
+            parent_idx = level_1_parent_idx
 
-        trbf_center = torch.cat((level_0_trbf_center, level_1_trbf_center), dim=0)
-        trbf_scale = torch.cat((level_0_trbf_scale, level_1_trbf_scale), dim=0)
-        motion = torch.cat((level_0_motion, level_1_motion), dim=0)
-        velocities3D = torch.cat((level_0_velocities3D, level_1_velocities3D), dim=0)
-        computed_trbf_scale = torch.cat((level_0_computed_trbf_scale, level_1_computed_trbf_scale), dim=0)
-        computed_opacity = torch.cat((level_0_computed_opacity, level_1_computed_opacity), dim=0)
+            n_points = n_level_1_points
 
-        # we use gm.get_level_1_parent_idx instead of level_1_parent_idx, as the dimension is different
-        parent_idx = torch.cat((level_0_parent_idx_dummy, gm.get_level_1_parent_idx), dim=0)
+        else:
+
+            means3D = torch.cat((level_0_means3D, level_1_means3D), dim=0)
+            cur_means3D = torch.cat((level_0_cur_means3D, level_1_cur_means3D), dim=0)
+            rotations = torch.cat((level_0_rotations, level_1_rotations), dim=0)
+            colors_precomp = torch.cat((level_0_colors_precomp, level_1_colors_precomp), dim=0)
+            opacity = torch.cat((level_0_opacity, level_1_opacity), dim=0)
+            scales = torch.cat((level_0_scales, level_1_scales), dim=0)
+
+            trbf_center = torch.cat((level_0_trbf_center, level_1_trbf_center), dim=0)
+            trbf_scale = torch.cat((level_0_trbf_scale, level_1_trbf_scale), dim=0)
+            motion = torch.cat((level_0_motion, level_1_motion), dim=0)
+            velocities3D = torch.cat((level_0_velocities3D, level_1_velocities3D), dim=0)
+            computed_trbf_scale = torch.cat((level_0_computed_trbf_scale, level_1_computed_trbf_scale), dim=0)
+            computed_opacity = torch.cat((level_0_computed_opacity, level_1_computed_opacity), dim=0)
+
+            # we use gm.get_level_1_parent_idx instead of level_1_parent_idx, as the dimension is different
+            parent_idx = torch.cat((level_0_parent_idx_dummy, gm.get_level_1_parent_idx), dim=0)
 
     else:
         raise ValueError(f"Invalid level: {level}")
@@ -379,7 +411,11 @@ def test_lite_act_two_sp_level_couple_vis(
 
     point_levels = torch.zeros((n_points, 1), dtype=means3D.dtype, requires_grad=False, device="cuda")
 
-    point_levels[n_level_0_points:] = 1
+    if transp_level_0:
+        # all points are level 1
+        point_levels = point_levels + 1
+    else:
+        point_levels[n_level_0_points:] = 1
 
     # cuda prepreprocessCUDA will calculate the means3D, opacities with timestamp
     rendered_image, radii = rasterizer(

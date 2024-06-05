@@ -246,6 +246,7 @@ def train(
                 GRzer=GRzer,
                 level=cur_level,
                 act_level_1=optim_args.act_level_1,
+                transp_level_0=optim_args.transparent_level_0,
             )
             image, viewspace_point_tensor, visibility_filter, radii = get_render_parts(render_pkg)
             # depth = render_pkg["depth"]
@@ -378,12 +379,17 @@ def train(
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
 
             if iteration % 10 == 0:
+                post_fix = {"Level": f"{cur_level}", "Loss": f"{ema_loss_for_log:.7f}"}
                 if cur_level == 0:
                     num_points = gaussians.get_xyz.shape[0]
+                    post_fix["Points"] = num_points
                 elif cur_level == 1:
                     # since in two_sp_level_couple model, xyz is fake
-                    num_points = gaussians.get_xyz.shape[0] + gaussians.get_level_1_features.shape[0]
-                post_fix = {"Level": f"{cur_level}", "Loss": f"{ema_loss_for_log:.7f}", "Points": num_points}
+                    num_level_0_points = gaussians.get_xyz.shape[0]
+                    num_level_1_points = gaussians.get_level_1_features.shape[0]
+                    post_fix["Points0"] = num_level_0_points
+                    post_fix["Points1"] = num_level_1_points
+
                 progress_bar.set_postfix(post_fix)
                 progress_bar.update(10)
 
@@ -515,6 +521,7 @@ def training_report(
                     GRzer=GRzer,
                     level=cur_level,
                     act_level_1=optim_args.act_level_1,
+                    transp_level_0=optim_args.transparent_level_0,
                 )
                 all_view_names.add(viewpoint.image_name)
                 image = torch.clamp(rendered["render"], 0.0, 1.0)

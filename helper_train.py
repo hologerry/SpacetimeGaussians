@@ -149,9 +149,13 @@ def control_gaussians(
         gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
     if level == 1 and iteration < opt.level_1_densify_until_iter:
-        n_level_0_points = gaussians.get_xyz.shape[0]
-        level_1_radii = radii[n_level_0_points:]
-        level_1_visibility_filter = visibility_filter[n_level_0_points:]
+        if opt.transparent_level_0:
+            level_1_radii = radii
+            level_1_visibility_filter = visibility_filter
+        else:
+            n_level_0_points = gaussians.get_xyz.shape[0]
+            level_1_radii = radii[n_level_0_points:]
+            level_1_visibility_filter = visibility_filter[n_level_0_points:]
 
         gaussians.level_1_max_radii2D[level_1_visibility_filter] = torch.max(
             gaussians.level_1_max_radii2D[level_1_visibility_filter], level_1_radii[level_1_visibility_filter]

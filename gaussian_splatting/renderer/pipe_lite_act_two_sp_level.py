@@ -17,7 +17,8 @@ def train_lite_act_two_sp_level(
     GRsetting=None,
     GRzer=None,
     level=0,
-    act_level_1=True,
+    act_level_1=False,
+    **kwargs,
 ):
     """
     Render the scene.
@@ -134,7 +135,8 @@ def test_lite_act_two_sp_level_vis(
     GRsetting=None,
     GRzer=None,
     level=0,
-    act_level_1=True,
+    act_level_1=False,
+    **kwargs,
 ):
 
     torch.cuda.synchronize()

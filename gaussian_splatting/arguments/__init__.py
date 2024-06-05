@@ -249,7 +249,9 @@ class OptimizationParams(ParamGroup):
         self.level_1_post_prune_from_iter = 55000
         self.level_1_post_prune_until_iter = 57000
 
-        self.act_level_1 = True
+        self.act_level_1 = False
+
+        self.transparent_level_0 = False
 
         self.lambda_level_1_motion = 0  # 1e-2
         self.lambda_level_1_delta_xyz = 0  # 1e-2
