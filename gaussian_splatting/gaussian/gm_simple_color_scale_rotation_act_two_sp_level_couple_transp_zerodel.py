@@ -67,7 +67,7 @@ class GaussianModel:
         self._omega = torch.empty(0)
         self._trbf_center = torch.empty(0)
         self._trbf_scale = torch.empty(0)
-        self._parent_idx = torch.empty(0)
+        self._parent_idx = torch.empty(0)  # dummy
 
         self._level_1_xyz = torch.empty(0)  # dummy
         self._level_1_features_dc = torch.empty(0)
@@ -452,7 +452,7 @@ class GaussianModel:
         print(f"self._level_1_opacity inited {self._level_1_opacity}")
 
         level_1_motion = torch.zeros((level_1_total_parent_idx.shape[0], 9), device="cuda")
-        self._level_1_motion = level_1_motion # nn.Parameter(level_1_motion.requires_grad_(True))
+        self._level_1_motion = level_1_motion  # nn.Parameter(level_1_motion.requires_grad_(True))
         print(f"self._level_1_motion inited {self._level_1_motion}")
 
         self.level_1_max_radii2D = torch.zeros((level_1_total_parent_idx.shape[0]), device="cuda")

@@ -290,6 +290,9 @@ def test_lite_act_two_sp_level_couple_transp_rotdel_vis(
     level_0_computed_trbf_scale = gm.computed_trbf_scale
     level_0_parent_idx_dummy = torch.zeros((n_level_0_points, 1), dtype=torch.long, device="cuda") - 1.0
 
+    level_0_delta_rot_radius = torch.zeros((n_level_0_points, 1), dtype=level_0_means3D.dtype, device="cuda")
+    level_0_delta_rot_angle_vel = torch.zeros((n_level_0_points, 1), dtype=level_0_means3D.dtype, device="cuda")
+
     if level == 0:
         n_points = n_level_0_points
         cur_means3D = level_0_cur_means3D
@@ -307,6 +310,9 @@ def test_lite_act_two_sp_level_couple_transp_rotdel_vis(
         computed_opacity = level_0_computed_opacity
 
         parent_idx = level_0_parent_idx_dummy
+
+        delta_rot_radius = level_0_delta_rot_radius
+        delta_rot_angle_vel = level_0_delta_rot_angle_vel
 
     elif level == 1:
         level_1_parent_idx = gm.get_level_1_parent_idx
@@ -396,6 +402,9 @@ def test_lite_act_two_sp_level_couple_transp_rotdel_vis(
             computed_opacity = level_1_computed_opacity
             parent_idx = level_1_parent_idx
 
+            delta_rot_radius = level_1_delta_rot_radius
+            delta_rot_angle_vel = level_1_delta_rot_angle_vel
+
             n_points = n_level_1_points
 
         else:
@@ -416,6 +425,9 @@ def test_lite_act_two_sp_level_couple_transp_rotdel_vis(
 
             # we use gm.get_level_1_parent_idx instead of level_1_parent_idx, as the dimension is different
             parent_idx = torch.cat((level_0_parent_idx_dummy, gm.get_level_1_parent_idx), dim=0)
+
+            delta_rot_radius = torch.cat((level_0_delta_rot_radius, level_1_delta_rot_radius), dim=0)
+            delta_rot_angle_vel = torch.cat((level_0_delta_rot_angle_vel, level_1_delta_rot_angle_vel), dim=0)
 
     else:
         raise ValueError(f"Invalid level: {level}")
@@ -469,4 +481,6 @@ def test_lite_act_two_sp_level_couple_transp_rotdel_vis(
         "scales": scales,
         "point_levels": point_levels,
         "parent_idx": parent_idx,
+        "delta_rot_radius": delta_rot_radius,
+        "delta_rot_angle_vel": delta_rot_angle_vel,
     }
