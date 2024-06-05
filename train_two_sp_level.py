@@ -200,17 +200,18 @@ def train(
 
         if iteration == optim_args.level_1_start_iter:
             gaussians.create_another_level(
-                scene.cameras_extent,
-                model_args.level_1_init_num_pts_per_time,
-                model_args.level_1_init_pts_op,
-                model_args.level_1_init_pts_color,
-                model_args.level_1_init_pts_xyz,
-                model_args.level_1_init_pts_xyz_offset,
-                model_args.level_1_init_pts_scale,
-                model_args.level_1_init_pts_min_opacity,
-                model_args.start_time,
-                model_args.duration,
-                model_args.time_step,
+                spatial_lr_scale=scene.cameras_extent,
+                new_pts_per_time=model_args.level_1_init_num_pts_per_time,
+                new_pts_init_op=model_args.level_1_init_pts_op,
+                new_pts_init_color=model_args.level_1_init_pts_color,
+                new_pts_init_xyz=model_args.level_1_init_pts_xyz,
+                new_pts_init_xyz_offset=model_args.level_1_init_pts_xyz_offset,
+                new_pts_init_scale=model_args.level_1_init_pts_scale,
+                new_pts_init_min_opacity=model_args.level_1_init_pts_min_opacity,
+                new_pts_init_delta_rot_radius_scale=model_args.level_1_init_pts_delta_rot_radius_scale,
+                start_time=model_args.start_time,
+                duration=model_args.duration,
+                time_step=model_args.time_step,
             )
             gaussians.level_1_training_setup(optim_args)
 

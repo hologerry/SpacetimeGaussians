@@ -110,6 +110,7 @@ class ModelParams(ParamGroup):
         self.level_1_init_pts_xyz_offset = 1e-3  # random offset on parent xyz
         self.level_1_init_pts_scale = "dist"  # or float, such as -5, before exp
         self.level_1_init_pts_min_opacity = 0.05
+        self.level_1_init_pts_delta_rot_radius_scale = 5.0 # radius ratio scale on mean scales
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -174,6 +175,8 @@ class OptimizationParams(ParamGroup):
         self.level_1_beta_lr = 0.0001
         self.level_1_rotation_lr = 0.001
 
+        self.level_1_delta_rot_radius_lr = 0.0025
+        self.level_1_delta_rot_angle_vel_lr = 0.002
 
         self.lambda_dssim = 0.2
 

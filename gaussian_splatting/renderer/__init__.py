@@ -30,6 +30,15 @@ from .pipe_lite_act_two_sp_level_couple_transp import (
     test_lite_act_two_sp_level_couple_transp_vis,
     train_lite_act_two_sp_level_couple_transp,
 )
+from .pipe_lite_act_two_sp_level_couple_transp_zerodel import (
+    test_lite_act_two_sp_level_couple_transp_zerodel_vis,
+    train_lite_act_two_sp_level_couple_transp_zerodel,
+)
+from .pipe_lite_act_two_sp_level_couple_transp_rotdel import (
+    test_lite_act_two_sp_level_couple_transp_rotdel_vis,
+    train_lite_act_two_sp_level_couple_transp_rotdel,
+)
+
 from .pipe_lite_two_level import test_lite_two_level_vis, train_lite_two_level
 from .pipe_simple_opacity_exp_linear import (
     test_lite_opacity_exp_linear_vis,

@@ -357,6 +357,7 @@ class GaussianModel:
         start_time=0,
         duration=120,
         time_step=1,
+        **kwargs,
     ):
         self.level_1_spatial_lr_scale = spatial_lr_scale
 

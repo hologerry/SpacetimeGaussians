@@ -1,3 +1,5 @@
+import math
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -92,14 +94,21 @@ from skimage.metrics import structural_similarity as ssim
 # a = torch.randn(10, 2, requires_grad=True)
 
 xyz = torch.rand((10, 3), requires_grad=True)
-print(xyz)
-index = torch.arange(10).reshape(-1, 1)
-rand_index = torch.randperm(10)
-select_rand_index = rand_index[:5]
-print(index.shape)
-print(rand_index.shape)
-print(select_rand_index.shape)
+# print(xyz)
+# index = torch.arange(10).reshape(-1, 1)
+# rand_index = torch.randperm(10)
+# select_rand_index = rand_index[:5]
+# print(index.shape)
+# print(rand_index.shape)
+# print(select_rand_index.shape)
 
-selected_xyz = xyz[select_rand_index]
-print(selected_xyz.shape)
+# selected_xyz = xyz[select_rand_index]
+# print(selected_xyz.shape)
 
+radius = torch.randn((10, 1))
+angle_vel = torch.randn((10, 1))
+
+del_xyz = torch.zeros_like(xyz)
+del_xyz[:, 0:1] = radius * torch.cos(angle_vel * 0.3 * 2 * math.pi)
+del_xyz[:, 2:3] = radius * torch.sin(angle_vel * 0.3 * 2 * math.pi)
+print(del_xyz)
