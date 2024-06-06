@@ -26,8 +26,8 @@
   "post_prune_from_iter": 25000,
   "post_prune_until_iter": 30000,
 
-  "level_1_delta_rot_radius_lr": 0.25,
-  "level_1_delta_rot_angle_vel_lr": 0.2,
+  "level_1_delta_rot_radius_lr": 0.0025,
+  "level_1_delta_rot_angle_vel_lr": 0.002,
 
   "level_1_scaling_lr": 0.0015,
   "level_1_start_iter": 30000,
@@ -39,8 +39,8 @@
   "level_1_init_pts_scale": -5.0,
   "level_1_init_pts_min_opacity": 0.05,
   "level_1_init_pts_delta_rot_radius_scale": 1.0,
-  "level_1_init_pts_delta_rot_angle_vel_rand": 10.0,
-  "level_1_init_pts_fix_trbfs": 2.0,
+  "level_1_init_pts_delta_rot_angle_vel_rand": 5.0,
+  "level_1_init_pts_fix_trbfs": 1.0,
   "level_1_clone": true,
   "level_1_split": true,
   "level_1_split_prune": true,

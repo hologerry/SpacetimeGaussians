@@ -72,6 +72,7 @@ def get_parser():
 def get_test_parser():
     parser = ArgumentParser(description="Testing script parameters")
     model = ModelParams(parser, sentinel=True)
+    optimization = OptimizationParams(parser)
     pipeline = PipelineParams(parser)
 
     parser.add_argument("--test_iteration", default=-1, type=int)
@@ -101,4 +102,4 @@ def get_test_parser():
         print("finish load config from " + args.config_path)
         print("args: " + str(args))
 
-        return args, model.extract(args), pipeline.extract(args)
+        return args, model.extract(args), optimization.extract(args), pipeline.extract(args)

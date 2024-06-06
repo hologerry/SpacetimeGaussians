@@ -33,6 +33,7 @@ import torch
 from torchvision.utils import save_image
 from tqdm import tqdm
 
+from gaussian_splatting.arguments import ModelParams, OptimizationParams, PipelineParams
 from gaussian_splatting.helper3dg import get_render_parts
 from gaussian_splatting.scene import Scene
 from gaussian_splatting.utils.graphics_utils import get_world_2_view2
@@ -53,13 +54,13 @@ from image_video_io import images_to_video
 
 def train(
     args,
-    model_args,
-    optim_args,
-    pipe_args,
-    testing_iterations,
-    saving_iterations,
-    checkpoint_iterations,
-    debug_from,
+    model_args: ModelParams,
+    optim_args: OptimizationParams,
+    pipe_args: PipelineParams,
+    testing_iterations: list,
+    saving_iterations: list,
+    checkpoint_iterations: list,
+    debug_from: int,
 ):
     with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))

@@ -519,6 +519,8 @@ class GaussianModel:
         self._level_1_trbf_scale_grad += self._level_1_trbf_scale.grad.clone()
         # self._level_1_motion_grad += self._level_1_motion.grad.clone()
         self._level_1_omega_grad += self._level_1_omega.grad.clone()
+        self._level_1_delta_rot_radius_grad += self._level_1_delta_rot_radius.grad.clone()
+        self._level_1_delta_rot_angle_vel_grad += self._level_1_delta_rot_angle_vel.grad.clone()
 
     def zero_gradient_cache(self):
         self._xyz_grd = torch.zeros_like(self._xyz, requires_grad=False)
@@ -540,6 +542,8 @@ class GaussianModel:
         self._level_1_trbf_scale_grad = torch.zeros_like(self._level_1_trbf_scale, requires_grad=False)
         # self._level_1_motion_grad = torch.zeros_like(self._level_1_motion, requires_grad=False)
         self._level_1_omega_grad = torch.zeros_like(self._level_1_omega, requires_grad=False)
+        self._level_1_delta_rot_radius_grad = torch.zeros_like(self._level_1_delta_rot_radius, requires_grad=False)
+        self._level_1_delta_rot_angle_vel_grad = torch.zeros_like(self._level_1_delta_rot_angle_vel, requires_grad=False)
 
     def set_batch_gradient(self, batch_size):
         ratio = 1 / batch_size
@@ -563,6 +567,8 @@ class GaussianModel:
         self._level_1_trbf_scale.grad = self._level_1_trbf_scale_grad * ratio
         # self._level_1_motion.grad = self._level_1_motion_grad * ratio
         self._level_1_omega.grad = self._level_1_omega_grad * ratio
+        self._level_1_delta_rot_radius.grad = self._level_1_delta_rot_radius_grad * ratio
+        self._level_1_delta_rot_angle_vel.grad = self._level_1_delta_rot_angle_vel_grad * ratio
 
     def training_setup(self, training_args):
         self.percent_dense = training_args.percent_dense

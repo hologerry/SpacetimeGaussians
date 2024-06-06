@@ -36,6 +36,7 @@ import json
 import os
 import warnings
 
+from argparse import Namespace
 from os import makedirs
 
 import lovely_tensors as lt
@@ -73,7 +74,12 @@ def save_quantities(rendering_pkg, cur_view_time_idx, out_path):
 
 
 @torch.no_grad()
-def run_test(args, model_args: ModelParams, pipe_args: PipelineParams, iteration: int):
+def run_test(
+    args: Namespace,
+    model_args: ModelParams,
+    pipe_args: PipelineParams,
+    iteration: int,
+):
 
     model_path = model_args.model_path
     name = "test"
@@ -269,7 +275,12 @@ def run_test(args, model_args: ModelParams, pipe_args: PipelineParams, iteration
 
 
 @torch.no_grad()
-def run_future(args, model_args: ModelParams, pipe_args: PipelineParams, iteration: int):
+def run_future(
+    args: Namespace,
+    model_args: ModelParams,
+    pipe_args: PipelineParams,
+    iteration: int,
+):
 
     model_path = model_args.model_path
     name = "future"

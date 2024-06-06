@@ -33,6 +33,7 @@ import torch
 from torchvision.utils import save_image
 from tqdm import tqdm
 
+from gaussian_splatting.arguments import ModelParams, OptimizationParams, PipelineParams
 from gaussian_splatting.gaussian.gaussian_model import GaussianModel
 from gaussian_splatting.helper3dg import get_render_parts
 from gaussian_splatting.scene import Scene
@@ -54,13 +55,13 @@ from image_video_io import images_to_video
 
 def train(
     args,
-    model_args,
-    optim_args,
-    pipe_args,
-    testing_iterations,
-    saving_iterations,
-    checkpoint_iterations,
-    debug_from,
+    model_args: ModelParams,
+    optim_args: OptimizationParams,
+    pipe_args: PipelineParams,
+    testing_iterations: list,
+    saving_iterations: list,
+    checkpoint_iterations: list,
+    debug_from: int,
 ):
     with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
@@ -254,13 +255,11 @@ def train(
             #     )
             #     lvl0_image, lvl0_viewspace_point_tensor, lvl0_visibility_filter, lvl0_radii = get_render_parts(level_0_render_pkg)
 
-
             # if optim_args.gt_mask:
             #     # for training with undistorted immersive image, masking black pixels in undistorted image.
             #     mask = torch.sum(gt_image, dim=0) == 0
             #     mask = mask.float()
             #     image = image * (1 - mask) + gt_image * (mask)
-
 
             view_name = viewpoint_cam.image_name
 
@@ -361,7 +360,9 @@ def train(
                 cur_zero_grad_level = optim_args.zero_grad_level
                 if iteration == optim_args.level_1_start_iter + 1:
                     msg_str = f"Level 1 start at iteration {iteration}"
-                    msg_str += f" clone: {cur_clone}, split: {cur_split}, split_prune: {cur_split_prune}, prune: {cur_prune}"
+                    msg_str += (
+                        f" clone: {cur_clone}, split: {cur_split}, split_prune: {cur_split_prune}, prune: {cur_prune}"
+                    )
                     msg_str += f" zero_grad_level: {cur_zero_grad_level}"
                     print(msg_str)
 

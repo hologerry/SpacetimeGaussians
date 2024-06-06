@@ -36,6 +36,7 @@ import json
 import os
 import warnings
 
+from argparse import Namespace
 from os import makedirs
 
 import lovely_tensors as lt
@@ -47,7 +48,7 @@ from skimage.metrics import structural_similarity as sk_ssim
 from torchvision.utils import save_image
 from tqdm import tqdm
 
-from gaussian_splatting.arguments import ModelParams, PipelineParams
+from gaussian_splatting.arguments import ModelParams, OptimizationParams, PipelineParams
 from gaussian_splatting.lpipsPyTorch import lpips as lpips_func
 from gaussian_splatting.scene import Scene
 from gaussian_splatting.utils.image_utils import psnr as psnr_func
@@ -73,7 +74,13 @@ def save_quantities(rendering_pkg, cur_view_time_idx, out_path):
 
 
 @torch.no_grad()
-def run_test(args, model_args: ModelParams, pipe_args: PipelineParams, iteration: int):
+def run_test(
+    args: Namespace,
+    model_args: ModelParams,
+    optim_args: OptimizationParams,
+    pipe_args: PipelineParams,
+    iteration: int,
+):
 
     model_path = model_args.model_path
     name = "test"
@@ -151,9 +158,9 @@ def run_test(args, model_args: ModelParams, pipe_args: PipelineParams, iteration
             GRsetting=GRsetting,
             GRzer=GRzer,
             level=1,
-            act_level_1=False,
-            transp_level_0=True,
-            rotdel_type="xz",
+            act_level_1=optim_args.act_level_1,
+            transp_level_0=optim_args.transparent_level_0,
+            rotdel_type=model_args.level_1_delta_rot_type,
         )
         rendering = rendering_pkg["render"]
         cur_view_name = view.image_name
@@ -251,5 +258,5 @@ def run_test(args, model_args: ModelParams, pipe_args: PipelineParams, iteration
 if __name__ == "__main__":
     lt.monkey_patch()
 
-    args, model_args, pipe_args = get_test_parser()
-    run_test(args, model_args, pipe_args, args.test_iteration)
+    args, model_args, optim_args, pipe_args = get_test_parser()
+    run_test(args, model_args, optim_args, pipe_args, args.test_iteration)
