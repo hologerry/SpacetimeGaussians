@@ -250,6 +250,7 @@ def train(
                 level=cur_level,
                 act_level_1=optim_args.act_level_1,
                 transp_level_0=optim_args.transparent_level_0,
+                rotdel_type=model_args.level_1_delta_rot_type,
             )
             image, viewspace_point_tensor, visibility_filter, radii = get_render_parts(render_pkg)
             # depth = render_pkg["depth"]
@@ -405,6 +406,7 @@ def train(
 
             # Log and save
             training_report(
+                model_args,
                 optim_args,
                 tb_writer,
                 iteration,
@@ -476,6 +478,7 @@ def train(
 
 
 def training_report(
+    model_args,
     optim_args,
     tb_writer,
     iteration,
@@ -525,6 +528,7 @@ def training_report(
                     level=cur_level,
                     act_level_1=optim_args.act_level_1,
                     transp_level_0=optim_args.transparent_level_0,
+                    rotdel_type=model_args.level_1_delta_rot_type,
                 )
                 all_view_names.add(viewpoint.image_name)
                 image = torch.clamp(rendered["render"], 0.0, 1.0)

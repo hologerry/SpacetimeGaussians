@@ -153,6 +153,7 @@ def run_test(args, model_args: ModelParams, pipe_args: PipelineParams, iteration
             level=1,
             act_level_1=False,
             transp_level_0=True,
+            rotdel_type="xz",
         )
         rendering = rendering_pkg["render"]
         cur_view_name = view.image_name

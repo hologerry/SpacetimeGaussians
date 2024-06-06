@@ -113,6 +113,7 @@ class ModelParams(ParamGroup):
         self.level_1_init_pts_delta_rot_radius_scale = 5.0  # radius ratio scale on mean scales
         self.level_1_init_pts_delta_rot_angle_vel_rand = None
         self.level_1_init_pts_fix_trbfs = 2.0
+        self.level_1_delta_rot_type = "xz"
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
