@@ -181,6 +181,12 @@ class OptimizationParams(ParamGroup):
         self.level_1_delta_rot_radius_lr = 0.0025
         self.level_1_delta_rot_angle_vel_lr = 0.002
 
+        self.level_1_delta_trot_center_lr = 0.0025
+        self.level_1_delta_trot_radius_lr = 0.0025
+        self.level_1_delta_trot_alpha_lr = 0.0025
+        self.level_1_delta_trot_angle_vel_lr = 0.003
+        self.level_1_delta_trot_beta_lr = 0.003
+
         self.lambda_dssim = 0.2
 
         self.percent_dense = 0.01
@@ -262,6 +268,7 @@ class OptimizationParams(ParamGroup):
         self.lambda_level_1_motion = 0  # 1e-2
         self.lambda_level_1_delta_xyz = 0  # 1e-2
 
+        self.lambda_level_1_scale_reg = 0 # 1e-2
         # self.two_level_joint_start_iter = 60000
 
         super().__init__(parser, "Optimization Parameters")
