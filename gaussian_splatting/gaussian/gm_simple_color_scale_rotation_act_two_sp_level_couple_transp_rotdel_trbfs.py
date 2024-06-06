@@ -69,6 +69,9 @@ class GaussianModel:
         self._trbf_scale = torch.empty(0)
         self._parent_idx = torch.empty(0)  # dummy
 
+        self._delta_rot_radius = torch.empty(0)  # dummy
+        self._delta_rot_angle_vel = torch.empty(0)  # dummy
+
         self._level_1_xyz = torch.empty(0)  # dummy
         self._level_1_features_dc = torch.empty(0)
         self._level_1_scaling = torch.empty(0)
@@ -79,6 +82,9 @@ class GaussianModel:
         self._level_1_trbf_center = torch.empty(0)
         self._level_1_trbf_scale = torch.empty(0)
         self._level_1_parent_idx = torch.empty(0)
+
+        self._level_1_delta_rot_radius = torch.empty(0)
+        self._level_1_delta_rot_angle_vel = torch.empty(0)
 
         self.max_radii2D = torch.empty(0)
         self.xyz_gradient_accum = torch.empty(0)
@@ -220,6 +226,14 @@ class GaussianModel:
         return torch.cat((self._motion, self._level_1_motion), dim=0)
 
     @property
+    def get_level_1_delta_rot_radius(self):
+        return self._level_1_delta_rot_radius
+
+    @property
+    def get_level_1_delta_rot_angle_vel(self):
+        return self._level_1_delta_rot_angle_vel
+
+    @property
     def get_trbf_center(self):
         return self._trbf_center
 
@@ -343,6 +357,11 @@ class GaussianModel:
         print(f"self._trbf_center inited {self._trbf_center}")
         print(f"self._trbf_scale inited {self._trbf_scale}")
 
+        self._delta_rot_radius = torch.zeros((fused_point_cloud.shape[0], 1), device="cuda")
+        self._delta_rot_angle_vel = torch.zeros((fused_point_cloud.shape[0], 1), device="cuda")
+        print(f"self._delta_rot_radius inited {self._delta_rot_radius}")
+        print(f"self._delta_rot_angle_vel inited {self._delta_rot_angle_vel}")
+
         ## store gradients
 
         if self.trbf_scale_init is not None:
@@ -368,6 +387,9 @@ class GaussianModel:
         new_pts_init_xyz_offset=0.0,
         new_pts_init_scale="dist",
         new_pts_init_min_opacity=0.05,
+        new_pts_init_delta_rot_radius_scale=5.0,
+        new_pts_init_delta_rot_angle_vel_rand=None,
+        new_pts_fix_trbfs=2.0,
         start_time=0,
         duration=120,
         time_step=1,
@@ -462,9 +484,21 @@ class GaussianModel:
         self._level_1_trbf_center = nn.Parameter(level_1_trbf_center.requires_grad_(True))
         print(f"self._level_1_trbf_center inited {self._level_1_trbf_center}")
 
-        level_1_trbf_scale = torch.ones((level_1_total_parent_idx.shape[0], 1), device="cuda")
-        self._level_1_trbf_scale = nn.Parameter(level_1_trbf_scale.requires_grad_(True))
+        level_1_trbf_scale = torch.ones((level_1_total_parent_idx.shape[0], 1), device="cuda") * new_pts_fix_trbfs
+        self._level_1_trbf_scale = level_1_trbf_scale  # nn.Parameter(level_1_trbf_scale.requires_grad_(True))
         print(f"self._level_1_trbf_scale inited {self._level_1_trbf_scale}")
+
+        level_1_scales_mean = torch.exp(torch.mean(level_1_scales, dim=1, keepdim=True))
+        level_1_delta_rot_radius = torch.zeros((level_1_total_parent_idx.shape[0], 1), device="cuda") + new_pts_init_delta_rot_radius_scale * level_1_scales_mean
+        self._level_1_delta_rot_radius = nn.Parameter(level_1_delta_rot_radius.requires_grad_(True))
+        print(f"self._level_1_delta_rot_radius inited {self._level_1_delta_rot_radius}")
+
+        if new_pts_init_delta_rot_angle_vel_rand is not None:
+            level_1_delta_rot_angle_vel = torch.rand((level_1_total_parent_idx.shape[0], 1), device="cuda") * new_pts_init_delta_rot_angle_vel_rand
+        else:
+            level_1_delta_rot_angle_vel = torch.zeros((level_1_total_parent_idx.shape[0], 1), device="cuda")
+        self._level_1_delta_rot_angle_vel = nn.Parameter(level_1_delta_rot_angle_vel.requires_grad_(True))
+        print(f"self._level_1_delta_rot_angle_vel inited {self._level_1_delta_rot_angle_vel}")
 
     def cache_gradient(self):
         self._xyz_grd += self._xyz.grad.clone()
@@ -483,7 +517,7 @@ class GaussianModel:
         self._level_1_rotation_grad += self._level_1_rotation.grad.clone()
         self._level_1_opacity_grad += self._level_1_opacity.grad.clone()
         self._level_1_trbf_center_grad += self._level_1_trbf_center.grad.clone()
-        self._level_1_trbf_scale_grad += self._level_1_trbf_scale.grad.clone()
+        # self._level_1_trbf_scale_grad += self._level_1_trbf_scale.grad.clone()
         # self._level_1_motion_grad += self._level_1_motion.grad.clone()
         self._level_1_omega_grad += self._level_1_omega.grad.clone()
 
@@ -504,7 +538,7 @@ class GaussianModel:
         self._level_1_rotation_grad = torch.zeros_like(self._level_1_rotation, requires_grad=False)
         self._level_1_opacity_grad = torch.zeros_like(self._level_1_opacity, requires_grad=False)
         self._level_1_trbf_center_grad = torch.zeros_like(self._level_1_trbf_center, requires_grad=False)
-        self._level_1_trbf_scale_grad = torch.zeros_like(self._level_1_trbf_scale, requires_grad=False)
+        # self._level_1_trbf_scale_grad = torch.zeros_like(self._level_1_trbf_scale, requires_grad=False)
         # self._level_1_motion_grad = torch.zeros_like(self._level_1_motion, requires_grad=False)
         self._level_1_omega_grad = torch.zeros_like(self._level_1_omega, requires_grad=False)
 
@@ -527,7 +561,7 @@ class GaussianModel:
         self._level_1_rotation.grad = self._level_1_rotation_grad * ratio
         self._level_1_opacity.grad = self._level_1_opacity_grad * ratio
         self._level_1_trbf_center.grad = self._level_1_trbf_center_grad * ratio
-        self._level_1_trbf_scale.grad = self._level_1_trbf_scale_grad * ratio
+        # self._level_1_trbf_scale.grad = self._level_1_trbf_scale_grad * ratio
         # self._level_1_motion.grad = self._level_1_motion_grad * ratio
         self._level_1_omega.grad = self._level_1_omega_grad * ratio
 
@@ -569,7 +603,7 @@ class GaussianModel:
             {"params": [self._level_1_rotation], "lr": training_args.level_1_rotation_lr, "name": "rotation"},
             {"params": [self._level_1_omega], "lr": training_args.level_1_omega_lr, "name": "omega"},
             {"params": [self._level_1_trbf_center], "lr": training_args.level_1_trbf_c_lr, "name": "trbf_center"},
-            {"params": [self._level_1_trbf_scale], "lr": training_args.level_1_trbf_s_lr, "name": "trbf_scale"},
+            # {"params": [self._level_1_trbf_scale], "lr": training_args.level_1_trbf_s_lr, "name": "trbf_scale"},
             # {
             #     "params": [self._level_1_motion],
             #     "lr": training_args.level_1_position_lr_init
@@ -578,6 +612,16 @@ class GaussianModel:
             #     * training_args.level_1_move_lr,
             #     "name": "motion",
             # },
+            {
+                "params": [self._level_1_delta_rot_radius],
+                "lr": training_args.level_1_delta_rot_radius_lr,
+                "name": "delta_rot_radius",
+            },
+            {
+                "params": [self._level_1_delta_rot_angle_vel],
+                "lr": training_args.level_1_delta_rot_angle_vel_lr,
+                "name": "delta_rot_angle_vel",
+            },
         ]
         self.level_1_optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
         self.level_1_xyz_scheduler_args = get_expon_lr_func(
@@ -633,6 +677,9 @@ class GaussianModel:
 
         l.append("parent_idx")
 
+        l.append("delta_rot_radius")
+        l.append("delta_rot_angle_vel")
+
         return l
 
     def save_ply(self, path):
@@ -651,6 +698,8 @@ class GaussianModel:
         omega = self._omega.detach().cpu().numpy()
         level = np.zeros((xyz.shape[0], 1))
         parent_idx_dummy = np.zeros((xyz.shape[0], 1)) - 1
+        delta_rot_radius_dummy = np.zeros((xyz.shape[0], 1))
+        delta_rot_angle_vel_dummy = np.zeros((xyz.shape[0], 1))
 
         if self._level_1_parent_idx.shape[0] > 0:
 
@@ -662,11 +711,14 @@ class GaussianModel:
             level_1_scale = self._level_1_scaling.detach().cpu().numpy()
             level_1_rotation = self._level_1_rotation.detach().cpu().numpy()
             level_1_trbf_center = self._level_1_trbf_center.detach().cpu().numpy()
-            level_1_trbf_scale = self._level_1_trbf_scale.detach().cpu().numpy()
+            level_1_trbf_scale_dummy = self._level_1_trbf_scale.detach().cpu().numpy()
             level_1_motion_dummy = np.zeros((self._level_1_parent_idx.shape[0], 9))
             level_1_omega = self._level_1_omega.detach().cpu().numpy()
             level_1_level = np.ones((self._level_1_parent_idx.shape[0], 1))
             level_1_parent_idx = self._level_1_parent_idx.detach().cpu().numpy()
+
+            level_1_delta_rot_radius = self._level_1_delta_rot_radius.detach().cpu().numpy()
+            level_1_delta_rot_angle_vel = self._level_1_delta_rot_angle_vel.detach().cpu().numpy()
 
             all_xyz = np.concatenate((xyz, level_1_xyz_dummy), axis=0)
             all_normals = np.concatenate((normals, level_1_normals), axis=0)
@@ -676,11 +728,14 @@ class GaussianModel:
             all_scale = np.concatenate((scale, level_1_scale), axis=0)
             all_rotation = np.concatenate((rotation, level_1_rotation), axis=0)
             all_trbf_center = np.concatenate((trbf_center, level_1_trbf_center), axis=0)
-            all_trbf_scale = np.concatenate((trbf_scale, level_1_trbf_scale), axis=0)
+            all_trbf_scale = np.concatenate((trbf_scale, level_1_trbf_scale_dummy), axis=0)
             all_motion = np.concatenate((motion, level_1_motion_dummy), axis=0)
             all_omega = np.concatenate((omega, level_1_omega), axis=0)
             all_level = np.concatenate((level, level_1_level), axis=0)
             all_parent_idx = np.concatenate((parent_idx_dummy, level_1_parent_idx), axis=0)
+
+            all_delta_rot_radius = np.concatenate((delta_rot_radius_dummy, level_1_delta_rot_radius), axis=0)
+            all_delta_rot_angle_vel = np.concatenate((delta_rot_angle_vel_dummy, level_1_delta_rot_angle_vel), axis=0)
 
         else:
             all_xyz = xyz
@@ -696,6 +751,9 @@ class GaussianModel:
             all_omega = omega
             all_level = level
             all_parent_idx = parent_idx_dummy
+
+            all_delta_rot_radius = delta_rot_radius_dummy
+            all_delta_rot_angle_vel = delta_rot_angle_vel_dummy
 
         dtype_full = [(attribute, "f4") for attribute in self.construct_list_of_attributes()]
 
@@ -714,6 +772,8 @@ class GaussianModel:
                 all_omega,
                 all_level,
                 all_parent_idx,
+                all_delta_rot_radius,
+                all_delta_rot_angle_vel,
             ),
             axis=1,
         )
@@ -793,6 +853,9 @@ class GaussianModel:
 
         parent_idx = np.asarray(ply_data.elements[0]["parent_idx"])[..., np.newaxis]
 
+        delta_rot_radius = np.asarray(ply_data.elements[0]["delta_rot_radius"])[..., np.newaxis]
+        delta_rot_angle_vel = np.asarray(ply_data.elements[0]["delta_rot_angle_vel"])[..., np.newaxis]
+
         self._xyz = nn.Parameter(torch.tensor(xyz[level_0_idx], dtype=torch.float, device="cuda").requires_grad_(True))
         self._features_dc = nn.Parameter(
             torch.tensor(features_dc[level_0_idx], dtype=torch.float, device="cuda").requires_grad_(True)
@@ -820,6 +883,8 @@ class GaussianModel:
             torch.tensor(omegas[level_0_idx], dtype=torch.float, device="cuda").requires_grad_(True)
         )
         self._parent_idx = torch.tensor(parent_idx[level_0_idx], dtype=torch.long, device="cuda")
+        self._delta_rot_radius = torch.tensor(delta_rot_radius[level_0_idx], dtype=torch.float, device="cuda")
+        self._delta_rot_angle_vel = torch.tensor(delta_rot_angle_vel[level_0_idx], dtype=torch.float, device="cuda")
 
         self.active_sh_degree = self.max_sh_degree
         self.computed_trbf_scale = torch.exp(self._trbf_scale)  # precomputed
@@ -844,15 +909,22 @@ class GaussianModel:
             self._level_1_trbf_center = nn.Parameter(
                 torch.tensor(trbf_center[level_1_idx], dtype=torch.float, device="cuda").requires_grad_(True)
             )
-            self._level_1_trbf_scale = nn.Parameter(
-                torch.tensor(trbf_scale[level_1_idx], dtype=torch.float, device="cuda").requires_grad_(True)
-            )
+            self._level_1_trbf_scale = torch.tensor(trbf_scale[level_1_idx], dtype=torch.float, device="cuda")
+
             self._level_1_motion = torch.tensor(motion[level_1_idx], dtype=torch.float, device="cuda")
+
             self._level_1_omega = nn.Parameter(
                 torch.tensor(omegas[level_1_idx], dtype=torch.float, device="cuda").requires_grad_(True)
             )
 
-            self.computed_level_1_trbf_scale = torch.exp(self._level_1_trbf_scale)  # precomputed
+            self._level_1_delta_rot_radius = nn.Parameter(
+                torch.tensor(delta_rot_radius[level_1_idx], dtype=torch.float, device="cuda").requires_grad_(True)
+            )
+            self._level_1_delta_rot_angle_vel = nn.Parameter(
+                torch.tensor(delta_rot_angle_vel[level_1_idx], dtype=torch.float, device="cuda").requires_grad_(True)
+            )
+
+            self.computed_level_1_trbf_scale = self._level_1_trbf_scale  # precomputed
             self.computed_level_1_opacity = self.opacity_activation(self._level_1_opacity)
             self.computed_level_1_scales = torch.exp(self._level_1_scaling)  # change not very large
 
@@ -947,9 +1019,13 @@ class GaussianModel:
         self._level_1_scaling = optimizable_tensors["scaling"]
         self._level_1_rotation = optimizable_tensors["rotation"]
         self._level_1_trbf_center = optimizable_tensors["trbf_center"]
-        self._level_1_trbf_scale = optimizable_tensors["trbf_scale"]
+        # self._level_1_trbf_scale = optimizable_tensors["trbf_scale"]
         # self._level_1_motion = optimizable_tensors["motion"]
         self._level_1_omega = optimizable_tensors["omega"]
+        self._level_1_delta_rot_radius = optimizable_tensors["delta_rot_radius"]
+        self._level_1_delta_rot_angle_vel = optimizable_tensors["delta_rot_angle_vel"]
+
+        self._level_1_trbf_scale = self._level_1_trbf_scale[valid_points_mask]
 
         self._level_1_parent_idx = self._level_1_parent_idx[valid_points_mask]
 
@@ -1073,6 +1149,8 @@ class GaussianModel:
         new_trbf_scale,
         # new_motion,
         new_omega,
+        new_delta_rot_radius,
+        new_delta_rot_angle_vel,
         dummy=None,
     ):
         d = {
@@ -1082,9 +1160,11 @@ class GaussianModel:
             "scaling": new_scaling,
             "rotation": new_rotation,
             "trbf_center": new_trbf_center,
-            "trbf_scale": new_trbf_scale,
+            # "trbf_scale": new_trbf_scale,
             # "motion": new_motion,
             "omega": new_omega,
+            "delta_rot_radius": new_delta_rot_radius,
+            "delta_rot_angle_vel": new_delta_rot_angle_vel,
         }
 
         optimizable_tensors = self.cat_tensors_to_level_1_optimizer(d)
@@ -1093,11 +1173,15 @@ class GaussianModel:
         self._level_1_scaling = optimizable_tensors["scaling"]
         self._level_1_rotation = optimizable_tensors["rotation"]
         self._level_1_trbf_center = optimizable_tensors["trbf_center"]
-        self._level_1_trbf_scale = optimizable_tensors["trbf_scale"]
+        # self._level_1_trbf_scale = optimizable_tensors["trbf_scale"]
         # self._level_1_motion = optimizable_tensors["motion"]
         self._level_1_omega = optimizable_tensors["omega"]
 
+        self._level_1_delta_rot_radius = optimizable_tensors["delta_rot_radius"]
+        self._level_1_delta_rot_angle_vel = optimizable_tensors["delta_rot_angle_vel"]
+
         self._level_1_parent_idx = torch.cat((self._level_1_parent_idx, new_parent_idx), dim=0)
+        self._level_1_trbf_scale = torch.cat((self._level_1_trbf_scale, new_trbf_scale), dim=0)
 
         self.level_1_xyz_gradient_accum = torch.zeros((self._level_1_parent_idx.shape[0], 1), device="cuda")
         self.level_1_denom = torch.zeros((self._level_1_parent_idx.shape[0], 1), device="cuda")
@@ -1176,6 +1260,8 @@ class GaussianModel:
         new_trbf_scale = self._level_1_trbf_scale[selected_pts_mask].repeat(N, 1)
         # new_motion = self._level_1_motion[selected_pts_mask].repeat(N, 1)
         new_omega = self._level_1_omega[selected_pts_mask].repeat(N, 1)
+        new_delta_rot_radius = self._level_1_delta_rot_radius[selected_pts_mask].repeat(N, 1)
+        new_delta_rot_angle_vel = self._level_1_delta_rot_angle_vel[selected_pts_mask].repeat(N, 1)
 
         self.densification_postfix_level_1(
             new_parent_idx,
@@ -1187,6 +1273,8 @@ class GaussianModel:
             new_trbf_scale,
             # new_motion,
             new_omega,
+            new_delta_rot_radius,
+            new_delta_rot_angle_vel,
         )
         prune_filter = torch.cat(
             (selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool))
@@ -1240,6 +1328,8 @@ class GaussianModel:
         new_trbf_scale = self._level_1_trbf_scale[selected_pts_mask]
         # new_motion = self._level_1_motion[selected_pts_mask]
         new_omega = self._level_1_omega[selected_pts_mask]
+        new_delta_rot_radius = self._level_1_delta_rot_radius[selected_pts_mask]
+        new_delta_rot_angle_vel = self._level_1_delta_rot_angle_vel[selected_pts_mask]
         self.densification_postfix_level_1(
             new_parent_idx,
             new_features_dc,
@@ -1250,6 +1340,8 @@ class GaussianModel:
             new_trbf_scale,
             # new_motion,
             new_omega,
+            new_delta_rot_radius,
+            new_delta_rot_angle_vel,
         )
 
     def add_densification_stats(self, viewspace_point_tensor, update_filter):

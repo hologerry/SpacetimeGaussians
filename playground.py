@@ -105,10 +105,6 @@ xyz = torch.rand((10, 3), requires_grad=True)
 # selected_xyz = xyz[select_rand_index]
 # print(selected_xyz.shape)
 
-radius = torch.randn((10, 1))
-angle_vel = torch.randn((10, 1))
-
-del_xyz = torch.zeros_like(xyz)
-del_xyz[:, 0:1] = radius * torch.cos(angle_vel * 0.3 * 2 * math.pi)
-del_xyz[:, 2:3] = radius * torch.sin(angle_vel * 0.3 * 2 * math.pi)
-print(del_xyz)
+x = torch.tensor([1.0])
+o = torch.exp(-1 * (1/torch.exp(x)))
+print(o)

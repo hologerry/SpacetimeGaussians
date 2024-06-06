@@ -184,6 +184,26 @@ def get_render_pipe(option="train_full"):
 
         return test_lite_act_two_sp_level_couple_transp_zerodel_vis, GaussianRasterizationSettings, GaussianRasterizer
 
+    elif option == "train_lite_act_two_sp_level_couple_transp_zerodel_trbfs_single":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from gaussian_splatting.renderer import train_lite_act_two_sp_level_couple_transp_zerodel_trbfs
+
+        return train_lite_act_two_sp_level_couple_transp_zerodel_trbfs, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_lite_act_two_sp_level_couple_transp_zerodel_trbfs_single_vis":
+        from forward_lite_single import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from gaussian_splatting.renderer import test_lite_act_two_sp_level_couple_transp_zerodel_trbfs_vis
+
+        return test_lite_act_two_sp_level_couple_transp_zerodel_trbfs_vis, GaussianRasterizationSettings, GaussianRasterizer
+
     elif option == "train_lite_act_two_sp_level_couple_transp_rotdel_single":
         from diff_gaussian_rasterization_ch1 import (
             GaussianRasterizationSettings,
@@ -203,6 +223,26 @@ def get_render_pipe(option="train_full"):
         from gaussian_splatting.renderer import test_lite_act_two_sp_level_couple_transp_rotdel_vis
 
         return test_lite_act_two_sp_level_couple_transp_rotdel_vis, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "train_lite_act_two_sp_level_couple_transp_rotdel_trbfs_single":
+        from diff_gaussian_rasterization_ch1 import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from gaussian_splatting.renderer import train_lite_act_two_sp_level_couple_transp_rotdel_trbfs
+
+        return train_lite_act_two_sp_level_couple_transp_rotdel_trbfs, GaussianRasterizationSettings, GaussianRasterizer
+
+    elif option == "test_lite_act_two_sp_level_couple_transp_rotdel_trbfs_single_vis":
+        from forward_lite_noprepre_single import (
+            GaussianRasterizationSettings,
+            GaussianRasterizer,
+        )
+
+        from gaussian_splatting.renderer import test_lite_act_two_sp_level_couple_transp_rotdel_trbfs_vis
+
+        return test_lite_act_two_sp_level_couple_transp_rotdel_trbfs_vis, GaussianRasterizationSettings, GaussianRasterizer
 
     elif option == "train_lite_single_all":
         from diff_gaussian_rasterization_ch1 import (

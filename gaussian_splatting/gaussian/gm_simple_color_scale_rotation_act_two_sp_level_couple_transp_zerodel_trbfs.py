@@ -368,6 +368,7 @@ class GaussianModel:
         new_pts_init_xyz_offset=0.0,
         new_pts_init_scale="dist",
         new_pts_init_min_opacity=0.05,
+        new_pts_fix_trbfs=2.0,
         start_time=0,
         duration=120,
         time_step=1,
@@ -462,8 +463,8 @@ class GaussianModel:
         self._level_1_trbf_center = nn.Parameter(level_1_trbf_center.requires_grad_(True))
         print(f"self._level_1_trbf_center inited {self._level_1_trbf_center}")
 
-        level_1_trbf_scale = torch.ones((level_1_total_parent_idx.shape[0], 1), device="cuda")
-        self._level_1_trbf_scale = nn.Parameter(level_1_trbf_scale.requires_grad_(True))
+        level_1_trbf_scale = torch.ones((level_1_total_parent_idx.shape[0], 1), device="cuda") * new_pts_fix_trbfs
+        self._level_1_trbf_scale = level_1_trbf_scale  # nn.Parameter(level_1_trbf_scale.requires_grad_(True))
         print(f"self._level_1_trbf_scale inited {self._level_1_trbf_scale}")
 
     def cache_gradient(self):
@@ -483,7 +484,7 @@ class GaussianModel:
         self._level_1_rotation_grad += self._level_1_rotation.grad.clone()
         self._level_1_opacity_grad += self._level_1_opacity.grad.clone()
         self._level_1_trbf_center_grad += self._level_1_trbf_center.grad.clone()
-        self._level_1_trbf_scale_grad += self._level_1_trbf_scale.grad.clone()
+        # self._level_1_trbf_scale_grad += self._level_1_trbf_scale.grad.clone()
         # self._level_1_motion_grad += self._level_1_motion.grad.clone()
         self._level_1_omega_grad += self._level_1_omega.grad.clone()
 
@@ -504,7 +505,7 @@ class GaussianModel:
         self._level_1_rotation_grad = torch.zeros_like(self._level_1_rotation, requires_grad=False)
         self._level_1_opacity_grad = torch.zeros_like(self._level_1_opacity, requires_grad=False)
         self._level_1_trbf_center_grad = torch.zeros_like(self._level_1_trbf_center, requires_grad=False)
-        self._level_1_trbf_scale_grad = torch.zeros_like(self._level_1_trbf_scale, requires_grad=False)
+        # self._level_1_trbf_scale_grad = torch.zeros_like(self._level_1_trbf_scale, requires_grad=False)
         # self._level_1_motion_grad = torch.zeros_like(self._level_1_motion, requires_grad=False)
         self._level_1_omega_grad = torch.zeros_like(self._level_1_omega, requires_grad=False)
 
@@ -527,7 +528,7 @@ class GaussianModel:
         self._level_1_rotation.grad = self._level_1_rotation_grad * ratio
         self._level_1_opacity.grad = self._level_1_opacity_grad * ratio
         self._level_1_trbf_center.grad = self._level_1_trbf_center_grad * ratio
-        self._level_1_trbf_scale.grad = self._level_1_trbf_scale_grad * ratio
+        # self._level_1_trbf_scale.grad = self._level_1_trbf_scale_grad * ratio
         # self._level_1_motion.grad = self._level_1_motion_grad * ratio
         self._level_1_omega.grad = self._level_1_omega_grad * ratio
 
@@ -569,7 +570,7 @@ class GaussianModel:
             {"params": [self._level_1_rotation], "lr": training_args.level_1_rotation_lr, "name": "rotation"},
             {"params": [self._level_1_omega], "lr": training_args.level_1_omega_lr, "name": "omega"},
             {"params": [self._level_1_trbf_center], "lr": training_args.level_1_trbf_c_lr, "name": "trbf_center"},
-            {"params": [self._level_1_trbf_scale], "lr": training_args.level_1_trbf_s_lr, "name": "trbf_scale"},
+            # {"params": [self._level_1_trbf_scale], "lr": training_args.level_1_trbf_s_lr, "name": "trbf_scale"},
             # {
             #     "params": [self._level_1_motion],
             #     "lr": training_args.level_1_position_lr_init
@@ -662,7 +663,7 @@ class GaussianModel:
             level_1_scale = self._level_1_scaling.detach().cpu().numpy()
             level_1_rotation = self._level_1_rotation.detach().cpu().numpy()
             level_1_trbf_center = self._level_1_trbf_center.detach().cpu().numpy()
-            level_1_trbf_scale = self._level_1_trbf_scale.detach().cpu().numpy()
+            level_1_trbf_scale_dummy = self._level_1_trbf_scale.detach().cpu().numpy()
             level_1_motion_dummy = np.zeros((self._level_1_parent_idx.shape[0], 9))
             level_1_omega = self._level_1_omega.detach().cpu().numpy()
             level_1_level = np.ones((self._level_1_parent_idx.shape[0], 1))
@@ -676,7 +677,7 @@ class GaussianModel:
             all_scale = np.concatenate((scale, level_1_scale), axis=0)
             all_rotation = np.concatenate((rotation, level_1_rotation), axis=0)
             all_trbf_center = np.concatenate((trbf_center, level_1_trbf_center), axis=0)
-            all_trbf_scale = np.concatenate((trbf_scale, level_1_trbf_scale), axis=0)
+            all_trbf_scale = np.concatenate((trbf_scale, level_1_trbf_scale_dummy), axis=0)
             all_motion = np.concatenate((motion, level_1_motion_dummy), axis=0)
             all_omega = np.concatenate((omega, level_1_omega), axis=0)
             all_level = np.concatenate((level, level_1_level), axis=0)
@@ -844,15 +845,13 @@ class GaussianModel:
             self._level_1_trbf_center = nn.Parameter(
                 torch.tensor(trbf_center[level_1_idx], dtype=torch.float, device="cuda").requires_grad_(True)
             )
-            self._level_1_trbf_scale = nn.Parameter(
-                torch.tensor(trbf_scale[level_1_idx], dtype=torch.float, device="cuda").requires_grad_(True)
-            )
+            self._level_1_trbf_scale = torch.tensor(trbf_scale[level_1_idx], dtype=torch.float, device="cuda")
             self._level_1_motion = torch.tensor(motion[level_1_idx], dtype=torch.float, device="cuda")
             self._level_1_omega = nn.Parameter(
                 torch.tensor(omegas[level_1_idx], dtype=torch.float, device="cuda").requires_grad_(True)
             )
 
-            self.computed_level_1_trbf_scale = torch.exp(self._level_1_trbf_scale)  # precomputed
+            self.computed_level_1_trbf_scale = self._level_1_trbf_scale  # precomputed
             self.computed_level_1_opacity = self.opacity_activation(self._level_1_opacity)
             self.computed_level_1_scales = torch.exp(self._level_1_scaling)  # change not very large
 
@@ -947,11 +946,12 @@ class GaussianModel:
         self._level_1_scaling = optimizable_tensors["scaling"]
         self._level_1_rotation = optimizable_tensors["rotation"]
         self._level_1_trbf_center = optimizable_tensors["trbf_center"]
-        self._level_1_trbf_scale = optimizable_tensors["trbf_scale"]
+        # self._level_1_trbf_scale = optimizable_tensors["trbf_scale"]
         # self._level_1_motion = optimizable_tensors["motion"]
         self._level_1_omega = optimizable_tensors["omega"]
 
         self._level_1_parent_idx = self._level_1_parent_idx[valid_points_mask]
+        self._level_1_trbf_scale = self._level_1_trbf_scale[valid_points_mask]
 
         self.level_1_xyz_gradient_accum = self.level_1_xyz_gradient_accum[valid_points_mask]
 
@@ -1082,7 +1082,7 @@ class GaussianModel:
             "scaling": new_scaling,
             "rotation": new_rotation,
             "trbf_center": new_trbf_center,
-            "trbf_scale": new_trbf_scale,
+            # "trbf_scale": new_trbf_scale,
             # "motion": new_motion,
             "omega": new_omega,
         }
@@ -1093,11 +1093,12 @@ class GaussianModel:
         self._level_1_scaling = optimizable_tensors["scaling"]
         self._level_1_rotation = optimizable_tensors["rotation"]
         self._level_1_trbf_center = optimizable_tensors["trbf_center"]
-        self._level_1_trbf_scale = optimizable_tensors["trbf_scale"]
+        # self._level_1_trbf_scale = optimizable_tensors["trbf_scale"]
         # self._level_1_motion = optimizable_tensors["motion"]
         self._level_1_omega = optimizable_tensors["omega"]
 
         self._level_1_parent_idx = torch.cat((self._level_1_parent_idx, new_parent_idx), dim=0)
+        self._level_1_trbf_scale = torch.cat((self._level_1_trbf_scale, new_trbf_scale), dim=0)
 
         self.level_1_xyz_gradient_accum = torch.zeros((self._level_1_parent_idx.shape[0], 1), device="cuda")
         self.level_1_denom = torch.zeros((self._level_1_parent_idx.shape[0], 1), device="cuda")

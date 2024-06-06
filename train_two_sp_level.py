@@ -210,6 +210,7 @@ def train(
                 new_pts_init_min_opacity=model_args.level_1_init_pts_min_opacity,
                 new_pts_init_delta_rot_radius_scale=model_args.level_1_init_pts_delta_rot_radius_scale,
                 new_pts_init_delta_rot_angle_vel_rand=model_args.level_1_init_pts_delta_rot_angle_vel_rand,
+                new_pts_fix_trbfs=model_args.level_1_init_pts_fix_trbfs,
                 start_time=model_args.start_time,
                 duration=model_args.duration,
                 time_step=model_args.time_step,

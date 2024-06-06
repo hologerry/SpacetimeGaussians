@@ -110,8 +110,9 @@ class ModelParams(ParamGroup):
         self.level_1_init_pts_xyz_offset = 1e-3  # random offset on parent xyz
         self.level_1_init_pts_scale = "dist"  # or float, such as -5, before exp
         self.level_1_init_pts_min_opacity = 0.05
-        self.level_1_init_pts_delta_rot_radius_scale = 5.0 # radius ratio scale on mean scales
+        self.level_1_init_pts_delta_rot_radius_scale = 5.0  # radius ratio scale on mean scales
         self.level_1_init_pts_delta_rot_angle_vel_rand = None
+        self.level_1_init_pts_fix_trbfs = 2.0
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -186,7 +187,6 @@ class OptimizationParams(ParamGroup):
         self.opacity_reset_interval = 3_000
         self.opacity_reset_at = 10000
 
-
         self.densify_cnt = 6
         self.reg = 0
         self.lambda_reg = 0.0001
@@ -248,7 +248,8 @@ class OptimizationParams(ParamGroup):
         self.level_1_densify_until_iter = 35000
 
         self.level_1_post_prune = False
-        self.level_1_post_prune_color = None
+        self.level_1_post_prune_min_color = None
+        self.level_1_post_prune_max_color = None
         self.level_1_post_prune_interval = 100
         self.level_1_post_prune_from_iter = 55000
         self.level_1_post_prune_until_iter = 57000
@@ -261,7 +262,6 @@ class OptimizationParams(ParamGroup):
         self.lambda_level_1_delta_xyz = 0  # 1e-2
 
         # self.two_level_joint_start_iter = 60000
-
 
         super().__init__(parser, "Optimization Parameters")
 

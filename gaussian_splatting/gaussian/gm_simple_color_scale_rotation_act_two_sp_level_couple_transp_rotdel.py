@@ -447,9 +447,9 @@ class GaussianModel:
         print(f"self._level_1_xyz inited {self._level_1_xyz}")
 
         level_1_fused_color = (
-            torch.rand((self._level_1_parent_idx.shape[0], self._features_dc.shape[1])).float().cuda()
+            torch.zeros((self._level_1_parent_idx.shape[0], self._features_dc.shape[1])).float().cuda()
         )
-        level_1_fused_color = level_1_fused_color * new_pts_init_color + new_pts_init_color
+        level_1_fused_color = level_1_fused_color + new_pts_init_color
         self._level_1_features_dc = nn.Parameter(level_1_fused_color.requires_grad_(True))
         print(f"self._level_1_features_dc inited {self._level_1_features_dc}")
 
@@ -1429,10 +1429,14 @@ class GaussianModel:
 
         torch.cuda.empty_cache()
 
-    def post_prune_level_1(self, min_opacity, extent, max_screen_size, prune_color=None):
+    def post_prune_level_1(self, min_opacity, extent, max_screen_size, prune_min_color=None, prune_max_color=None):
         prune_mask = (self.get_level_1_opacity < min_opacity).squeeze()
-        if prune_color is not None and isinstance(prune_color, float):
-            prune_mask_color = (self.get_level_1_features < prune_color).squeeze()
+        if prune_min_color is not None and isinstance(prune_min_color, float):
+            prune_mask_color = (self.get_level_1_features < prune_min_color).squeeze()
+            prune_mask = torch.logical_or(prune_mask, prune_mask_color)
+
+        if prune_max_color is not None and isinstance(prune_max_color, float):
+            prune_mask_color = (self.get_level_1_features > prune_max_color).squeeze()
             prune_mask = torch.logical_or(prune_mask, prune_mask_color)
 
         if max_screen_size:

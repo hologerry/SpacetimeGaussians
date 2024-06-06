@@ -235,7 +235,8 @@ def control_gaussians(
                 0.005,
                 scene.cameras_extent,
                 size_threshold,
-                opt.level_1_post_prune_color,
+                opt.level_1_post_prune_min_color,
+                opt.level_1_post_prune_max_color,
             )
 
         return flag
