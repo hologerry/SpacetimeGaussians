@@ -42,7 +42,7 @@
   "level_1_init_pts_delta_rot_radius_scale": 1.0,
   "level_1_init_pts_delta_rot_angle_vel_rand": 10.0,
   "level_1_init_pts_fix_trbfs": 2.0,
-  "level_1_delta_rot_type": "xz",
+  "level_1_delta_rot_type": "xyz",
   "level_1_clone": true,
   "level_1_split": true,
   "level_1_split_prune": true,
