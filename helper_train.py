@@ -150,6 +150,7 @@ def control_gaussians(
 
     if level == 1 and iteration < opt.level_1_densify_until_iter:
         if opt.transparent_level_0:
+            # for transparent level 0, the viewspace_point_tensor and visibility_filter are in level 1
             level_1_radii = radii
             level_1_visibility_filter = visibility_filter
         else:

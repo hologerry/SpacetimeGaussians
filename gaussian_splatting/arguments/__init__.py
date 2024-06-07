@@ -114,6 +114,9 @@ class ModelParams(ParamGroup):
         self.level_1_init_pts_delta_rot_angle_vel_rand = None
         self.level_1_init_pts_fix_trbfs = 2.0
         self.level_1_delta_rot_type = "xz"
+        self.level_1_delta_sin_a = 1.0
+        self.level_1_delta_sin_omega = 1.0
+        self.level_1_delta_sin_phi = 0.0
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -186,6 +189,10 @@ class OptimizationParams(ParamGroup):
         self.level_1_delta_trot_alpha_lr = 0.0025
         self.level_1_delta_trot_angle_vel_lr = 0.003
         self.level_1_delta_trot_beta_lr = 0.003
+
+        self.level_1_delta_sin_a_lr = 0.0025
+        self.level_1_delta_sin_omega_lr = 0.0025
+        self.level_1_delta_sin_phi_lr = 0.0025
 
         self.lambda_dssim = 0.2
 

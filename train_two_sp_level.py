@@ -71,11 +71,11 @@ def train(
     render_func, GRsetting, GRzer = get_render_pipe(pipe_args.rd_pipe)
 
     print(f"Model: {model_args.model}")
-    GaussianModel = get_model(model_args.model)
+    Gaussian = get_model(model_args.model)
 
     # trbf means Temporal Radial Basis Function in the paper
     # the trbf_center µ^τ_i is the temporal center, trbf_scale s^τ_i is temporal scaling factor
-    gaussians = GaussianModel(model_args.sh_degree, model_args.rgb_function)
+    gaussians: GaussianModel = Gaussian(model_args.sh_degree, model_args.rgb_function)
     gaussians.trbf_scale_init = -1 * optim_args.trbf_scale_init
     gaussians.preprocess_points = optim_args.preprocess_points
     gaussians.add_sph_points_scale = optim_args.add_sph_points_scale
@@ -212,6 +212,9 @@ def train(
                 new_pts_init_delta_rot_radius_scale=model_args.level_1_init_pts_delta_rot_radius_scale,
                 new_pts_init_delta_rot_angle_vel_rand=model_args.level_1_init_pts_delta_rot_angle_vel_rand,
                 new_pts_fix_trbfs=model_args.level_1_init_pts_fix_trbfs,
+                new_pts_init_delta_sin_a=model_args.level_1_delta_sin_a,
+                new_pts_init_delta_sin_omega=model_args.level_1_delta_sin_omega,
+                new_pts_init_delta_sin_phi=model_args.level_1_delta_sin_phi,
                 start_time=model_args.start_time,
                 duration=model_args.duration,
                 time_step=model_args.time_step,
