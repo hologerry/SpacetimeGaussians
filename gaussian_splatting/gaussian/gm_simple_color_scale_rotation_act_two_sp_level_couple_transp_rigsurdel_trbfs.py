@@ -53,6 +53,8 @@ class GaussianModel:
         # self.feature_act = torch.sigmoid
         self.t_activation = step_function
 
+        self._level_1_delta_rig_sur_angle_activation = torch.sigmoid
+
     def __init__(self, sh_degree: int, rgb_function="rgbv1"):
         self.active_sh_degree = 0
         self.max_sh_degree = sh_degree
@@ -83,8 +85,9 @@ class GaussianModel:
         self._level_1_trbf_scale = torch.empty(0)
         self._level_1_parent_idx = torch.empty(0)
 
-        self._level_1_delta_rot_radius = torch.empty(0)
-        self._level_1_delta_rot_angle_vel = torch.empty(0)
+        self._level_1_delta_rig_sur_radius = torch.empty(0)
+        self._level_1_delta_rig_sur_azimuth = torch.empty(0)
+        self._level_1_delta_rig_sur_polar = torch.empty(0)
 
         self.max_radii2D = torch.empty(0)
         self.xyz_gradient_accum = torch.empty(0)
@@ -226,12 +229,16 @@ class GaussianModel:
         return torch.cat((self._motion, self._level_1_motion), dim=0)
 
     @property
-    def get_level_1_delta_rot_radius(self):
-        return self._level_1_delta_rot_radius
+    def get_level_1_delta_rig_sur_radius(self):
+        return self._level_1_delta_rig_sur_radius
 
     @property
-    def get_level_1_delta_rot_angle_vel(self):
-        return self._level_1_delta_rot_angle_vel
+    def get_level_1_delta_rig_sur_azimuth(self):
+        return self._level_1_delta_rig_sur_azimuth
+
+    @property
+    def get_level_1_delta_rig_sur_polar(self):
+        return self._level_1_delta_rig_sur_polar
 
     @property
     def get_trbf_center(self):
@@ -353,14 +360,15 @@ class GaussianModel:
 
         self._trbf_center = nn.Parameter(times.contiguous().requires_grad_(True))
         self._trbf_scale = nn.Parameter(torch.ones((self.get_xyz.shape[0], 1), device="cuda").requires_grad_(True))
-
         print(f"self._trbf_center inited {self._trbf_center}")
         print(f"self._trbf_scale inited {self._trbf_scale}")
 
-        self._delta_rot_radius = torch.zeros((fused_point_cloud.shape[0], 1), device="cuda")
-        self._delta_rot_angle_vel = torch.zeros((fused_point_cloud.shape[0], 1), device="cuda")
-        print(f"self._delta_rot_radius inited {self._delta_rot_radius}")
-        print(f"self._delta_rot_angle_vel inited {self._delta_rot_angle_vel}")
+        self._delta_rig_sur_radius = torch.zeros((fused_point_cloud.shape[0], 1), device="cuda")
+        self._delta_rig_sur_azimuth = torch.zeros((fused_point_cloud.shape[0], 1), device="cuda")
+        self._delta_rig_sur_polar = torch.zeros((fused_point_cloud.shape[0], 1), device="cuda")
+        print(f"self._delta_rig_sur_radius inited {self._delta_rig_sur_radius}")
+        print(f"self._delta_rig_sur_azimuth inited {self._delta_rig_sur_azimuth}")
+        print(f"self._delta_rig_sur_polar inited {self._delta_rig_sur_polar}")
 
         if self.trbf_scale_init is not None:
             nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
@@ -385,8 +393,8 @@ class GaussianModel:
         new_pts_init_xyz_offset=0.0,
         new_pts_init_scale="dist",
         new_pts_init_min_opacity=0.05,
-        new_pts_init_delta_rot_radius_scale=5.0,
-        new_pts_init_delta_rot_angle_vel_rand=None,
+        new_pts_init_per_parent=20,
+        new_pts_init_delta_rig_sur_radius_scale=5.0,
         new_pts_fix_trbfs=2.0,
         start_time=0,
         duration=120,
@@ -402,38 +410,36 @@ class GaussianModel:
         level_0_opacity = self.get_opacity
         point_times = torch.ones((n_level_0_points, 1), dtype=torch.float, requires_grad=False, device="cuda")
         parent_idx = torch.arange(n_level_0_points, dtype=torch.long, requires_grad=False, device="cuda")
-        level_1_total_parent_idx = []
-        level_1_total_times = []
+        level_1_total_sur_parent_idx = []
+        level_1_total_sur_times = []
         for time_i in range(start_time, start_time + duration, time_step):
             cur_time_stamp = (time_i - start_time) / duration
-            if new_pts_init_xyz == "parent_couple":
-                trbf_distance_offset = cur_time_stamp * point_times - level_0_trbf_center
-                # tforpoly = trbf_distance_offset.detach()
-                time_coefficient = self.t_activation(trbf_distance_offset)
-                # cur_level_means_3D = (
-                #     parent_means_3D
-                #     + parent_motion[:, 0:3] * tforpoly * time_coefficient
-                #     + parent_motion[:, 3:6] * tforpoly * tforpoly * time_coefficient
-                #     + parent_motion[:, 6:9] * tforpoly * tforpoly * tforpoly * time_coefficient
-                # )
-                time_visible_parent_to_select = torch.where(time_coefficient > 0, True, False).squeeze()
-                opacity_visible_parent_to_select = (level_0_opacity > new_pts_init_min_opacity).squeeze()
-                visible_parent_to_select = torch.logical_and(
-                    time_visible_parent_to_select, opacity_visible_parent_to_select
-                )
 
-                cur_visible_parent_idx = parent_idx[visible_parent_to_select]
-                cur_level_select_idx = torch.randperm(cur_visible_parent_idx.shape[0], device="cuda")[
-                    :new_pts_per_time
-                ]
-                cur_level_selected_parent_idx = cur_visible_parent_idx[cur_level_select_idx]
-                cur_level_selected_parent_idx = cur_level_selected_parent_idx.reshape(-1, 1)
-            else:
-                raise ValueError(f"new_pts_init_xyz {new_pts_init_xyz} not implemented")
+            trbf_distance_offset = cur_time_stamp * point_times - level_0_trbf_center
+            # tforpoly = trbf_distance_offset.detach()
+            time_coefficient = self.t_activation(trbf_distance_offset)
+            # cur_level_means_3D = (
+            #     parent_means_3D
+            #     + parent_motion[:, 0:3] * tforpoly * time_coefficient
+            #     + parent_motion[:, 3:6] * tforpoly * tforpoly * time_coefficient
+            #     + parent_motion[:, 6:9] * tforpoly * tforpoly * tforpoly * time_coefficient
+            # )
+            time_visible_parent_to_select = torch.where(time_coefficient > 0, True, False).squeeze()
+            opacity_visible_parent_to_select = (level_0_opacity > new_pts_init_min_opacity).squeeze()
+            visible_parent_to_select = torch.logical_and(
+                time_visible_parent_to_select, opacity_visible_parent_to_select
+            )
 
-            cur_level_time = torch.ones((cur_level_selected_parent_idx.shape[0], 1), device="cuda") * cur_time_stamp
-            level_1_total_parent_idx.append(cur_level_selected_parent_idx)
-            level_1_total_times.append(cur_level_time)
+            cur_visible_parent_idx = parent_idx[visible_parent_to_select]
+            cur_level_select_idx = torch.randperm(cur_visible_parent_idx.shape[0], device="cuda")[:new_pts_per_time]
+            cur_level_selected_parent_idx = cur_visible_parent_idx[cur_level_select_idx]
+            cur_level_selected_parent_idx = cur_level_selected_parent_idx.reshape(-1, 1)
+
+            cur_level_sur_parent_ids = cur_level_selected_parent_idx.repeat(1, new_pts_init_per_parent).reshape(-1, 1)
+
+            cur_level_sur_time = torch.ones((cur_level_sur_parent_ids.shape[0], 1), device="cuda") * cur_time_stamp
+            level_1_total_sur_parent_idx.append(cur_level_selected_parent_idx)
+            level_1_total_sur_times.append(cur_level_sur_time)
 
         level_1_total_parent_idx = torch.cat(level_1_total_parent_idx, dim=0).long().cuda()
         level_1_total_times = torch.cat(level_1_total_times, dim=0).float().cuda()

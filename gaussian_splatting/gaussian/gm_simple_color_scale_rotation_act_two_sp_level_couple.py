@@ -342,8 +342,6 @@ class GaussianModel:
         print(f"self._trbf_center inited {self._trbf_center}")
         print(f"self._trbf_scale inited {self._trbf_scale}")
 
-        ## store gradients
-
         if self.trbf_scale_init is not None:
             nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
         else:
@@ -397,10 +395,14 @@ class GaussianModel:
                 # )
                 time_visible_parent_to_select = torch.where(time_coefficient > 0, True, False).squeeze()
                 opacity_visible_parent_to_select = (level_0_opacity > new_pts_init_min_opacity).squeeze()
-                visible_parent_to_select = torch.logical_and(time_visible_parent_to_select, opacity_visible_parent_to_select)
+                visible_parent_to_select = torch.logical_and(
+                    time_visible_parent_to_select, opacity_visible_parent_to_select
+                )
 
                 cur_visible_parent_idx = parent_idx[visible_parent_to_select]
-                cur_level_select_idx = torch.randperm(cur_visible_parent_idx.shape[0], device="cuda")[:new_pts_per_time]
+                cur_level_select_idx = torch.randperm(cur_visible_parent_idx.shape[0], device="cuda")[
+                    :new_pts_per_time
+                ]
                 cur_level_selected_parent_idx = cur_visible_parent_idx[cur_level_select_idx]
                 cur_level_selected_parent_idx = cur_level_selected_parent_idx.reshape(-1, 1)
             else:
@@ -420,7 +422,9 @@ class GaussianModel:
         self._level_1_xyz = torch.zeros((level_1_total_parent_idx.shape[0], 3), device="cuda")
         print(f"self._level_1_xyz inited {self._level_1_xyz}")
 
-        level_1_fused_color = torch.rand((self._level_1_parent_idx.shape[0], self._features_dc.shape[1])).float().cuda()
+        level_1_fused_color = (
+            torch.rand((self._level_1_parent_idx.shape[0], self._features_dc.shape[1])).float().cuda()
+        )
         level_1_fused_color = level_1_fused_color * new_pts_init_color + new_pts_init_color
         self._level_1_features_dc = nn.Parameter(level_1_fused_color.requires_grad_(True))
         print(f"self._level_1_features_dc inited {self._level_1_features_dc}")

@@ -362,8 +362,6 @@ class GaussianModel:
         print(f"self._delta_rot_radius inited {self._delta_rot_radius}")
         print(f"self._delta_rot_angle_vel inited {self._delta_rot_angle_vel}")
 
-        ## store gradients
-
         if self.trbf_scale_init is not None:
             nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
         else:
@@ -488,12 +486,18 @@ class GaussianModel:
         print(f"self._level_1_trbf_scale inited {self._level_1_trbf_scale}")
 
         level_1_scales_mean = torch.exp(torch.mean(level_1_scales, dim=1, keepdim=True))
-        level_1_delta_rot_radius = torch.zeros((level_1_total_parent_idx.shape[0], 1), device="cuda") + new_pts_init_delta_rot_radius_scale * level_1_scales_mean
+        level_1_delta_rot_radius = (
+            torch.zeros((level_1_total_parent_idx.shape[0], 1), device="cuda")
+            + new_pts_init_delta_rot_radius_scale * level_1_scales_mean
+        )
         self._level_1_delta_rot_radius = nn.Parameter(level_1_delta_rot_radius.requires_grad_(True))
         print(f"self._level_1_delta_rot_radius inited {self._level_1_delta_rot_radius}")
 
         if new_pts_init_delta_rot_angle_vel_rand is not None:
-            level_1_delta_rot_angle_vel = torch.rand((level_1_total_parent_idx.shape[0], 1), device="cuda") * new_pts_init_delta_rot_angle_vel_rand
+            level_1_delta_rot_angle_vel = (
+                torch.rand((level_1_total_parent_idx.shape[0], 1), device="cuda")
+                * new_pts_init_delta_rot_angle_vel_rand
+            )
         else:
             level_1_delta_rot_angle_vel = torch.zeros((level_1_total_parent_idx.shape[0], 1), device="cuda")
         self._level_1_delta_rot_angle_vel = nn.Parameter(level_1_delta_rot_angle_vel.requires_grad_(True))
@@ -543,7 +547,9 @@ class GaussianModel:
         # self._level_1_motion_grad = torch.zeros_like(self._level_1_motion, requires_grad=False)
         self._level_1_omega_grad = torch.zeros_like(self._level_1_omega, requires_grad=False)
         self._level_1_delta_rot_radius_grad = torch.zeros_like(self._level_1_delta_rot_radius, requires_grad=False)
-        self._level_1_delta_rot_angle_vel_grad = torch.zeros_like(self._level_1_delta_rot_angle_vel, requires_grad=False)
+        self._level_1_delta_rot_angle_vel_grad = torch.zeros_like(
+            self._level_1_delta_rot_angle_vel, requires_grad=False
+        )
 
     def set_batch_gradient(self, batch_size):
         ratio = 1 / batch_size

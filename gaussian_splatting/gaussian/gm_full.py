@@ -244,8 +244,6 @@ class GaussianModel:
         self._trbf_center = nn.Parameter(times.contiguous().requires_grad_(True))
         self._trbf_scale = nn.Parameter(torch.ones((self.get_xyz.shape[0], 1), device="cuda").requires_grad_(True))
 
-        ## store gradients
-
         if self.trbf_scale_init is not None:
             nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
         else:

@@ -253,8 +253,6 @@ class GaussianModel:
         print(f"self._trbf_center inited {self._trbf_center}")
         print(f"self._trbf_scale inited {self._trbf_scale}")
 
-        ## store gradients
-
         if self.trbf_scale_init is not None:
             nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
         else:

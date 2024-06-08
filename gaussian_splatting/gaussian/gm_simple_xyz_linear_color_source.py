@@ -236,8 +236,6 @@ class GaussianModel:
         # it is just a coefficient of other kernel quantities, we do not require gradient on it
         self._point_timestamp = times_zero
 
-        ## store gradients
-
         if self.trbf_scale_init is not None:
             nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
         else:

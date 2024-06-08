@@ -225,8 +225,6 @@ class GaussianModel:
         print(f"self._trbf_center inited {self._trbf_center}")
         # print(f"self._trbf_scale inited {self._trbf_scale}")
 
-        ## store gradients
-
         # if self.trbf_scale_init is not None:
         #     nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
         # else:
@@ -399,7 +397,6 @@ class GaussianModel:
         opacities_new = inverse_sigmoid(torch.min(cur_opacity, torch.ones_like(cur_opacity) * 0.01))
         optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")
         self._opacity = optimizable_tensors["opacity"]
-
 
     def load_ply(self, path):
         ply_data = PlyData.read(path)
@@ -632,7 +629,6 @@ class GaussianModel:
 
         self.delta_t = torch.cat((self.delta_t, new_delta_t), dim=0)
 
-
     def densify_and_split(self, grads, grad_threshold, scene_extent, N=2):
         n_init_points = self.get_xyz.shape[0]
         padded_grad = torch.zeros((n_init_points), device="cuda")
@@ -681,7 +677,6 @@ class GaussianModel:
         )
         self.prune_points(prune_filter)
 
-
     def densify_and_clone(self, grads, grad_threshold, scene_extent):
         # Extract points that satisfy the gradient condition
         selected_pts_mask = torch.where(torch.norm(grads, dim=-1) >= grad_threshold, True, False)
@@ -718,13 +713,11 @@ class GaussianModel:
             new_delta_t,
         )
 
-
     def add_densification_stats(self, viewspace_point_tensor, update_filter):
         self.xyz_gradient_accum[update_filter] += torch.norm(
             viewspace_point_tensor.grad[update_filter, :2], dim=-1, keepdim=True
         )
         self.denom[update_filter] += 1
-
 
     def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, **kwargs):
         ## raw method from 3dgs debugging hyfluid

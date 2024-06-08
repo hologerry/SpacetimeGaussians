@@ -370,8 +370,6 @@ class GaussianModel:
         print(f"self._delta_sin_omega inited {self._delta_sin_omega}")
         print(f"self._delta_sin_phi inited {self._delta_sin_phi}")
 
-        ## store gradients
-
         if self.trbf_scale_init is not None:
             nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
         else:

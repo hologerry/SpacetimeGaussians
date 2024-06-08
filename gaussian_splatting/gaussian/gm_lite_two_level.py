@@ -227,8 +227,6 @@ class GaussianModel:
         self._level = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
         print(f"self._level inited {self._level}")
 
-        ## store gradients
-
         if self.trbf_scale_init is not None:
             nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
         else:
@@ -828,7 +826,18 @@ class GaussianModel:
             mask = mask.squeeze(1)
             self._zero_optimizer(mask)
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True, split_prune=True, prune=True, **kwargs):
+    def densify_and_prune(
+        self,
+        max_grad,
+        min_opacity,
+        extent,
+        max_screen_size,
+        clone=True,
+        split=True,
+        split_prune=True,
+        prune=True,
+        **kwargs,
+    ):
         ## raw method from 3dgs debugging hyfluid
         if clone or split:
             grads = self.xyz_gradient_accum / self.denom
@@ -843,7 +852,7 @@ class GaussianModel:
             prune_mask = (self.get_opacity < min_opacity).squeeze()
             new_point_mask = self._level == 1.0
             new_point_mask = new_point_mask.squeeze()
-            prune_mask = torch.logical_and(prune_mask, new_point_mask) # only prune the level 1 points
+            prune_mask = torch.logical_and(prune_mask, new_point_mask)  # only prune the level 1 points
             if max_screen_size:
                 big_points_vs = self.max_radii2D > max_screen_size
                 big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent

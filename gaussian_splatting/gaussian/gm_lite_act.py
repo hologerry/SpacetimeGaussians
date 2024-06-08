@@ -225,8 +225,6 @@ class GaussianModel:
         print(f"self._trbf_center inited {self._trbf_center}")
         print(f"self._trbf_scale inited {self._trbf_scale}")
 
-        ## store gradients
-
         if self.trbf_scale_init is not None:
             nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
         else:
@@ -1411,7 +1409,9 @@ class GaussianModel:
     #     optimizable_tensors = self.replace_tensor_to_optimizer(opacity_old, "opacity")
     #     self._opacity = optimizable_tensors["opacity"]
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True, prune=True, **kwargs):
+    def densify_and_prune(
+        self, max_grad, min_opacity, extent, max_screen_size, clone=True, split=True, prune=True, **kwargs
+    ):
         ## raw method from 3dgs debugging hyfluid
         if clone or split:
             grads = self.xyz_gradient_accum / self.denom

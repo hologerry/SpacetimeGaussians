@@ -378,8 +378,6 @@ class GaussianModel:
         print(f"self._delta_trot_angle_vel inited {self._delta_trot_angle_vel}")
         print(f"self._delta_trot_beta inited {self._delta_trot_beta}")
 
-        ## store gradients
-
         if self.trbf_scale_init is not None:
             nn.init.constant_(self._trbf_scale, self.trbf_scale_init)  # too large ?
         else:
@@ -531,9 +529,7 @@ class GaussianModel:
         print(f"self._level_1_delta_trot_angle_vel inited {self._level_1_delta_trot_angle_vel}")
 
         level_1_delta_trot_beta = torch.ones((level_1_total_parent_idx.shape[0], 3), device="cuda")
-        self._level_1_delta_trot_beta = nn.Parameter(
-            level_1_delta_trot_beta.requires_grad_(True)
-        )
+        self._level_1_delta_trot_beta = nn.Parameter(level_1_delta_trot_beta.requires_grad_(True))
         print(f"self._level_1_delta_trot_beta inited {self._level_1_delta_trot_beta}")
 
     def cache_gradient(self):
@@ -584,15 +580,11 @@ class GaussianModel:
         self._level_1_omega_grad = torch.zeros_like(self._level_1_omega, requires_grad=False)
         self._level_1_delta_trot_center_grad = torch.zeros_like(self._level_1_delta_trot_center, requires_grad=False)
         self._level_1_delta_trot_radius_grad = torch.zeros_like(self._level_1_delta_trot_radius, requires_grad=False)
-        self._level_1_delta_trot_alpha_grad = torch.zeros_like(
-            self._level_1_delta_trot_alpha, requires_grad=False
-        )
+        self._level_1_delta_trot_alpha_grad = torch.zeros_like(self._level_1_delta_trot_alpha, requires_grad=False)
         self._level_1_delta_trot_angle_vel_grad = torch.zeros_like(
             self._level_1_delta_trot_angle_vel, requires_grad=False
         )
-        self._level_1_delta_trot_beta_grad = torch.zeros_like(
-            self._level_1_delta_trot_beta, requires_grad=False
-        )
+        self._level_1_delta_trot_beta_grad = torch.zeros_like(self._level_1_delta_trot_beta, requires_grad=False)
 
     def set_batch_gradient(self, batch_size):
         ratio = 1 / batch_size
@@ -953,22 +945,30 @@ class GaussianModel:
         parent_idx = np.asarray(ply_data.elements[0]["parent_idx"])[..., np.newaxis]
 
         delta_trot_center = np.asarray(ply_data.elements[0]["delta_trot_center"])[..., np.newaxis]
-        delta_trot_radius_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("delta_trot_radius")]
+        delta_trot_radius_names = [
+            p.name for p in ply_data.elements[0].properties if p.name.startswith("delta_trot_radius")
+        ]
         delta_trot_radius = np.zeros((xyz.shape[0], len(delta_trot_radius_names)))
         for idx, attr_name in enumerate(delta_trot_radius_names):
             delta_trot_radius[:, idx] = np.asarray(ply_data.elements[0][attr_name])
 
-        delta_trot_alpha_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("delta_trot_alpha")]
+        delta_trot_alpha_names = [
+            p.name for p in ply_data.elements[0].properties if p.name.startswith("delta_trot_alpha")
+        ]
         delta_trot_alpha = np.zeros((xyz.shape[0], len(delta_trot_alpha_names)))
         for idx, attr_name in enumerate(delta_trot_alpha_names):
             delta_trot_alpha[:, idx] = np.asarray(ply_data.elements[0][attr_name])
 
-        delta_trot_angle_vel_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("delta_trot_angle_vel")]
+        delta_trot_angle_vel_names = [
+            p.name for p in ply_data.elements[0].properties if p.name.startswith("delta_trot_angle_vel")
+        ]
         delta_trot_angle_vel = np.zeros((xyz.shape[0], len(delta_trot_angle_vel_names)))
         for idx, attr_name in enumerate(delta_trot_angle_vel_names):
             delta_trot_angle_vel[:, idx] = np.asarray(ply_data.elements[0][attr_name])
 
-        delta_trot_beta_names = [p.name for p in ply_data.elements[0].properties if p.name.startswith("delta_trot_beta")]
+        delta_trot_beta_names = [
+            p.name for p in ply_data.elements[0].properties if p.name.startswith("delta_trot_beta")
+        ]
         delta_trot_beta = np.zeros((xyz.shape[0], len(delta_trot_beta_names)))
         for idx, attr_name in enumerate(delta_trot_beta_names):
             delta_trot_beta[:, idx] = np.asarray(ply_data.elements[0][attr_name])
@@ -1475,7 +1475,9 @@ class GaussianModel:
         new_trbf_scale = self._level_1_trbf_scale[selected_pts_mask]
         # new_motion = self._level_1_motion[selected_pts_mask]
         new_omega = self._level_1_omega[selected_pts_mask]
-        new_delta_trot_center = torch.rand((self._level_1_delta_trot_center[selected_pts_mask].shape[0], 1), device="cuda")
+        new_delta_trot_center = torch.rand(
+            (self._level_1_delta_trot_center[selected_pts_mask].shape[0], 1), device="cuda"
+        )
         # self._level_1_delta_trot_center[selected_pts_mask]
         new_delta_trot_center = new_delta_trot_center * max_timestamp
         new_delta_trot_radius = self._level_1_delta_trot_radius[selected_pts_mask]
