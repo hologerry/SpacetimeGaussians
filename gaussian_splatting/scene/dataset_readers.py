@@ -393,7 +393,7 @@ def read_nerf_synthetic_info_hyfluid(
 
     nerf_normalization = get_nerf_pp_norm(train_cam_infos)
 
-    total_ply_path = os.path.join(model_path, "points3d_total.ply")
+    total_ply_path = os.path.join(model_path, "initial_points3d_total.ply")
     if os.path.exists(total_ply_path):
         os.remove(total_ply_path)
 

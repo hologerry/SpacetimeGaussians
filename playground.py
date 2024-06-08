@@ -1,8 +1,11 @@
 import math
 
+from argparse import ArgumentParser, Namespace
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import yaml
 
 from skimage import data, img_as_float
 from skimage.metrics import mean_squared_error
@@ -106,5 +109,27 @@ xyz = torch.rand((10, 3), requires_grad=True)
 # print(selected_xyz.shape)
 
 x = torch.tensor([1.0])
-o = torch.exp(-1 * (1/torch.exp(x)))
+o = torch.exp(-1 * (1 / torch.exp(x)))
 print(o)
+
+
+# file_names = ["abc_cfg_args.yaml", "abc_cfg_args_0.yaml", "abc_cfg_args_1.yaml"]
+# print(sorted(file_names))
+
+test_yaml = "test.yaml"
+
+data = {
+    "model": "abc",
+    "optim": "def",
+}
+with open(test_yaml, "w") as f:
+    for k, v in data.items():
+        f.write(f"{k}: {v}\n")
+
+
+with open(test_yaml, "r") as f:
+    loaded_data = yaml.load(f, Loader=yaml.FullLoader)
+
+print(loaded_data)
+name_space = Namespace(**loaded_data)
+print(vars(name_space))

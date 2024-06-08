@@ -1,17 +1,14 @@
+import copy
 import json
 import os
 import sys
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 
 import torch
+import yaml
 
-from gaussian_splatting.arguments import (
-    ModelParams,
-    OptimizationParams,
-    PipelineParams,
-    get_combined_args,
-)
+from gaussian_splatting.arguments import ModelParams, OptimizationParams, PipelineParams
 from gaussian_splatting.utils.general_utils import safe_state
 
 
@@ -103,3 +100,54 @@ def get_test_parser():
         print("args: " + str(args))
 
         return args, model.extract(args), optimization.extract(args), pipeline.extract(args)
+
+
+def write_args_to_file(args, model_args, optim_args, pipe_args, name):
+    cfg_output_path = os.path.join(model_args.model_path, f"{name}_cfg_args.yaml")
+    while os.path.exists(cfg_output_path):
+        idx = 0
+        cfg_output_path = os.path.join(model_args.model_path, f"{name}_cfg_args_{idx}.yaml")
+        idx += 1
+    with open(cfg_output_path, "w") as cfg_log_f:
+        # write args to yml file
+        cfg_log_f.write(f"model_args:\n")
+        for k, v in vars(model_args).items():
+            cfg_log_f.write(f"  {k}: {v}\n")
+        cfg_log_f.write(f"optim_args:\n")
+        for k, v in vars(optim_args).items():
+            cfg_log_f.write(f"  {k}: {v}\n")
+        cfg_log_f.write(f"pipe_args:\n")
+        for k, v in vars(pipe_args).items():
+            cfg_log_f.write(f"  {k}: {v}\n")
+        cfg_log_f.write(f"args:\n")
+        for k, v in vars(args).items():
+            cfg_log_f.write(f"  {k}: {v}\n")
+
+    return cfg_output_path
+
+
+def get_combined_args(parser: ArgumentParser):
+    cmd_line_string = sys.argv[1:]
+    args_cmdline = parser.parse_args(cmd_line_string)
+
+    cfg_file_dir = os.listdir(cmd_line_string.model_path)
+    cfg_file_names = [os.path.join(cmd_line_string.model_path, f) for f in cfg_file_dir if f.endswith(".yaml")]
+    cfg_file_name = cfg_file_names[-1]
+    try:
+        cfg_file_path = os.path.join(args_cmdline.model_path, cfg_file_name)
+        print("Looking for config file in", cfg_file_path)
+        with open(cfg_file_path) as cfg_file:
+            print(f"Config file found: {cfg_file_path}")
+            cfg_data = yaml.load(cfg_file, Loader=yaml.FullLoader)
+    except TypeError:
+        print(f"Config file not found at {cfg_file_dir}")
+        pass
+
+    merged_dict = copy.deepcopy(cfg_data)
+    for k, v in vars(args_cmdline).items():
+        if k not in merged_dict:
+            print(f"New argument {k}: {v}")
+            merged_dict[k] = v
+        if v != None:
+            merged_dict[k] = v
+    return Namespace(**merged_dict)

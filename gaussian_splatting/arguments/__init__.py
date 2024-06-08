@@ -10,9 +10,8 @@
 #
 
 import os
-import sys
 
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser
 
 
 class GroupParams:
@@ -275,33 +274,7 @@ class OptimizationParams(ParamGroup):
         self.lambda_level_1_motion = 0  # 1e-2
         self.lambda_level_1_delta_xyz = 0  # 1e-2
 
-        self.lambda_level_1_scale_reg = 0 # 1e-2
+        self.lambda_level_1_scale_reg = 0  # 1e-2
         # self.two_level_joint_start_iter = 60000
 
         super().__init__(parser, "Optimization Parameters")
-
-
-def get_combined_args(parser: ArgumentParser):
-    cmd_line_string = sys.argv[1:]
-    cfg_file_string = "Namespace()"
-    args_cmdline = parser.parse_args(cmd_line_string)
-
-    try:
-        cfg_file_path = os.path.join(args_cmdline.model_path, "cfg_args")
-        print("Looking for config file in", cfg_file_path)
-        with open(cfg_file_path) as cfg_file:
-            print("Config file found: {}".format(cfg_file_path))
-            cfg_file_string = cfg_file.read()
-    except TypeError:
-        print("Config file not found at")
-        pass
-    args_cfg_file = eval(cfg_file_string)
-
-    merged_dict = vars(args_cfg_file).copy()
-    for k, v in vars(args_cmdline).items():
-        if k not in merged_dict:
-            print(f"New argument {k}: {v}")
-            merged_dict[k] = v
-        if v != None:
-            merged_dict[k] = v
-    return Namespace(**merged_dict)

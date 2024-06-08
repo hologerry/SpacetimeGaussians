@@ -358,7 +358,7 @@ def logical_or_list(tensor_list):
 
 
 def record_points_helper(model_path, numpoints, iteration, string):
-    txt_path = os.path.join(model_path, "exp_log.txt")
+    txt_path = os.path.join(model_path, "N_points_log.txt")
 
     with open(txt_path, "a") as file:
         file.write("iteration at " + str(iteration) + "\n")

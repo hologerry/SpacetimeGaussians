@@ -41,7 +41,7 @@ from gaussian_splatting.utils.graphics_utils import get_world_2_view2
 from gaussian_splatting.utils.image_utils import psnr
 from gaussian_splatting.utils.loss_utils import l1_loss, ssim
 from helper_gaussian import get_model
-from helper_parser import get_parser
+from helper_parser import get_parser, write_args_to_file
 from helper_pipe import get_render_pipe
 from helper_train import (
     control_gaussians,
@@ -63,8 +63,8 @@ def train(
     checkpoint_iterations: list,
     debug_from: int,
 ):
-    with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
-        cfg_log_f.write(str(Namespace(**vars(args))))
+
+    write_args_to_file(args, model_args, optim_args, pipe_args, "training")
 
     tb_writer = prepare_output_and_logger(model_args)
     first_iter = 0
@@ -329,6 +329,7 @@ def train(
 
             if iteration in saving_iterations:
                 print(f"[ITER {iteration}] Saving Gaussians")
+                scene.record_points(iteration, "saving")
                 scene.save(iteration)
 
             # Log and save
