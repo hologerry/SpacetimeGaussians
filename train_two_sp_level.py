@@ -214,6 +214,8 @@ def train(
                 new_pts_init_delta_sin_a=model_args.level_1_delta_sin_a,
                 new_pts_init_delta_sin_omega=model_args.level_1_delta_sin_omega,
                 new_pts_init_delta_sin_phi=model_args.level_1_delta_sin_phi,
+                new_pts_init_per_parent=model_args.level_1_init_num_pts_per_parent,
+                new_pts_init_delta_rig_sur_radius_scale=model_args.level_1_init_pts_delta_rig_sur_radius_scale,
                 start_time=model_args.start_time,
                 duration=model_args.duration,
                 time_step=model_args.time_step,
