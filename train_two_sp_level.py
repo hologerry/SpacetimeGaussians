@@ -407,7 +407,7 @@ def train(
 
             if iteration in saving_iterations:
                 print(f"[ITER {iteration}] Saving Gaussians")
-                scene.record_points(iteration, "saving")
+                scene.record_points(iteration, "saving", two_level=True)
                 scene.save(iteration)
 
             # Log and save

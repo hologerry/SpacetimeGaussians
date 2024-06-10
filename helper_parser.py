@@ -104,8 +104,8 @@ def get_test_parser():
 
 def write_args_to_file(args, model_args, optim_args, pipe_args, name):
     cfg_output_path = os.path.join(model_args.model_path, f"{name}_cfg_args.yaml")
+    idx = 0
     while os.path.exists(cfg_output_path):
-        idx = 0
         cfg_output_path = os.path.join(model_args.model_path, f"{name}_cfg_args_{idx}.yaml")
         idx += 1
     with open(cfg_output_path, "w") as cfg_log_f:

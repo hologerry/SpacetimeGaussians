@@ -8,30 +8,9 @@
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
-import json
 import os
-import random
 import shutil
-import sys
-import time
-import uuid
 
-from argparse import ArgumentParser, Namespace
-from random import randint
-
-import cv2
-import numpy as np
-import torch
-
-from tqdm import tqdm
-
-from gaussian_splatting.arguments import (
-    ModelParams,
-    OptimizationParams,
-    PipelineParams,
-    get_combined_args,
-)
-from gaussian_splatting.utils.general_utils import safe_state
 
 def get_render_parts(render_pkg):
     return render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]

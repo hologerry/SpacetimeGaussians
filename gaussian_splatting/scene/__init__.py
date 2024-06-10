@@ -155,10 +155,12 @@ class Scene:
         point_cloud_path = os.path.join(self.model_path, f"point_cloud/iteration_{iteration}")
         self.gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))
 
-    # record_points_helper(model_path, num_points, iteration, string):
-    def record_points(self, iteration, string):
+    def record_points(self, iteration, string, two_level=False):
         num_points = self.gaussians._xyz.shape[0]
         record_points_helper(self.model_path, num_points, iteration, string)
+        if two_level:
+            num_level_1_points = self.gaussians._level_1_parent_idx.shape[0]
+            record_points_helper(self.model_path, num_level_1_points, iteration, string + "_level_1")
 
     def get_train_cameras(self, scale=1.0):
         return self.train_cameras[scale]

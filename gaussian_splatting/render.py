@@ -17,7 +17,7 @@ from os import makedirs
 import torch
 import torchvision
 
-from arguments import ModelParams, PipelineParams, get_combined_args
+from arguments import ModelParams, PipelineParams
 from scene import Scene
 from torchvision.utils import save_image
 from tqdm import tqdm
@@ -69,21 +69,3 @@ def render_sets(dataset: ModelParams, iteration: int, pipeline: PipelineParams, 
                 pipeline,
                 background,
             )
-
-
-if __name__ == "__main__":
-    # Set up command line argument parser
-    parser = ArgumentParser(description="Testing script parameters")
-    model = ModelParams(parser, sentinel=True)
-    pipeline = PipelineParams(parser)
-    parser.add_argument("--iteration", default=-1, type=int)
-    parser.add_argument("--skip_train", action="store_true")
-    parser.add_argument("--skip_test", action="store_true")
-    parser.add_argument("--quiet", action="store_true")
-    args = get_combined_args(parser)
-    print("Rendering " + args.model_path)
-
-    # Initialize system state (RNG)
-    safe_state(args.quiet)
-
-    render_sets(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test)

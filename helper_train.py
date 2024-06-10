@@ -69,8 +69,6 @@ def prepare_output_and_logger(args):
     print("Output folder: {}".format(args.model_path))
     os.makedirs(args.model_path, exist_ok=True)
     os.makedirs(os.path.join(args.model_path, "training_render"), exist_ok=True)
-    with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
-        cfg_log_f.write(str(Namespace(**vars(args))))
 
     # Create Tensorboard writer
     tb_writer = None

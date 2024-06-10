@@ -432,13 +432,12 @@ class GaussianModel:
 
             cur_level_sur_parent_ids = cur_level_selected_parent_idx.repeat(1, new_pts_init_per_parent).reshape(-1, 1)
 
-            cur_level_sur_time = torch.ones((cur_level_sur_parent_ids.shape[0], 1), device="cuda") * cur_time_stamp
-            cur_level_sur_times = cur_level_sur_time.repeat(1, new_pts_init_per_parent).reshape(-1, 1)
+            cur_level_sur_times = torch.ones((cur_level_sur_parent_ids.shape[0], 1), device="cuda") * cur_time_stamp
 
-            cur_parent_scale = self.get_scaling[cur_level_selected_parent_idx.squeeze(1)]
+            cur_parent_scale = self.get_scaling[cur_level_sur_parent_ids.squeeze(1)]
             cur_parent_scale_mean = torch.mean(cur_parent_scale, dim=1, keepdim=True)
-            cur_delta_rig_sur_radius = torch.zeros((cur_level_sur_parent_ids.shape[0], 1)) + cur_parent_scale_mean * new_pts_init_delta_rig_sur_radius_scale
-            cur_delta_rig_sur_radiuses = cur_delta_rig_sur_radius.repeat(1, new_pts_init_per_parent).reshape(-1, 1)
+            cur_delta_rig_sur_radiuses = torch.zeros((cur_level_sur_parent_ids.shape[0], 1), device="cuda")
+            cur_delta_rig_sur_radiuses += cur_parent_scale_mean * new_pts_init_delta_rig_sur_radius_scale
 
             cur_delta_rig_sur_azimuth = torch.linspace(0, 1, new_pts_init_per_parent, device="cuda").reshape(1, -1)
             cur_delta_rig_sur_azimuths = cur_delta_rig_sur_azimuth.repeat(cur_level_selected_parent_idx.shape[0], 1).reshape(-1, 1)
