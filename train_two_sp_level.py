@@ -216,6 +216,9 @@ def train(
                 new_pts_init_delta_sin_phi=model_args.level_1_delta_sin_phi,
                 new_pts_init_per_parent=model_args.level_1_init_num_pts_per_parent,
                 new_pts_init_delta_rig_sur_radius_scale=model_args.level_1_init_pts_delta_rig_sur_radius_scale,
+                new_pts_init_delta_x_max=model_args.level_1_init_delta_x_max,
+                new_pts_init_delta_y_max=model_args.level_1_init_delta_y_max,
+                new_pts_init_delta_z_max=model_args.level_1_init_delta_z_max,
                 start_time=model_args.start_time,
                 duration=model_args.duration,
                 time_step=model_args.time_step,
@@ -345,6 +348,14 @@ def train(
                 level_1_delta_xyz_loss = optim_args.lambda_level_1_delta_xyz * loss_level_1_delta_xyz
                 loss += level_1_delta_xyz_loss
 
+            if optim_args.lambda_level_1_delta_xyz_smooth > 0 and cur_level == 1:
+                level_1_delta_xyz = render_pkg["level_1_delta_means3D"]
+                level_1_delta_xyz_prev = gaussians.get_level_1_delta_xyz(viewpoint_cam.time_idx - 1)
+                level_1_delta_smooth = torch.abs(level_1_delta_xyz - level_1_delta_xyz_prev)
+                loss_level_1_delta_xyz_smooth = level_1_delta_smooth.mean()
+                level_1_delta_xyz_smooth_loss = optim_args.lambda_level_1_delta_xyz_smooth * loss_level_1_delta_xyz_smooth
+                loss += level_1_delta_xyz_smooth_loss
+
             tb_writer.add_scalar(f"train_loss/l1_loss_{view_name}", l1_loss_value.item(), iteration)
             tb_writer.add_scalar(f"train_loss/ssim_loss_{view_name}", ssim_loss_value.item(), iteration)
             tb_writer.add_scalar(f"train_loss/w_loss_{view_name}", weight_loss.item(), iteration)
@@ -367,6 +378,11 @@ def train(
             if optim_args.lambda_level_1_delta_xyz > 0 and cur_level == 1:
                 tb_writer.add_scalar(
                     f"train_loss/level_1_delta_xyz_loss_{view_name}", level_1_delta_xyz_loss.item(), iteration
+                )
+
+            if optim_args.lambda_level_1_delta_xyz_smooth > 0 and cur_level == 1:
+                tb_writer.add_scalar(
+                    f"train_loss/level_1_delta_xyz_smooth_loss_{view_name}", level_1_delta_xyz_smooth_loss.item(), iteration
                 )
 
             loss.backward()

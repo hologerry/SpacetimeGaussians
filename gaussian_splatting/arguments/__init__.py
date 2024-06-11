@@ -118,7 +118,9 @@ class ModelParams(ParamGroup):
         self.level_1_delta_sin_phi = 0.0
         self.level_1_init_num_pts_per_parent = 10
         self.level_1_init_pts_delta_rig_sur_radius_scale = 3.0
-
+        self.level_1_init_delta_x_max = 0.005
+        self.level_1_init_delta_y_max = 0.005
+        self.level_1_init_delta_z_max = 0.005
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -199,6 +201,11 @@ class OptimizationParams(ParamGroup):
         self.level_1_delta_rig_sur_radius_lr = 0.0025
         self.level_1_delta_rig_sur_azimuth_lr = 0.0025
         self.level_1_delta_rig_sur_polar_lr = 0.0025
+
+        self.level_1_delta_xyz_lr_init = 0.00016
+        self.level_1_delta_xyz_lr_final = 0.0000016
+        self.level_1_delta_xyz_lr_delay_mult = 0.01
+        self.level_1_delta_xyz_lr_max_steps = 30_000
 
         self.lambda_dssim = 0.2
 
@@ -283,5 +290,6 @@ class OptimizationParams(ParamGroup):
 
         self.lambda_level_1_scale_reg = 0  # 1e-2
         # self.two_level_joint_start_iter = 60000
+        self.lambda_level_1_delta_xyz_smooth = 0 # 1e-2
 
         super().__init__(parser, "Optimization Parameters")

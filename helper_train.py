@@ -66,7 +66,7 @@ def prepare_output_and_logger(args):
         args.model_path = os.path.join("./output/", unique_str[0:10])
 
     # Set up output folder
-    print("Output folder: {}".format(args.model_path))
+    print(f"Output folder: {args.model_path}")
     os.makedirs(args.model_path, exist_ok=True)
     os.makedirs(os.path.join(args.model_path, "training_render"), exist_ok=True)
 
