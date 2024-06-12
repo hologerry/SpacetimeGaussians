@@ -559,7 +559,7 @@ def read_nerf_synthetic_info_hyfluid_valid(
 
     nerf_normalization = get_nerf_pp_norm(test_cam_infos)
 
-    total_ply_path = os.path.join(model_path, "points3d_total.ply")
+    total_ply_path = os.path.join(model_path, "initial_points3d_total.ply")
     pcd = fetch_ply(total_ply_path, grey_image)
 
     assert pcd is not None, "Point cloud could not be loaded!"
@@ -636,7 +636,7 @@ def read_nerf_synthetic_info_syn_particle(
 
     nerf_normalization = get_nerf_pp_norm(train_cam_infos)
 
-    total_ply_path = os.path.join(model_path, "points3d_total.ply")
+    total_ply_path = os.path.join(model_path, "initial_points3d_total.ply")
     if os.path.exists(total_ply_path):
         os.remove(total_ply_path)
 
@@ -780,7 +780,7 @@ def read_nerf_synthetic_info_syn_particle_valid(
 
     nerf_normalization = get_nerf_pp_norm(test_cam_infos)
 
-    total_ply_path = os.path.join(model_path, "points3d_total.ply")
+    total_ply_path = os.path.join(model_path, "initial_points3d_total.ply")
     pcd = fetch_ply(total_ply_path, grey_image)
 
     assert pcd is not None, "Point cloud could not be loaded!"

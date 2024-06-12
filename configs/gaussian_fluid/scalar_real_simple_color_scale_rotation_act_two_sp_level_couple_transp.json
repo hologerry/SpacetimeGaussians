@@ -27,6 +27,7 @@
   "post_prune_until_iter": 30000,
 
   "level_1_scaling_lr": 0.0015,
+  "level_1_feature_lr": 0.0,
   "level_1_start_iter": 30000,
   "level_1_init_num_pts_per_time": 100,
   "level_1_init_pts_op": 0.1,
@@ -47,7 +48,7 @@
 
   "act_level_1": false,
 
-  "lambda_level_1_delta_xyz": 1e2,
+  "lambda_level_1_delta_xyz": 1.0,
 
   "transparent_level_0": true,
 

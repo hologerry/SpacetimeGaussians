@@ -97,7 +97,7 @@ def get_test_parser():
             except:
                 print("failed set config: " + k)
         print("finish load config from " + args.config_path)
-        print("args: " + str(args))
+        # print("args: " + str(args))
 
         return args, model.extract(args), optimization.extract(args), pipeline.extract(args)
 
@@ -130,23 +130,32 @@ def get_combined_args(parser: ArgumentParser):
     cmd_line_string = sys.argv[1:]
     args_cmdline = parser.parse_args(cmd_line_string)
 
-    cfg_file_dir = os.listdir(cmd_line_string.model_path)
-    cfg_file_names = [os.path.join(cmd_line_string.model_path, f) for f in cfg_file_dir if f.endswith(".yaml")]
-    cfg_file_name = cfg_file_names[-1]
-    try:
+    cfg_file_path = os.path.join(args_cmdline.model_path, "cfg_args")
+    if os.path.exists(cfg_file_path):
+        print("Looking for config file in", cfg_file_path)
+        with open(cfg_file_path) as cfg_file:
+            print(f"Config file found: {cfg_file_path}")
+            cfg_file_string = cfg_file.read()
+        args_cfg_file = eval(cfg_file_string)
+
+        merged_dict = vars(args_cfg_file).copy()
+    else:
+        cfg_file_dir = os.listdir(args_cmdline.model_path)
+        cfg_file_names = [os.path.join(args_cmdline.model_path, f) for f in cfg_file_dir if f.endswith(".yaml")]
+        if len(cfg_file_names) == 0:
+            raise FileNotFoundError(f"No config file found in {args_cmdline.model_path}")
+        cfg_file_name = cfg_file_names[-1]
         cfg_file_path = os.path.join(args_cmdline.model_path, cfg_file_name)
         print("Looking for config file in", cfg_file_path)
         with open(cfg_file_path) as cfg_file:
             print(f"Config file found: {cfg_file_path}")
             cfg_data = yaml.load(cfg_file, Loader=yaml.FullLoader)
-    except TypeError:
-        print(f"Config file not found at {cfg_file_dir}")
-        pass
 
-    merged_dict = copy.deepcopy(cfg_data)
+        merged_dict = copy.deepcopy(cfg_data["args"])
+
     for k, v in vars(args_cmdline).items():
         if k not in merged_dict:
-            print(f"New argument {k}: {v}")
+            # print(f"New argument {k}: {v}")
             merged_dict[k] = v
         if v != None:
             merged_dict[k] = v

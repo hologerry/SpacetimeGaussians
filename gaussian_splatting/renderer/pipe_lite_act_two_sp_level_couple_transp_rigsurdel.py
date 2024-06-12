@@ -3,12 +3,12 @@ import time
 
 import torch
 
-from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp_rigsurdel_trbfs import (
+from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp_rigsurdel import (
     GaussianModel,
 )
 
 
-def train_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs(
+def train_lite_act_two_sp_level_couple_transp_rigsurdel(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -116,7 +116,7 @@ def train_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs(
         else:
             level_1_time_coefficient = torch.ones_like(level_1_trbf_distance_offset)
 
-        level_1_trbf_distance = level_1_trbf_distance_offset / level_1_trbf_scale
+        level_1_trbf_distance = level_1_trbf_distance_offset / torch.exp(level_1_trbf_scale)
         level_1_trbf_output = basic_function(level_1_trbf_distance)
         gm.level_1_trbf_output = level_1_trbf_output
 
@@ -212,7 +212,7 @@ def train_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs(
     return output_dict
 
 
-def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
+def test_lite_act_two_sp_level_couple_transp_rigsurdel_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -300,7 +300,9 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
     level_0_parent_idx_dummy = torch.zeros((n_level_0_points, 1), dtype=torch.long, device="cuda") - 1.0
 
     level_0_delta_rig_sur_radius_dummy = torch.zeros((n_level_0_points, 1), dtype=level_0_means3D.dtype, device="cuda")
-    level_0_delta_rig_sur_azimuth_dummy = torch.zeros((n_level_0_points, 1), dtype=level_0_means3D.dtype, device="cuda")
+    level_0_delta_rig_sur_azimuth_dummy = torch.zeros(
+        (n_level_0_points, 1), dtype=level_0_means3D.dtype, device="cuda"
+    )
     level_0_delta_rig_sur_polar_dummy = torch.zeros((n_level_0_points, 1), dtype=level_0_means3D.dtype, device="cuda")
 
     level_0_delta_xyz_dummy = torch.zeros((n_level_0_points, 3), dtype=level_0_means3D.dtype, device="cuda")
@@ -383,7 +385,7 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
 
         level_1_point_opacity = gm.get_level_1_opacity
         level_1_trbf_scale = gm.get_level_1_trbf_scale
-        level_1_trbf_distance = level_1_tforpoly / level_1_trbf_scale
+        level_1_trbf_distance = level_1_tforpoly / torch.exp(level_1_trbf_scale)
         level_1_trbf_output = basic_function(level_1_trbf_distance)
         level_1_opacity = level_1_point_opacity * level_1_trbf_output * level_1_time_coefficient
 
@@ -436,7 +438,9 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
             parent_idx = torch.cat((level_0_parent_idx_dummy, gm.get_level_1_parent_idx), dim=0)
 
             delta_rig_sur_radius = torch.cat((level_0_delta_rig_sur_radius_dummy, level_1_delta_rig_sur_radius), dim=0)
-            delta_rig_sur_azimuth = torch.cat((level_0_delta_rig_sur_azimuth_dummy, level_1_delta_rig_sur_azimuth), dim=0)
+            delta_rig_sur_azimuth = torch.cat(
+                (level_0_delta_rig_sur_azimuth_dummy, level_1_delta_rig_sur_azimuth), dim=0
+            )
             delta_rig_sur_polar = torch.cat((level_0_delta_rig_sur_polar_dummy, level_1_delta_rig_sur_polar), dim=0)
 
             delta_xyz = torch.cat((level_0_delta_xyz_dummy, level_1_delta_means3D), dim=0)
@@ -474,7 +478,7 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
 
     torch.cuda.synchronize()
     duration = time.time() - start_time
-    return {
+    output = {
         "render": rendered_image,
         "trbf_center": trbf_center,
         "trbf_scale": trbf_scale,
@@ -498,3 +502,4 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
         "delta_rig_sur_polar": delta_rig_sur_polar,
         "delta_xyz": delta_xyz,
     }
+    return output

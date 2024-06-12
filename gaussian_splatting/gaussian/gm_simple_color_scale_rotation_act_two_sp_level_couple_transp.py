@@ -1339,10 +1339,14 @@ class GaussianModel:
 
         torch.cuda.empty_cache()
 
-    def post_prune_level_1(self, min_opacity, extent, max_screen_size, prune_color=None):
+    def post_prune_level_1(self, min_opacity, extent, max_screen_size, prune_min_color=None, prune_max_color=None):
         prune_mask = (self.get_level_1_opacity < min_opacity).squeeze()
-        if prune_color is not None and isinstance(prune_color, float):
-            prune_mask_color = (self.get_level_1_features < prune_color).squeeze()
+        if prune_min_color is not None and isinstance(prune_min_color, float):
+            prune_mask_color = (self.get_level_1_features < prune_min_color).squeeze()
+            prune_mask = torch.logical_or(prune_mask, prune_mask_color)
+
+        if prune_max_color is not None and isinstance(prune_max_color, float):
+            prune_mask_color = (self.get_level_1_features > prune_max_color).squeeze()
             prune_mask = torch.logical_or(prune_mask, prune_mask_color)
 
         if max_screen_size:

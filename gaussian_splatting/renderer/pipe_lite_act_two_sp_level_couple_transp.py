@@ -289,6 +289,7 @@ def test_lite_act_two_sp_level_couple_transp_vis(
     level_0_scales = level_0_scales * level_0_time_coefficient
     level_0_computed_trbf_scale = gm.computed_trbf_scale
     level_0_parent_idx_dummy = torch.zeros((n_level_0_points, 1), dtype=torch.long, device="cuda") - 1.0
+    level_0_delta_xyz_dummy = torch.zeros((n_level_0_points, 3), dtype=level_0_means3D.dtype, device="cuda")
 
     if level == 0:
         n_points = n_level_0_points
@@ -307,6 +308,7 @@ def test_lite_act_two_sp_level_couple_transp_vis(
         computed_opacity = level_0_computed_opacity
 
         parent_idx = level_0_parent_idx_dummy
+        delta_xyz = level_0_delta_xyz_dummy
 
     elif level == 1:
         level_1_parent_idx = gm.get_level_1_parent_idx
@@ -383,6 +385,8 @@ def test_lite_act_two_sp_level_couple_transp_vis(
 
             n_points = n_level_1_points
 
+            delta_xyz = level_1_delta_means3D
+
         else:
 
             means3D = torch.cat((level_0_means3D, level_1_means3D), dim=0)
@@ -401,6 +405,8 @@ def test_lite_act_two_sp_level_couple_transp_vis(
 
             # we use gm.get_level_1_parent_idx instead of level_1_parent_idx, as the dimension is different
             parent_idx = torch.cat((level_0_parent_idx_dummy, gm.get_level_1_parent_idx), dim=0)
+
+            delta_xyz = torch.cat((level_0_delta_xyz_dummy, level_1_delta_means3D), dim=0)
 
     else:
         raise ValueError(f"Invalid level: {level}")
@@ -435,7 +441,7 @@ def test_lite_act_two_sp_level_couple_transp_vis(
 
     torch.cuda.synchronize()
     duration = time.time() - start_time
-    return {
+    output_dict = {
         "render": rendered_image,
         "trbf_center": trbf_center,
         "trbf_scale": trbf_scale,
@@ -454,4 +460,6 @@ def test_lite_act_two_sp_level_couple_transp_vis(
         "scales": scales,
         "point_levels": point_levels,
         "parent_idx": parent_idx,
+        "delta_xyz": delta_xyz,
     }
+    return output_dict

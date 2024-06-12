@@ -30,6 +30,10 @@ from .pipe_lite_act_two_sp_level_couple_transp import (
     test_lite_act_two_sp_level_couple_transp_vis,
     train_lite_act_two_sp_level_couple_transp,
 )
+from .pipe_lite_act_two_sp_level_couple_transp_trbfs import (
+    test_lite_act_two_sp_level_couple_transp_trbfs_vis,
+    train_lite_act_two_sp_level_couple_transp_trbfs,
+)
 from .pipe_lite_act_two_sp_level_couple_transp_zerodel import (
     test_lite_act_two_sp_level_couple_transp_zerodel_vis,
     train_lite_act_two_sp_level_couple_transp_zerodel,
@@ -58,9 +62,17 @@ from .pipe_lite_act_two_sp_level_couple_transp_linsindel_trbfs import (
     test_lite_act_two_sp_level_couple_transp_linsindel_trbfs_vis,
     train_lite_act_two_sp_level_couple_transp_linsindel_trbfs,
 )
+from .pipe_lite_act_two_sp_level_couple_transp_rigsurdel import (
+    test_lite_act_two_sp_level_couple_transp_rigsurdel_vis,
+    train_lite_act_two_sp_level_couple_transp_rigsurdel,
+)
 from .pipe_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs import (
     test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis,
     train_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs,
+)
+from .pipe_lite_act_two_sp_level_couple_transp_tlearndel import (
+    test_lite_act_two_sp_level_couple_transp_tlearndel_vis,
+    train_lite_act_two_sp_level_couple_transp_tlearndel,
 )
 from .pipe_lite_act_two_sp_level_couple_transp_tlearndel_trbfs import (
     test_lite_act_two_sp_level_couple_transp_tlearndel_trbfs_vis,

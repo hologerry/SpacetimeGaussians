@@ -3,12 +3,12 @@ import time
 
 import torch
 
-from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp_rigsurdel_trbfs import (
+from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp_trbfs import (
     GaussianModel,
 )
 
 
-def train_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs(
+def train_lite_act_two_sp_level_couple_transp_trbfs(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -21,7 +21,6 @@ def train_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs(
     level=0,
     act_level_1=False,
     transp_level_0=False,
-    rotdel_type="xz",
     **kwargs,
 ):
     """
@@ -125,30 +124,21 @@ def train_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs(
         level_1_scales = gm.get_level_1_scaling
         level_1_scales = level_1_scales * level_1_time_coefficient
 
+        level_1_motion = gm.get_level_1_motion
         level_1_tforpoly = level_1_trbf_distance_offset.detach()
-
-        level_1_delta_rig_sur_radius = gm.get_level_1_delta_rig_sur_radius
-        level_1_delta_rig_sur_azimuth = gm.get_level_1_delta_rig_sur_azimuth
-        level_1_delta_rig_sur_polar = gm.get_level_1_delta_rig_sur_polar
 
         level_1_parent_idx = level_1_parent_idx.squeeze(1)
 
         level_1_parent_means3D = level_0_cur_means3D[level_1_parent_idx]
 
-        level_1_delta_means3D = torch.zeros_like(level_1_parent_means3D)
-
-        level_1_delta_means3D[:, 0:1] = (
-            level_1_delta_rig_sur_radius
-            * torch.sin(2 * math.pi * level_1_delta_rig_sur_polar)
-            * torch.cos(2 * math.pi * level_1_delta_rig_sur_azimuth)
-        )
-        level_1_delta_means3D[:, 1:2] = (
-            level_1_delta_rig_sur_radius
-            * torch.sin(2 * math.pi * level_1_delta_rig_sur_polar)
-            * torch.sin(2 * math.pi * level_1_delta_rig_sur_azimuth)
-        )
-        level_1_delta_means3D[:, 2:3] = level_1_delta_rig_sur_radius * torch.cos(
-            2 * math.pi * level_1_delta_rig_sur_polar
+        level_1_delta_means3D = (
+            level_1_motion[:, 0:3] * level_1_tforpoly * level_1_time_coefficient
+            + level_1_motion[:, 3:6] * level_1_tforpoly * level_1_tforpoly * level_1_time_coefficient
+            + level_1_motion[:, 6:9]
+            * level_1_tforpoly
+            * level_1_tforpoly
+            * level_1_tforpoly
+            * level_1_time_coefficient
         )
 
         level_1_cur_means3D = level_1_parent_means3D + level_1_delta_means3D
@@ -173,6 +163,7 @@ def train_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs(
             colors_precomp = torch.cat((level_0_colors_precomp, level_1_colors_precomp), dim=0)
             opacity = torch.cat((level_0_opacity, level_1_opacity), dim=0)
             scales = torch.cat((level_0_scales, level_1_scales), dim=0)
+
 
     else:
         raise ValueError(f"Invalid level: {level}")
@@ -212,7 +203,7 @@ def train_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs(
     return output_dict
 
 
-def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
+def test_lite_act_two_sp_level_couple_transp_trbfs_vis(
     viewpoint_camera,
     gm: GaussianModel,
     pipe,
@@ -298,11 +289,6 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
     level_0_scales = level_0_scales * level_0_time_coefficient
     level_0_computed_trbf_scale = gm.computed_trbf_scale
     level_0_parent_idx_dummy = torch.zeros((n_level_0_points, 1), dtype=torch.long, device="cuda") - 1.0
-
-    level_0_delta_rig_sur_radius_dummy = torch.zeros((n_level_0_points, 1), dtype=level_0_means3D.dtype, device="cuda")
-    level_0_delta_rig_sur_azimuth_dummy = torch.zeros((n_level_0_points, 1), dtype=level_0_means3D.dtype, device="cuda")
-    level_0_delta_rig_sur_polar_dummy = torch.zeros((n_level_0_points, 1), dtype=level_0_means3D.dtype, device="cuda")
-
     level_0_delta_xyz_dummy = torch.zeros((n_level_0_points, 3), dtype=level_0_means3D.dtype, device="cuda")
 
     if level == 0:
@@ -322,11 +308,6 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
         computed_opacity = level_0_computed_opacity
 
         parent_idx = level_0_parent_idx_dummy
-
-        delta_rig_sur_radius = level_0_delta_rig_sur_radius_dummy
-        delta_rig_sur_azimuth = level_0_delta_rig_sur_azimuth_dummy
-        delta_rig_sur_polar = level_0_delta_rig_sur_polar_dummy
-
         delta_xyz = level_0_delta_xyz_dummy
 
     elif level == 1:
@@ -348,36 +329,30 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
         level_1_rotations = level_1_rotations * level_1_time_coefficient
         level_1_colors_precomp = gm.get_level_1_features
 
-        level_1_motion = gm.get_level_1_motion  # all zero
-
-        level_1_delta_rig_sur_radius = gm.get_level_1_delta_rig_sur_radius
-        level_1_delta_rig_sur_azimuth = gm.get_level_1_delta_rig_sur_azimuth
-        level_1_delta_rig_sur_polar = gm.get_level_1_delta_rig_sur_polar
+        level_1_motion = gm.get_level_1_motion
 
         level_1_parent_idx = level_1_parent_idx.squeeze(1)
         level_1_parent_means3D = level_0_cur_means3D[level_1_parent_idx]
         level_1_parent_velocity3D = level_0_velocities3D[level_1_parent_idx]
 
+        level_1_delta_means3D = (
+            level_1_motion[:, 0:3] * level_1_tforpoly * level_1_time_coefficient
+            + level_1_motion[:, 3:6] * level_1_tforpoly * level_1_tforpoly * level_1_time_coefficient
+            + level_1_motion[:, 6:9]
+            * level_1_tforpoly
+            * level_1_tforpoly
+            * level_1_tforpoly
+            * level_1_time_coefficient
+        )
         level_1_means3D = level_1_parent_means3D  # used in CUDA
 
-        level_1_delta_means3D = torch.zeros_like(level_1_parent_means3D)
-
-        level_1_delta_means3D[:, 0:1] = (
-            level_1_delta_rig_sur_radius
-            * torch.sin(2 * math.pi * level_1_delta_rig_sur_polar)
-            * torch.cos(2 * math.pi * level_1_delta_rig_sur_azimuth)
-        )
-        level_1_delta_means3D[:, 1:2] = (
-            level_1_delta_rig_sur_radius
-            * torch.sin(2 * math.pi * level_1_delta_rig_sur_polar)
-            * torch.sin(2 * math.pi * level_1_delta_rig_sur_azimuth)
-        )
-        level_1_delta_means3D[:, 2:3] = level_1_delta_rig_sur_radius * torch.cos(
-            2 * math.pi * level_1_delta_rig_sur_polar
-        )
-        level_1_delta_velocities3D = torch.zeros_like(level_1_parent_velocity3D)
-
         level_1_cur_means3D = level_1_parent_means3D + level_1_delta_means3D
+
+        level_1_delta_velocities3D = (
+            +level_1_motion[:, 0:3]
+            + 2 * level_1_motion[:, 3:6] * level_1_tforpoly
+            + 3 * level_1_motion[:, 6:9] * level_1_tforpoly * level_1_tforpoly
+        )
 
         level_1_velocities3D = level_1_parent_velocity3D + level_1_delta_velocities3D
 
@@ -408,12 +383,7 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
             computed_opacity = level_1_computed_opacity
             parent_idx = level_1_parent_idx
 
-            delta_rig_sur_radius = level_1_delta_rig_sur_radius
-            delta_rig_sur_azimuth = level_1_delta_rig_sur_azimuth
-            delta_rig_sur_polar = level_1_delta_rig_sur_polar
-
             n_points = n_level_1_points
-
             delta_xyz = level_1_delta_means3D
 
         else:
@@ -435,10 +405,6 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
             # we use gm.get_level_1_parent_idx instead of level_1_parent_idx, as the dimension is different
             parent_idx = torch.cat((level_0_parent_idx_dummy, gm.get_level_1_parent_idx), dim=0)
 
-            delta_rig_sur_radius = torch.cat((level_0_delta_rig_sur_radius_dummy, level_1_delta_rig_sur_radius), dim=0)
-            delta_rig_sur_azimuth = torch.cat((level_0_delta_rig_sur_azimuth_dummy, level_1_delta_rig_sur_azimuth), dim=0)
-            delta_rig_sur_polar = torch.cat((level_0_delta_rig_sur_polar_dummy, level_1_delta_rig_sur_polar), dim=0)
-
             delta_xyz = torch.cat((level_0_delta_xyz_dummy, level_1_delta_means3D), dim=0)
 
     else:
@@ -456,13 +422,13 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
     else:
         point_levels[n_level_0_points:] = 1
 
-    # since the level_0 level_1 xyz logic is different, we move the xyz calculation out cuda kernel
+    # cuda prepreprocessCUDA will calculate the means3D, opacities with timestamp
     rendered_image, radii = rasterizer(
         timestamp=viewpoint_camera.timestamp,
         trbf_center=trbf_center,
         trbf_scale=computed_trbf_scale,
         motion=motion,
-        means3D=cur_means3D,
+        means3D=means3D,
         means2D=means2D,
         shs=None,
         colors_precomp=colors_precomp,
@@ -474,7 +440,7 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
 
     torch.cuda.synchronize()
     duration = time.time() - start_time
-    return {
+    output_dict = {
         "render": rendered_image,
         "trbf_center": trbf_center,
         "trbf_scale": trbf_scale,
@@ -493,8 +459,6 @@ def test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis(
         "scales": scales,
         "point_levels": point_levels,
         "parent_idx": parent_idx,
-        "delta_rig_sur_radius": delta_rig_sur_radius,
-        "delta_rig_sur_azimuth": delta_rig_sur_azimuth,
-        "delta_rig_sur_polar": delta_rig_sur_polar,
         "delta_xyz": delta_xyz,
     }
+    return output_dict
