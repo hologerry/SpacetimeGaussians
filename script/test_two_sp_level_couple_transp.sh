@@ -4,7 +4,7 @@ python test_two_sp_level.py \
     --test \
     --source_path /dev/shm/ScalarReal \
     --config configs/gaussian_fluid/scalar_real_simple_color_scale_rotation_act_two_sp_level_couple_transp.json \
-    --model_path /data/Dynamics/SpacetimeGaussiansLog/gaussian_fluid_scalar_real/two_sp_level_couple_transp_L1_default_L2_default_ldelxyz1 \
+    --model_path /data/Dynamics/SpacetimeGaussiansLog/gaussian_fluid_scalar_real/two_sp_level_couple_transp_color_L1_default_L2_default_ldelxyz5 \
     --val_loader hyfluid_valid
 exit
 }

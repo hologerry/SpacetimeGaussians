@@ -48,7 +48,7 @@
 
   "act_level_1": false,
 
-  "lambda_level_1_delta_xyz": 1.0,
+  "lambda_level_1_delta_xyz": 100.0,
 
   "transparent_level_0": true,
 
