@@ -605,6 +605,87 @@ class GaussianModel:
                 param_group["lr"] = lr
                 return lr
 
+    def get_covariance(self, scaling_modifier=1):
+        return self.covariance_activation(self.get_scaling, scaling_modifier, self._rotation)
+
+    def sim_initialization_setup(self, training_args, init_means3D, init_velocity):
+        self._sim_cov3D = self.get_covariance()
+        self._sim_cov3D_inv = torch.inverse(self._sim_cov3D)
+        self._sim_v = nn.Parameter(torch.zeros(self._xyz.shape[0], 3, device="cuda").requires_grad_(True))
+        self._sim_means3D = torch.tensor(init_means3D, device="cuda")
+        self._sim_velocity_field = torch.tensor(init_velocity, device="cuda")
+
+        self._sim_gaussian_threshold = training_args.sim_gaussian_threshold
+
+        l = [
+            {"params": [self._sim_v], "lr": training_args.sim_v_lr, "name": "sim_v"},
+        ]
+
+        self.sim_init_optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
+        return self._sim_means3D.shape[0]
+
+    def sim_sample_a_point(self, point_idx):
+        single_mean_xyz = self._sim_means3D[point_idx]
+        single_cov3D = self._sim_cov3D[point_idx]
+        sampled_xyz = torch.distributions.MultivariateNormal(single_mean_xyz, single_cov3D).sample()
+        return sampled_xyz
+
+    def sim_get_gaussian_function_values(self, xyz):
+        diff = xyz - self._sim_means3D
+        N = diff.shape[0]
+        return torch.exp(
+            -0.5 * torch.bmm(diff.reshape(N, 1, 3), torch.bmm(self._sim_means3D, diff.reshape(N, 3, 1))).squeeze()
+        )
+
+    def sim_get_tilde_velocity_field(self, xyz):
+        gaussian_values_raw = self.sim_get_gaussian_function_values(xyz)
+        gaussian_values_threshold = torch.where(gaussian_values_raw > self._sim_gaussian_threshold, True, False)
+        gaussian_values = torch.where(
+            gaussian_values_threshold, gaussian_values_raw, torch.zeros_like(gaussian_values_raw)
+        )
+        gaussian_values = gaussian_values.unsqueeze(1)
+        gaussian_values = gaussian_values.repeat(1, 3)
+
+        tilde_velocity_field = self._sim_v * gaussian_values
+        tilde_velocity_field = tilde_velocity_field.sum(dim=0)
+        return tilde_velocity_field
+
+    def sim_advection_step(self, single_frame_delta_t):
+        self._sim_cur_means3D = self._sim_cur_means3D + self._sim_cur_velocity_field * single_frame_delta_t
+
+    def sim_projection_step(self, single_frame_delta_t):
+        pass
+
+    def sim_setup(self, sim_args):
+        pass
+
+    def update_sim_learning_rate(self, iteration):
+        return 0.0
+
+    def sim_construct_list_of_attributes(self):
+        l = ["sim_v_x", "sim_v_y", "sim_v_z"]
+        return l
+
+    def sim_save_ply(self, path):
+        mkdir_p(os.path.dirname(path))
+        sim_v = self._sim_v.detach().cpu().numpy()
+        dtype_full = [(attribute, "f4") for attribute in self.sim_construct_list_of_attributes()]
+        elements = np.empty(sim_v.shape[0], dtype=dtype_full)
+        attributes = sim_v
+        elements[:] = list(map(tuple, attributes))
+        el = PlyElement.describe(elements, "vertex")
+        PlyData([el]).write(path)
+
+        txt_fname = path.replace(".ply", ".txt")
+        np.savetxt(txt_fname, attributes, delimiter=",")
+
+    def sim_load_ply(self, path):
+        ply_data = PlyData.read(path)
+        sim_v = np.zeros((ply_data.elements[0].count, 3))
+        for i in range(3):
+            sim_v[:, i] = ply_data.elements[0].data[f"sim_v_{i}"]
+        self._sim_v = nn.Parameter(torch.tensor(sim_v, device="cuda").requires_grad_(True))
+
     def construct_list_of_attributes(self):
         l = ["x", "y", "z", "trbf_center", "trbf_scale", "nx", "ny", "nz"]
         # All channels except the 3 DC

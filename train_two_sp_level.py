@@ -138,11 +138,11 @@ def train(
 
     scene.record_points(0, "start training")
 
-    loss_dict = {}
-    ssim_dict = {}
-    depth_dict = {}
-    depth_dict = {}
-    valid_depth_dict = {}
+    # loss_dict = {}
+    # ssim_dict = {}
+    # depth_dict = {}
+    # depth_dict = {}
+    # valid_depth_dict = {}
     # ems_start_from_iterations = optim_args.ems_start  # guided sampling start from iteration
 
     with torch.no_grad():
@@ -193,10 +193,7 @@ def train(
 
     for iteration in range(first_iter, optim_args.iterations + 1):
 
-        if iteration < optim_args.level_1_start_iter:
-            cur_level = 0
-        else:
-            cur_level = 1
+        cur_level = 0 if iteration < optim_args.level_1_start_iter else 1
 
         if iteration == optim_args.level_1_start_iter:
             gaussians.create_another_level(

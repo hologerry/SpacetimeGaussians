@@ -35,6 +35,7 @@ from .pipe_lite_act_two_sp_level_couple_transp_trbfs import (
     train_lite_act_two_sp_level_couple_transp_trbfs,
 )
 from .pipe_lite_act_two_sp_level_couple_transp_zerodel import (
+    sim_lite_act_two_sp_level_couple_transp_zerodel_vis,
     test_lite_act_two_sp_level_couple_transp_zerodel_vis,
     train_lite_act_two_sp_level_couple_transp_zerodel,
 )

@@ -128,9 +128,9 @@ def run_test(
     makedirs(gts_path, exist_ok=True)
     makedirs(quantities_out_path, exist_ok=True)
 
-    if gaussians.rgb_decoder is not None:
-        gaussians.rgb_decoder.cuda()
-        gaussians.rgb_decoder.eval()
+    # if gaussians.rgb_decoder is not None:
+    #     gaussians.rgb_decoder.cuda()
+    #     gaussians.rgb_decoder.eval()
 
     test_rd_pipe = args.rd_pipe.replace("train", "test")
     test_rd_pipe += "_vis"
