@@ -174,6 +174,13 @@ class OptimizationParams(ParamGroup):
         self.level_1_opacity_lr = 0.05
         self.level_1_scaling_lr = 0.005
 
+        self.level_1_color_a1_lr = 0.0025
+        self.level_1_color_c1_lr = 0.0025
+        self.level_1_color_a2_lr = 0.0025
+        self.level_1_color_c2_lr = 0.0025
+        self.level_1_color_a3_lr = 0.0025
+        self.level_1_color_c3_lr = 0.0025
+
         self.level_1_trbf_c_lr = 0.0001
         self.level_1_trbf_s_lr = 0.03
         self.level_1_trbf_scale_init = 0.0
@@ -246,8 +253,8 @@ class OptimizationParams(ParamGroup):
         self.iterations_per_time = 250
         self.iterations_per_time_post = 12
 
-        self.lambda_velocity = 0.0  # 1e-2
-        self.lambda_opacity_vel = 0.0  # 1e-2
+        self.lambda_velocity = 0.0
+        self.lambda_opacity_vel = 0.0
 
         self.densification_interval = 100
         self.densify_from_iter = 500
@@ -285,11 +292,14 @@ class OptimizationParams(ParamGroup):
 
         self.transparent_level_0 = False
 
-        self.lambda_level_1_motion = 0  # 1e-2
-        self.lambda_level_1_delta_xyz = 0  # 1e-2
+        self.lambda_level_1_motion = 0
+        self.lambda_level_1_delta_xyz = 0
 
-        self.lambda_level_1_scale_reg = 0  # 1e-2
         # self.two_level_joint_start_iter = 60000
-        self.lambda_level_1_delta_xyz_smooth = 0 # 1e-2
+        self.lambda_level_1_delta_xyz_smooth = 0
+
+        self.lambda_level_1_color_smooth = 0
+        self.lambda_level_1_scale_reg = 0
+        self.lambda_level_1_scale_reg_ratio = 0
 
         super().__init__(parser, "Optimization Parameters")

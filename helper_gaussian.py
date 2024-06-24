@@ -61,6 +61,21 @@ def get_model(model="full") -> GaussianModel:
             GaussianModel,
         )
 
+    elif model == "simple_color_scale_rotation_act_two_sp_level_couple_transp_zerodel_topacity":
+        from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp_zerodel_topacity import (
+            GaussianModel,
+        )
+
+    elif model == "simple_color_scale_rotation_act_two_sp_level_couple_transp_zerodel_tcolor":
+        from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp_zerodel_tcolor import (
+            GaussianModel,
+        )
+
+    elif model == "simple_color_scale_rotation_act_two_sp_level_couple_transp_zerodel_cucolor":
+        from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp_zerodel_cucolor import (
+            GaussianModel,
+        )
+
     elif model == "simple_color_scale_rotation_act_two_sp_level_couple_transp_zerodel_trbfs":
         from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp_zerodel_trbfs import (
             GaussianModel,
@@ -93,6 +108,16 @@ def get_model(model="full") -> GaussianModel:
 
     elif model == "simple_color_scale_rotation_act_two_sp_level_couple_transp_rigsurdel":
         from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp_rigsurdel import (
+            GaussianModel,
+        )
+
+    elif model == "simple_color_scale_rotation_act_two_sp_level_couple_transp_rigsurdel_topacity":
+        from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp_rigsurdel_topacity import (
+            GaussianModel,
+        )
+
+    elif model == "simple_color_scale_rotation_act_two_sp_level_couple_transp_rigsurdel_tcolor":
+        from gaussian_splatting.gaussian.gm_simple_color_scale_rotation_act_two_sp_level_couple_transp_rigsurdel_tcolor import (
             GaussianModel,
         )
 

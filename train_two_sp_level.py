@@ -348,10 +348,32 @@ def train(
             if optim_args.lambda_level_1_delta_xyz_smooth > 0 and cur_level == 1:
                 level_1_delta_xyz = render_pkg["level_1_delta_means3D"]
                 level_1_delta_xyz_prev = gaussians.get_level_1_delta_xyz(viewpoint_cam.time_idx - 1)
+                level_1_delta_xyz_prev = level_1_delta_xyz_prev.clone().detach()
                 level_1_delta_smooth = torch.abs(level_1_delta_xyz - level_1_delta_xyz_prev)
                 loss_level_1_delta_xyz_smooth = level_1_delta_smooth.mean()
-                level_1_delta_xyz_smooth_loss = optim_args.lambda_level_1_delta_xyz_smooth * loss_level_1_delta_xyz_smooth
+                level_1_delta_xyz_smooth_loss = (
+                    optim_args.lambda_level_1_delta_xyz_smooth * loss_level_1_delta_xyz_smooth
+                )
                 loss += level_1_delta_xyz_smooth_loss
+
+            if optim_args.lambda_level_1_color_smooth > 0 and cur_level == 1:
+                level_1_color_precomp = render_pkg["level_1_colors_precomp"]
+                level_1_color_precomp_prev = gaussians.get_level_1_features(viewpoint_cam.time_idx - 1)
+                level_1_color_precomp_prev = level_1_color_precomp_prev.clone().detach()
+                level_1_color_smooth = torch.abs(level_1_color_precomp - level_1_color_precomp_prev)
+                loss_level_1_color_smooth = level_1_color_smooth.mean()
+                level_1_color_smooth_loss = optim_args.lambda_level_1_color_smooth * loss_level_1_color_smooth
+                loss += level_1_color_smooth_loss
+
+            if optim_args.lambda_level_1_scale_reg > 0 and cur_level == 1:
+                level_1_scales = gaussians.get_level_1_scaling
+                level_1_scales_max = torch.max(level_1_scales, dim=1).values
+                level_1_scales_min = torch.min(level_1_scales, dim=1).values
+                scale_ratio_threshold = optim_args.lambda_level_1_scale_reg_ratio
+                level_1_scales_reg = torch.max(level_1_scales_max / level_1_scales_min - scale_ratio_threshold, torch.zeros_like(level_1_scales_min))
+                level_1_scales_reg = level_1_scales_reg.mean()
+                level_1_scales_reg_loss = optim_args.lambda_level_1_scale_reg * level_1_scales_reg
+                loss += level_1_scales_reg_loss
 
             tb_writer.add_scalar(f"train_loss/l1_loss_{view_name}", l1_loss_value.item(), iteration)
             tb_writer.add_scalar(f"train_loss/ssim_loss_{view_name}", ssim_loss_value.item(), iteration)
@@ -376,10 +398,19 @@ def train(
                 tb_writer.add_scalar(
                     f"train_loss/level_1_delta_xyz_loss_{view_name}", level_1_delta_xyz_loss.item(), iteration
                 )
-
             if optim_args.lambda_level_1_delta_xyz_smooth > 0 and cur_level == 1:
                 tb_writer.add_scalar(
-                    f"train_loss/level_1_delta_xyz_smooth_loss_{view_name}", level_1_delta_xyz_smooth_loss.item(), iteration
+                    f"train_loss/level_1_delta_xyz_smooth_loss_{view_name}",
+                    level_1_delta_xyz_smooth_loss.item(),
+                    iteration,
+                )
+            if optim_args.lambda_level_1_color_smooth > 0 and cur_level == 1:
+                tb_writer.add_scalar(
+                    f"train_loss/level_1_color_smooth_loss_{view_name}", level_1_color_smooth_loss.item(), iteration
+                )
+            if optim_args.lambda_level_1_scale_reg > 0 and cur_level == 1:
+                tb_writer.add_scalar(
+                    f"train_loss/level_1_scale_reg_loss_{view_name}", level_1_scales_reg_loss.item(), iteration
                 )
 
             loss.backward()
@@ -408,7 +439,7 @@ def train(
                 elif cur_level == 1:
                     # since in two_sp_level_couple model, xyz is fake
                     num_level_0_points = gaussians.get_xyz.shape[0]
-                    num_level_1_points = gaussians.get_level_1_features.shape[0]
+                    num_level_1_points = gaussians._level_1_parent_idx.shape[0]
                     post_fix["Points0"] = num_level_0_points
                     post_fix["Points1"] = num_level_1_points
 

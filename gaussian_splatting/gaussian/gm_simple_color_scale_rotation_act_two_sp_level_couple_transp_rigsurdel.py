@@ -386,7 +386,7 @@ class GaussianModel:
     def create_another_level(
         self,
         spatial_lr_scale: float,
-        new_pts_per_time: int,
+        new_pts_per_time,
         new_pts_init_op=0.1,
         new_pts_init_color=0.6,
         new_pts_init_scale=-5.0,
@@ -425,34 +425,49 @@ class GaussianModel:
             )
 
             cur_visible_parent_idx = parent_idx[visible_parent_to_select]
-            cur_level_select_idx = torch.randperm(cur_visible_parent_idx.shape[0], device="cuda")[:new_pts_per_time]
-            cur_level_selected_parent_idx = cur_visible_parent_idx[cur_level_select_idx]
-            cur_level_selected_parent_idx = cur_level_selected_parent_idx.reshape(-1, 1)
+            cur_level_select_idx = None
+            print(f"new_pts_per_time {new_pts_per_time}")
+            if new_pts_per_time >= 1:
+                new_pts_per_time = int(new_pts_per_time)
+                cur_level_select_idx = torch.randperm(cur_visible_parent_idx.shape[0], device="cuda")[:new_pts_per_time]
 
-            cur_level_sur_parent_ids = cur_level_selected_parent_idx.repeat(1, new_pts_init_per_parent).reshape(-1, 1)
+            elif new_pts_per_time > 0:
+                every_time_choose = new_pts_per_time * duration
+                every_time_choose = int(every_time_choose)
+                if time_i % every_time_choose == 0:
+                    cur_level_select_idx = torch.randperm(cur_visible_parent_idx.shape[0], device="cuda")[:1]
+            else:
+                print("new_pts_per_time should be > 0")
 
-            cur_level_sur_times = torch.ones((cur_level_sur_parent_ids.shape[0], 1), device="cuda") * cur_time_stamp
+            if cur_level_select_idx is not None:
+                cur_level_selected_parent_idx = cur_visible_parent_idx[cur_level_select_idx]
+                cur_level_selected_parent_idx = cur_level_selected_parent_idx.reshape(-1, 1)
 
-            cur_parent_scale = self.get_scaling[cur_level_sur_parent_ids.squeeze(1)]
-            cur_parent_scale_mean = torch.mean(cur_parent_scale, dim=1, keepdim=True)
-            cur_delta_rig_sur_radiuses = torch.zeros((cur_level_sur_parent_ids.shape[0], 1), device="cuda")
-            cur_delta_rig_sur_radiuses += cur_parent_scale_mean * new_pts_init_delta_rig_sur_radius_scale
+                cur_level_sur_parent_ids = cur_level_selected_parent_idx.repeat(1, new_pts_init_per_parent).reshape(-1, 1)
 
-            cur_delta_rig_sur_azimuth = torch.linspace(0, 1, new_pts_init_per_parent, device="cuda").reshape(1, -1)
-            cur_delta_rig_sur_azimuths = cur_delta_rig_sur_azimuth.repeat(
-                cur_level_selected_parent_idx.shape[0], 1
-            ).reshape(-1, 1)
+                cur_level_sur_times = torch.ones((cur_level_sur_parent_ids.shape[0], 1), device="cuda") * cur_time_stamp
 
-            cur_delta_rig_sur_polar = torch.linspace(0, 1, new_pts_init_per_parent, device="cuda").reshape(1, -1)
-            cur_delta_rig_sur_polars = cur_delta_rig_sur_polar.repeat(
-                cur_level_selected_parent_idx.shape[0], 1
-            ).reshape(-1, 1)
+                cur_parent_scale = self.get_scaling[cur_level_sur_parent_ids.squeeze(1)]
+                cur_parent_scale_mean = torch.mean(cur_parent_scale, dim=1, keepdim=True)
+                cur_delta_rig_sur_radiuses = torch.zeros((cur_level_sur_parent_ids.shape[0], 1), device="cuda")
+                cur_delta_rig_sur_radiuses += cur_parent_scale_mean * new_pts_init_delta_rig_sur_radius_scale
 
-            level_1_total_sur_parent_idx.append(cur_level_sur_parent_ids)
-            level_1_total_sur_times.append(cur_level_sur_times)
-            level_1_total_sur_radius.append(cur_delta_rig_sur_radiuses)
-            level_1_total_sur_azimuth.append(cur_delta_rig_sur_azimuths)
-            level_1_total_sur_polar.append(cur_delta_rig_sur_polars)
+                cur_delta_rig_sur_azimuth = torch.rand(new_pts_init_per_parent, device="cuda").reshape(1, -1)
+                cur_delta_rig_sur_azimuths = cur_delta_rig_sur_azimuth.repeat(
+                    cur_level_selected_parent_idx.shape[0], 1
+                ).reshape(-1, 1)
+
+                cur_delta_rig_sur_polar = torch.rand(new_pts_init_per_parent, device="cuda").reshape(1, -1) * 0.5
+                cur_delta_rig_sur_polars = cur_delta_rig_sur_polar.repeat(
+                    cur_level_selected_parent_idx.shape[0], 1
+                ).reshape(-1, 1)
+
+                level_1_total_sur_parent_idx.append(cur_level_sur_parent_ids)
+                level_1_total_sur_times.append(cur_level_sur_times)
+                level_1_total_sur_radius.append(cur_delta_rig_sur_radiuses)
+                level_1_total_sur_azimuth.append(cur_delta_rig_sur_azimuths)
+                level_1_total_sur_polar.append(cur_delta_rig_sur_polars)
+
 
         level_1_total_parent_idx = torch.cat(level_1_total_sur_parent_idx, dim=0)
         level_1_total_times = torch.cat(level_1_total_sur_times, dim=0)

@@ -135,11 +135,12 @@ from skimage.metrics import structural_similarity as ssim
 # print(vars(name_space))
 
 
-xyz = torch.rand((1, 3))
-mean_xyz = torch.rand((10, 3))
-diff = xyz - mean_xyz
-print(diff.shape)
-cov = torch.rand((10, 3, 3))
-print(cov)
-o = torch.bmm(diff.reshape(10, 1, 3), torch.bmm(cov, diff.reshape(10, 3, 1)))
-print(o.shape)
+# xyz = torch.rand((1, 3))
+# mean_xyz = torch.rand((10, 3))
+# diff = xyz - mean_xyz
+# print(diff.shape)
+# cov = torch.rand((10, 3, 3))
+# print(cov)
+# o = torch.bmm(diff.reshape(10, 1, 3), torch.bmm(cov, diff.reshape(10, 3, 1)))
+# print(o.shape)
+

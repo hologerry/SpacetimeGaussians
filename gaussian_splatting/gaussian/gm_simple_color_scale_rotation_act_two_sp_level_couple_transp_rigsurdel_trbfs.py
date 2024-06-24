@@ -439,11 +439,16 @@ class GaussianModel:
             cur_delta_rig_sur_radiuses = torch.zeros((cur_level_sur_parent_ids.shape[0], 1), device="cuda")
             cur_delta_rig_sur_radiuses += cur_parent_scale_mean * new_pts_init_delta_rig_sur_radius_scale
 
-            cur_delta_rig_sur_azimuth = torch.linspace(0, 1, new_pts_init_per_parent, device="cuda").reshape(1, -1)
-            cur_delta_rig_sur_azimuths = cur_delta_rig_sur_azimuth.repeat(cur_level_selected_parent_idx.shape[0], 1).reshape(-1, 1)
+            cur_delta_rig_sur_azimuth = torch.rand(new_pts_init_per_parent, device="cuda").reshape(1, -1)
+            cur_delta_rig_sur_azimuths = cur_delta_rig_sur_azimuth.repeat(
+                cur_level_selected_parent_idx.shape[0], 1
+            ).reshape(-1, 1)
 
-            cur_delta_rig_sur_polar = torch.linspace(0, 1, new_pts_init_per_parent, device="cuda").reshape(1, -1)
-            cur_delta_rig_sur_polars = cur_delta_rig_sur_polar.repeat(cur_level_selected_parent_idx.shape[0], 1).reshape(-1, 1)
+            cur_delta_rig_sur_polar = torch.rand(new_pts_init_per_parent, device="cuda").reshape(1, -1) * 0.5
+            cur_delta_rig_sur_polars = cur_delta_rig_sur_polar.repeat(
+                cur_level_selected_parent_idx.shape[0], 1
+            ).reshape(-1, 1)
+
 
             level_1_total_sur_parent_idx.append(cur_level_sur_parent_ids)
             level_1_total_sur_times.append(cur_level_sur_times)

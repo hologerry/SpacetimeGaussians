@@ -184,9 +184,9 @@ __global__ void prepreprocessCUDA(
     orig_pointsdummy[3 * idx + 1] = orig_points[3 * idx + 1]; // + trbf_distance * motion[9 * idx + 1] + trbf_distance2 * motion[9 * idx + 4] + trbf_distance3 * motion[9 * idx + 7];
     orig_pointsdummy[3 * idx + 2] = orig_points[3 * idx + 2]; // + trbf_distance * motion[9 * idx + 2] + trbf_distance2 * motion[9 * idx + 5] + trbf_distance3 * motion[9 * idx + 8];
 
-    trbf_distance = trbf_distance / trbf_scale[idx];
-    trbf_distance = exp(-1 * trbf_distance * trbf_distance);
-    oppacitiesdummy[idx] = opacities[idx] * trbf_distance;
+    // trbf_distance = trbf_distance / trbf_scale[idx];
+    // trbf_distance = exp(-1 * trbf_distance * trbf_distance);
+    oppacitiesdummy[idx] = opacities[idx]; //* trbf_distance;
 }
 
 // template<int C>

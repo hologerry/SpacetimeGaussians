@@ -26,9 +26,9 @@
   "post_prune_from_iter": 25000,
   "post_prune_until_iter": 30000,
 
-  "level_1_delta_rig_sur_radius_lr": 0.0025,
-  "level_1_delta_rig_sur_azimuth_lr": 0.0025,
-  "level_1_delta_rig_sur_polar_lr": 0.0025,
+  "level_1_delta_rig_sur_radius_lr": 0.0,
+  "level_1_delta_rig_sur_azimuth_lr": 0.0,
+  "level_1_delta_rig_sur_polar_lr": 0.0,
 
   "level_1_scaling_lr": 0.0015,
   "level_1_start_iter": 30000,

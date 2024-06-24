@@ -43,6 +43,18 @@ from .pipe_lite_act_two_sp_level_couple_transp_zerodel_trbfs import (
     test_lite_act_two_sp_level_couple_transp_zerodel_trbfs_vis,
     train_lite_act_two_sp_level_couple_transp_zerodel_trbfs,
 )
+from .pipe_lite_act_two_sp_level_couple_transp_zerodel_topacity import (
+    test_lite_act_two_sp_level_couple_transp_zerodel_topacity_vis,
+    train_lite_act_two_sp_level_couple_transp_zerodel_topacity,
+)
+from .pipe_lite_act_two_sp_level_couple_transp_zerodel_tcolor import (
+    test_lite_act_two_sp_level_couple_transp_zerodel_tcolor_vis,
+    train_lite_act_two_sp_level_couple_transp_zerodel_tcolor,
+)
+from .pipe_lite_act_two_sp_level_couple_transp_zerodel_cucolor import (
+    test_lite_act_two_sp_level_couple_transp_zerodel_cucolor_vis,
+    train_lite_act_two_sp_level_couple_transp_zerodel_cucolor,
+)
 from .pipe_lite_act_two_sp_level_couple_transp_rotdel import (
     test_lite_act_two_sp_level_couple_transp_rotdel_vis,
     train_lite_act_two_sp_level_couple_transp_rotdel,
@@ -66,6 +78,14 @@ from .pipe_lite_act_two_sp_level_couple_transp_linsindel_trbfs import (
 from .pipe_lite_act_two_sp_level_couple_transp_rigsurdel import (
     test_lite_act_two_sp_level_couple_transp_rigsurdel_vis,
     train_lite_act_two_sp_level_couple_transp_rigsurdel,
+)
+from .pipe_lite_act_two_sp_level_couple_transp_rigsurdel_topacity import (
+    test_lite_act_two_sp_level_couple_transp_rigsurdel_topacity_vis,
+    train_lite_act_two_sp_level_couple_transp_rigsurdel_topacity,
+)
+from .pipe_lite_act_two_sp_level_couple_transp_rigsurdel_tcolor import (
+    test_lite_act_two_sp_level_couple_transp_rigsurdel_tcolor_vis,
+    train_lite_act_two_sp_level_couple_transp_rigsurdel_tcolor,
 )
 from .pipe_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs import (
     test_lite_act_two_sp_level_couple_transp_rigsurdel_trbfs_vis,
